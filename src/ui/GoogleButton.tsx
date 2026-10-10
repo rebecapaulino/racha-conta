@@ -3,7 +3,16 @@ import { signInWithGoogleToken } from '../auth/account';
 import { GOOGLE_CLIENT_ID, loadGoogle, newNonce } from '../auth/google';
 
 /** Botão oficial do Google. Chama onDone quando a pessoa entrou. */
-export function GoogleButton({ onDone, onError }: { onDone: () => void; onError: (msg: string) => void }) {
+export function GoogleButton({
+  onDone,
+  onError,
+  shape = 'pill',
+}: {
+  onDone: () => void;
+  onError: (msg: string) => void;
+  /** 'rounded': retângulo com cantos arredondados (o Google só oferece 4px; o recorte é feito no CSS). */
+  shape?: 'pill' | 'rounded';
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [problem, setProblem] = useState('');
 
@@ -31,10 +40,11 @@ export function GoogleButton({ onDone, onError }: { onDone: () => void; onError:
         const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         google.renderButton(box.current, {
           type: 'standard',
-          theme: dark ? 'filled_black' : 'outline',
+          // no formato arredondado, o botão branco com borda (o quadrado branco do G do tema escuro fica torto no recorte)
+          theme: dark && shape === 'pill' ? 'filled_black' : 'outline',
           size: 'large',
           text: 'signin_with',
-          shape: 'pill',
+          shape: shape === 'rounded' ? 'rectangular' : 'pill',
           locale: 'pt-BR',
           width: Math.min(300, box.current.clientWidth || 300),
         });
@@ -45,12 +55,12 @@ export function GoogleButton({ onDone, onError }: { onDone: () => void; onError:
     return () => {
       alive = false;
     };
-  }, [onDone, onError]);
+  }, [onDone, onError, shape]);
 
   if (!GOOGLE_CLIENT_ID) return <p className="hint">O login ainda não está configurado neste endereço.</p>;
   return (
     <div className="google-slot">
-      <div ref={box} className="google-btn" />
+      <div ref={box} className={`google-btn${shape === 'rounded' ? ' rounded' : ''}`} />
       {problem && <p className="field-error" role="alert">{problem}</p>}
     </div>
   );

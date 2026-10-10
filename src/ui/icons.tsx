@@ -85,6 +85,9 @@ export const IconMinus = ({ size = 20 }: P) => (
 export const IconShare = ({ size = 20 }: P) => (
   <svg {...stroke(size)}><path d="M12 15V3M7 8l5-5 5 5" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>
 );
+export const IconSquarePlus = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M12 8v8M8 12h8" /></svg>
+);
 export const IconChevron = ({ size = 20 }: P) => (
   <svg {...stroke(size)} className="chevron"><path d="M6 9l6 6 6-6" /></svg>
 );

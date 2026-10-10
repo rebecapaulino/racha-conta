@@ -14,6 +14,7 @@ import { HistoryScreen } from './HistoryScreen';
 import { IconArrowRight, IconHistory, IconPie, IconPlus, IconReceipt, IconSparkle, IconUsers, Logo } from './icons';
 import { Art } from './illustrations';
 import { MesaStep } from './MesaStep';
+import { InstallSheet } from './InstallSheet';
 import { PwaBars } from './PwaBars';
 import { PedidosStep } from './PedidosStep';
 import { useMediaQuery } from './useMediaQuery';
@@ -168,6 +169,7 @@ export default function SoloApp() {
           />
 
           <PwaBars />
+          <InstallSheet />
 
           {state.example && (
             <div className="example" role="note">

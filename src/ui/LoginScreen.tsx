@@ -63,9 +63,8 @@ export function LoginScreen() {
 
       <section className="login-panel" aria-labelledby="h-login">
         <h2 id="h-login">Entrar</h2>
-        <p className="login-lead">Use sua conta Google. É rápido e você não cria senha nova.</p>
 
-        <GoogleButton onDone={done} onError={setError} />
+        <GoogleButton onDone={done} onError={setError} shape="rounded" />
         <p className="field-error" role="alert">{error}</p>
 
         <ul className="login-perks">

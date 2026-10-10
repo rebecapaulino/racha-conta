@@ -19,11 +19,16 @@ export interface PwaState {
   updateReady: boolean;
   /** A pessoa fechou o convite de instalação. */
   dismissed: boolean;
+  /** A pessoa tocou em "Agora não" no popup de instalação (volta depois de alguns dias). */
+  snoozed: boolean;
 }
 
 const DISMISS_KEY = 'racha-conta-instalar-dispensado';
+const SNOOZE_KEY = 'racha-conta-instalar-depois';
+/** Depois de "Agora não", o popup só volta a aparecer depois deste tempo. */
+const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 
-let state: PwaState = { canInstall: false, iosHint: false, standalone: false, updateReady: false, dismissed: false };
+let state: PwaState = { canInstall: false, iosHint: false, standalone: false, updateReady: false, dismissed: false, snoozed: false };
 let deferred: InstallPromptEvent | null = null;
 let waiting: ServiceWorker | null = null;
 let started = false;
@@ -42,6 +47,15 @@ function readDismissed(): boolean {
   }
 }
 
+function readSnoozed(): boolean {
+  try {
+    const until = Number(localStorage.getItem(SNOOZE_KEY));
+    return Number.isFinite(until) && until > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function start() {
   if (started || typeof window === 'undefined') return;
   started = true;
@@ -52,7 +66,7 @@ function start() {
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
   const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
-  state = { ...state, standalone, iosHint: ios && safari && !standalone, dismissed: readDismissed() };
+  state = { ...state, standalone, iosHint: ios && safari && !standalone, dismissed: readDismissed(), snoozed: readSnoozed() };
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -128,6 +142,16 @@ export function dismissInstall(): void {
     /* sem armazenamento: só some nesta visita */
   }
   set({ dismissed: true });
+}
+
+/** "Agora não" no popup: some por uns dias; o aviso pequeno continua no app. */
+export function snoozeInstall(): void {
+  try {
+    localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+  } catch {
+    /* sem armazenamento: só some nesta visita */
+  }
+  set({ snoozed: true });
 }
 
 export function applyUpdate(): void {

@@ -15,7 +15,8 @@ export function PwaBars() {
     );
   }
 
-  if (pwa.standalone || pwa.dismissed || !(pwa.canInstall || pwa.iosHint)) return null;
+  // O convite pequeno só aparece depois do "Agora não" no popup (ver InstallSheet).
+  if (pwa.standalone || pwa.dismissed || !pwa.snoozed || !(pwa.canInstall || pwa.iosHint)) return null;
 
   return (
     <div className="notice" role="note">
