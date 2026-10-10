@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
@@ -214,6 +215,9 @@ export default function SoloApp() {
               </button>
             </div>
           )}
+          <div className="app-link-row">
+            <Link href="/privacidade">Política de Privacidade</Link>
+          </div>
         </div>
 
         {wide && (

@@ -833,6 +833,16 @@ input, textarea, select { font-size: max(16px, 1em); }
   .card { padding: 14px; }
 }
 
+.legal { display: flex; flex-direction: column; gap: 14px; padding-bottom: 48px; line-height: 1.6; }
+.legal h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; }
+.legal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+.legal section { display: flex; flex-direction: column; gap: 8px; }
+.legal ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 4px; }
+.legal a { color: var(--primary); font-weight: 600; }
+.legal .top-btn { text-decoration: none; color: var(--ink); }
+.app-link-row { display: flex; justify-content: center; padding: 8px 0 28px; }
+.app-link-row a { color: var(--muted); font-size: .85rem; min-height: 44px; display: inline-flex; align-items: center; }
+
 /* ---------- computador: divisão sempre à direita ---------- */
 @media (min-width: 1000px) {
   .app {
