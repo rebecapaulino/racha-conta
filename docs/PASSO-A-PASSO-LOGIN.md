@@ -6,9 +6,9 @@ Anote num bloco de notas, à medida que aparecerem:
 
 | O quê | Exemplo | É secreto? |
 |---|---|---|
-| Endereço do Supabase (Project URL) | `https://abcd1234.supabase.co` | Não |
+| Endereço do Supabase (Project URL) | `https://sfryqzzismqdruqzluge.supabase.co` | Não |
 | Chave pública do Supabase (Publishable key) | `sb_publishable_...` | Não |
-| Endereço do site na Vercel | `https://rachaconta.vercel.app` | Não |
+| Endereço do site na Vercel | `https://racha-conta-ebon.vercel.app` | Não |
 | ID do cliente Google (Client ID) | `1234-abc.apps.googleusercontent.com` | Não |
 | Senha do banco do Supabase | — | **Sim** |
 | Segredo do cliente Google (Client Secret) | `GOCSPX-...` | **Sim** |
@@ -39,7 +39,7 @@ O login com Google exige um endereço fixo do site. Por isso criamos ele agora.
 
 1. Crie uma conta no **github.com**, se ainda não tiver.
 2. Entre em **vercel.com** → **Sign Up** → **Continue with GitHub** → plano **Hobby** (grátis).
-3. Por enquanto, só **escolha o nome do projeto** e anote o endereço: `https://NOME.vercel.app` (ex.: `rachaconta.vercel.app`). A publicação do código eu faço com você depois: crio o repositório e você só clica em **Import**.
+3. Por enquanto, só **escolha o nome do projeto** e anote o endereço: `https://NOME.vercel.app` (ex.: `racha-conta-ebon.vercel.app`). A publicação do código eu faço com você depois: crio o repositório e você só clica em **Import**.
 
 > Se tiver um domínio próprio (ex.: `rachaconta.com.br`), dá para usar depois. Comece com o `.vercel.app`.
 

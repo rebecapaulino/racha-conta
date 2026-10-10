@@ -84,6 +84,7 @@ Complementa o `BRIEFING.md`. Quando os dois divergirem, vale este arquivo (decis
   O registro de alterações mostra o nome da conta de quem fez cada mudança.
 - **Login (decidido em 09/10/2026): obrigatório para quem cria a conta; opcional para quem entra pelo convite** (pode só escolher o nome). O criador precisa de internet só no primeiro login; depois a sessão fica no aparelho e o app funciona offline.
 - **Método:** botão oficial "Entrar com Google" (Google Identity Services) + `signInWithIdToken` do Supabase, em vez do redirecionamento — no iPhone com o app instalado, o redirecionamento costuma abrir o Safari e a pessoa fica logada fora do app. O redirecionamento fica configurado como plano B.
+- **No ar (10/10/2026):** código em `github.com/rebecapaulino/racha-conta` (privado); site em `https://racha-conta-ebon.vercel.app` (Vercel, plano Hobby, projeto ligado ao GitHub: cada push na `main` publica sozinho). Supabase: projeto `sfryqzzismqdruqzluge` (São Paulo). Variáveis públicas `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` já estão na Vercel.
 - Passo a passo das contas externas (Supabase, Google Cloud, Vercel): `docs/PASSO-A-PASSO-LOGIN.md`.
 
 - Identidade sem cadastro: **login anônimo do Supabase**. Tabela de membros associa aparelho → nome → papel.
