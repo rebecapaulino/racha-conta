@@ -1002,16 +1002,32 @@ input, textarea, select { font-size: max(16px, 1em); }
 .login .google-slot { padding: 8px 0 2px; align-items: flex-start; }
 .login .google-btn { justify-content: flex-start; }
 .login .field-error:empty { display: none; }
-.login-perks { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 11px; font-size: .95rem; font-weight: 600; }
-.login-perks li { display: flex; align-items: center; gap: 10px; }
-.login-perks span {
-  width: 24px; height: 24px; flex: none; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--primary-soft); color: var(--primary);
+/* vantagens num cartão: ícone colorido (paleta Marple) + título e uma linha de explicação */
+.login-perks {
+  list-style: none; margin: 8px 0 0; padding: 6px 16px;
+  display: flex; flex-direction: column;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--line);
 }
+.login-perks li { display: flex; align-items: center; gap: 14px; padding: 12px 0; }
+.login-perks li + li { border-top: 1px solid var(--line); }
+.perk-icon { width: 38px; height: 38px; flex: none; border-radius: 12px; display: grid; place-items: center; }
+.perk-icon.p1 { background: color-mix(in srgb, #CA2851 16%, transparent); color: #CA2851; }
+.perk-icon.p2 { background: color-mix(in srgb, #FF6766 18%, transparent); color: #E5484D; }
+.perk-icon.p3 { background: color-mix(in srgb, #14B8A6 16%, transparent); color: #0F9488; }
+.perk-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.3; }
+.perk-text b { font-size: .95rem; font-weight: 700; }
+.perk-text small { color: var(--muted); font-size: .84rem; }
+.perk-short { display: none; }
 .login-legal { margin-top: 6px; color: var(--muted); font-size: .85rem; }
 .login-legal a { color: var(--primary); font-weight: 600; }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .perk-icon.p1 { color: #FF7A9A; }
+  :root:not([data-theme="light"]) .perk-icon.p2 { color: #FF8A80; }
+  :root:not([data-theme="light"]) .perk-icon.p3 { color: #4FD1C5; }
+}
 /* abertura enquanto confere a sessão */
 .splash { min-height: 100dvh; display: grid; place-items: center; background: linear-gradient(160deg, #CA2851, #6E1230); }
 .splash .login-logo { animation: splash-pulse 1.4s ease-in-out infinite; }
@@ -1023,7 +1039,8 @@ input, textarea, select { font-size: max(16px, 1em); }
      se faltar espaço, o desenho do topo encolhe por baixo do painel */
   html:has(.login), html:has(.login) body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .login { height: 100dvh; min-height: 0; overflow: hidden; }
-  .login-hero { flex: 0 1 auto; min-height: 0; }
+  /* o carmim do topo fica com a sobra de altura; o painel tem só o tamanho do conteúdo */
+  .login-hero { flex: 1 1 auto; min-height: 0; }
   .login-hero { min-height: 0; gap: 16px; padding-top: max(22px, calc(env(safe-area-inset-top) + 12px)); padding-bottom: 64px; }
   /* logo ao lado do nome, em vez de em cima */
   .login-brand { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 14px; row-gap: 8px; }
@@ -1032,11 +1049,19 @@ input, textarea, select { font-size: max(16px, 1em); }
   .login-logo .logo { width: 32px; height: 32px; }
   .login-brand h1 { font-size: clamp(1.9rem, 8.4vw, 2.4rem); }
   /* a divisão cobre mais da nota: o desenho fica mais baixo */
-  .login-mock { width: min(300px, 86%); padding-top: 80px; }
+  /* centralizado no espaço que sobra no carmim (em tela alta, a sobra fica dividida em cima e embaixo) */
+  .login-mock { width: min(300px, 86%); padding-top: 80px; margin-block: auto; }
   .mock-paper { padding: 13px 16px 15px; gap: 6px; }
-  .login-panel { flex: 1 0 auto; padding-top: 22px; gap: 10px; }
-  /* aviso da privacidade no pé da tela, longe do botão */
-  .login-legal { margin-top: auto; padding-top: 14px; }
+  .login-panel { flex: none; padding-top: 22px; gap: 10px; }
+  .login-legal { margin-top: 4px; }
+  /* vantagens em 3 blocos lado a lado (ícone + nome curto): ocupa pouca altura.
+     Em tela alta vira a lista com explicação (abaixo), para não sobrar buraco. */
+  .login-perks { flex-direction: row; padding: 12px 6px; }
+  .login-perks li { flex: 1; min-width: 0; flex-direction: column; gap: 8px; padding: 0 4px; text-align: center; }
+  .login-perks li + li { border-top: 0; border-left: 1px solid var(--line); }
+  .perk-text small, .perk-long { display: none; }
+  .perk-short { display: block; font-size: .82rem; line-height: 1.25; }
+  .perk-icon { width: 36px; height: 36px; border-radius: 11px; }
 }
 /* celular de tela curta: desenho um pouco menor */
 @media (max-width: 899px) and (max-height: 740px) {
@@ -1045,7 +1070,16 @@ input, textarea, select { font-size: max(16px, 1em); }
   .login-brand p { font-size: .92rem; }
   .login-panel { padding-top: 18px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); gap: 8px; }
   .login .google-slot { padding-top: 2px; }
-  .login-perks { gap: 6px; font-size: .9rem; margin-top: 2px; }
+  .login-perks { margin-top: 2px; padding-block: 10px; }
+  .perk-icon { width: 32px; height: 32px; border-radius: 10px; }
+}
+@media (max-width: 899px) and (min-height: 880px) {
+  .login-perks { flex-direction: column; padding: 4px 16px; }
+  .login-perks li { flex-direction: row; gap: 14px; padding: 11px 0; text-align: left; }
+  .login-perks li + li { border-left: 0; border-top: 1px solid var(--line); }
+  .perk-text small, .perk-long { display: block; }
+  .perk-short { display: none; }
+  .perk-icon { width: 38px; height: 38px; border-radius: 12px; }
 }
 @media (max-width: 899px) and (max-height: 600px) {
   .login-mock { zoom: .58; }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GoogleButton } from './GoogleButton';
-import { IconCheck, Logo } from './icons';
+import { IconCamera, IconUsers, IconWifiOff, Logo } from './icons';
 
 /**
  * Tela de entrada: aparece para quem abre o app sem estar logado.
@@ -68,9 +68,18 @@ export function LoginScreen() {
         <p className="field-error" role="alert">{error}</p>
 
         <ul className="login-perks">
-          <li><span><IconCheck size={14} /></span>Seus rolês guardados, com foto</li>
-          <li><span><IconCheck size={14} /></span>Convide a galera por link</li>
-          <li><span><IconCheck size={14} /></span>Funciona até sem internet no bar</li>
+          <li>
+            <span className="perk-icon p1"><IconCamera size={18} /></span>
+            <span className="perk-text"><b className="perk-long">Seus rolês guardados</b><b className="perk-short" aria-hidden="true">Rolês com foto</b><small>Com foto, total e quem foi</small></span>
+          </li>
+          <li>
+            <span className="perk-icon p2"><IconUsers size={18} /></span>
+            <span className="perk-text"><b className="perk-long">Convide a galera por link</b><b className="perk-short" aria-hidden="true">Convite por link</b><small>Cada um vê a sua parte e marca que pagou</small></span>
+          </li>
+          <li>
+            <span className="perk-icon p3"><IconWifiOff size={18} /></span>
+            <span className="perk-text"><b className="perk-long">Funciona até sem internet</b><b className="perk-short" aria-hidden="true">Funciona offline</b><small>Sinal fraco no bar não atrapalha</small></span>
+          </li>
         </ul>
 
         <p className="login-legal">
