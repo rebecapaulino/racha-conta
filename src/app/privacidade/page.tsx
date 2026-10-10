@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 // E-mail de contato mostrado na página. Deixe vazio para não mostrar nenhum.
-const CONTACT_EMAIL = "";
+const CONTACT_EMAIL = "rebecaoliveir2000@gmail.com";
 const UPDATED = "10 de outubro de 2026";
 
 export default function Privacidade() {
