@@ -456,3 +456,8 @@
   & .pay-btn[aria-pressed="true"] { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
   & .pay-note { font-weight: 600; }
 }
+
+:root[data-visual="fluent"] {
+  & .account-btn { border-radius: 50%; border: 1px solid var(--stroke); }
+  & .account-card { border-radius: 4px; }
+}

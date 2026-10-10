@@ -796,6 +796,20 @@ h1, h2, p { margin: 0; }
 @media (min-width: 640px) { .memories { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1000px) { .memories { grid-template-columns: repeat(3, 1fr); } }
 
+.hint a { color: var(--primary); font-weight: 600; }
+.account-btn { overflow: hidden; padding: 0; font-weight: 800; }
+.account-btn.on { border-color: var(--primary); color: var(--primary); }
+.account-btn img, .account-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.account-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: var(--fill); }
+.account-photo {
+  width: 52px; height: 52px; flex: none; overflow: hidden;
+  display: grid; place-items: center;
+  border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-weight: 800; font-size: 1.2rem;
+}
+.account-card .row-main small { overflow-wrap: anywhere; }
+.google-slot { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 48px; padding: 6px 0; }
+.google-btn { width: 100%; display: flex; justify-content: center; color-scheme: light; }
+
 /* ---------- avisos do app (instalar / versão nova) ---------- */
 .notice {
   display: flex; align-items: center; gap: 10px;
@@ -822,6 +836,8 @@ input, textarea, select { font-size: max(16px, 1em); }
   .app { padding-inline: 12px; }
   .cta, .share-actions { margin-inline: -12px; padding-inline: 12px; }
   .brand { font-size: 1.05rem; gap: 8px; }
+  .brand span { display: none; }
+  .top-actions { gap: 4px; }
   .brand .logo { width: 24px; height: 24px; }
   .top-btn { padding-inline: 10px; }
   .hero { padding-inline: 16px; }

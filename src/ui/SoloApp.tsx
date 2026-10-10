@@ -7,6 +7,7 @@ import { formatBRL } from '../core/money';
 import { loadState, reducer, saveState, worthKeeping } from '../state/billState';
 import { addEntry, fromEntry, loadHistory, removeEntry, saveHistory, toEntry, type HistoryEntry } from '../state/history';
 import { deletePhoto } from '../state/photos';
+import { AccountButton } from './AccountButton';
 import { DivisaoStep } from './DivisaoStep';
 import { HeroCard } from './HeroCard';
 import { HistoryScreen } from './HistoryScreen';
@@ -147,6 +148,7 @@ export default function SoloApp() {
                 <IconHistory size={18} /> Rolês
                 {history.length > 0 && <span className="tab-count">{history.length}</span>}
               </button>
+              <AccountButton toast={toast} />
               <button type="button" className="round-btn" onClick={startFresh} aria-label="Nova conta" title="Nova conta">
                 <IconPlus />
               </button>
