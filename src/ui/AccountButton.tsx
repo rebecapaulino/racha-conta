@@ -59,7 +59,7 @@ export function AccountButton({ toast }: { toast: (msg: string) => void }) {
                   <small>{account.email}</small>
                 </span>
               </div>
-              <p>Você pode criar rolês compartilhados e convidar a galera pelo link.</p>
+              <p>Seus rolês ficam ligados a esta conta. Ao sair, você volta para a tela de entrada.</p>
               <div className="sheet-actions">
                 <button type="button" className="btn secondary" onClick={close}>Fechar</button>
                 <button
@@ -79,8 +79,7 @@ export function AccountButton({ toast }: { toast: (msg: string) => void }) {
             <>
               <h2 id="h-account">Entrar</h2>
               <p>
-                Entre com o Google para criar rolês compartilhados e convidar a galera. Usar o app sozinho
-                continua sem login.
+                Entre com o Google para criar suas contas, guardar os rolês e convidar a galera.
               </p>
               <GoogleButton onDone={done} onError={toast} />
               <p className="hint">

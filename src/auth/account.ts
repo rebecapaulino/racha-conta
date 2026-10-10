@@ -5,7 +5,15 @@
 
 import { useSyncExternalStore } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { GOOGLE_CLIENT_ID } from './google';
 import { supabase } from './supabase';
+
+/** O login só é exigido quando tudo está configurado (no computador sem as chaves, o app abre direto). */
+export const loginEnabled = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  GOOGLE_CLIENT_ID
+);
 
 export interface Account {
   id: string;
@@ -40,6 +48,21 @@ function toAccount(session: Session | null): Account | null {
   };
 }
 
+/**
+ * Sessão guardada no aparelho, lida direto do armazenamento. Serve para quem já entrou
+ * abrir o app no bar sem internet (a renovação da sessão precisa de rede).
+ */
+function storedAccount(): Account | null {
+  try {
+    const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname.split('.')[0];
+    const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed?.user ? toAccount(parsed as Session) : null;
+  } catch {
+    return null;
+  }
+}
+
 function set(next: AccountState) {
   state = next;
   listeners.forEach((l) => l());
@@ -54,11 +77,20 @@ function start() {
     return;
   }
   // Escuta entrada e saída (inclusive em outra aba) e a renovação automática da sessão.
-  sb.auth.onAuthStateChange((_event, session) => set({ account: toAccount(session), ready: true }));
+  const offline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+  sb.auth.onAuthStateChange((event, session) => {
+    // Sem internet a renovação falha; não tira a pessoa do app por isso.
+    const account = toAccount(session) ?? (event !== 'SIGNED_OUT' && offline() ? storedAccount() : null);
+    set({ account, ready: true });
+  });
   sb.auth.getSession().then(
-    ({ data }) => set({ account: toAccount(data.session), ready: true }),
-    () => set({ account: null, ready: true }),
+    ({ data }) => set({ account: toAccount(data.session) ?? (offline() ? storedAccount() : null), ready: true }),
+    () => set({ account: storedAccount(), ready: true }),
   );
+  // Rede muito lenta: não deixa a pessoa presa na abertura.
+  setTimeout(() => {
+    if (!state.ready) set({ account: storedAccount(), ready: true });
+  }, 4000);
 }
 
 function subscribe(l: () => void) {

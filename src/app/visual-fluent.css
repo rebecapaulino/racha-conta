@@ -461,3 +461,10 @@
   & .account-btn { border-radius: 50%; border: 1px solid var(--stroke); }
   & .account-card { border-radius: 4px; }
 }
+
+/* tela de entrada no visual fluent */
+:root[data-visual="fluent"] {
+  & .login-panel h2, & .login-brand h1 { font-weight: 600; }
+  & .login-perks { font-weight: 400; }
+  & .login-perks span { border-radius: 4px; }
+}

@@ -887,3 +887,102 @@ input, textarea, select { font-size: max(16px, 1em); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* =========================================================
+   Tela de entrada (login) — cores da marca, iguais nos dois visuais
+   ========================================================= */
+.login { min-height: 100dvh; display: flex; flex-direction: column; background: var(--surface); }
+.login-hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  min-height: 54dvh;
+  padding: max(32px, calc(env(safe-area-inset-top) + 20px)) 24px 64px;
+  display: flex; flex-direction: column; gap: 24px;
+  color: #FFFFFF;
+  background: linear-gradient(160deg, #CA2851 0%, #A81D43 55%, #6E1230 100%);
+}
+/* bolhas sobrepostas da paleta Marple */
+.login-bubbles i { position: absolute; z-index: -1; border-radius: 50%; }
+.login-bubbles i:nth-child(1) { width: 270px; height: 270px; right: -96px; top: -80px; background: #FF6766; opacity: .55; }
+.login-bubbles i:nth-child(2) { width: 170px; height: 170px; right: 96px; top: -96px; background: #FFB173; opacity: .45; }
+.login-bubbles i:nth-child(3) { width: 240px; height: 240px; left: -120px; bottom: -70px; background: #FFE3B3; opacity: .22; }
+.login-bubbles i:nth-child(4) { width: 130px; height: 130px; left: 46px; bottom: -84px; background: #FF6766; opacity: .45; }
+
+.login-brand { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }
+.login-logo {
+  width: 72px; height: 72px; border-radius: 22px;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.16); color: #FFFFFF;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.login-logo .logo { color: #FFFFFF; }
+.login-brand h1 { font-size: clamp(2.1rem, 9vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.login-brand p { font-size: 1.02rem; line-height: 1.5; opacity: .92; max-width: 34ch; }
+
+/* mini notinha flutuando */
+.login-mock { position: relative; align-self: center; width: min(290px, 84%); margin-top: auto; }
+.mock-paper {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 16px 18px 18px; border-radius: 18px;
+  background: #FFFFFF; color: #1D1A1B; font-size: .86rem;
+  box-shadow: 0 26px 44px -20px rgba(40, 0, 12, 0.7);
+  transform: rotate(-4deg);
+  animation: mock-float 6s ease-in-out infinite;
+}
+.mock-title { font-weight: 800; font-size: .95rem; margin-bottom: 2px; }
+.mock-row { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.mock-row em, .mock-total em { margin-left: auto; font-style: normal; font-weight: 800; }
+.mock-dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .72rem; font-weight: 800; }
+.mock-dot.d1 { background: #FCE3E9; color: #CA2851; }
+.mock-dot.d2 { background: #FCE7DC; color: #C2410C; }
+.mock-dot.d3 { background: #DDF1EE; color: #0F766E; }
+.mock-total { display: flex; margin-top: 2px; padding-top: 9px; border-top: 1.5px dashed #E6DEDA; font-weight: 700; }
+.mock-total em { color: #CA2851; font-size: 1.05rem; }
+.mock-chip {
+  position: absolute; right: -12px; top: -16px;
+  padding: 6px 12px; border-radius: 999px;
+  background: #FFE3B3; color: #7A2E00; font-weight: 800; font-size: .8rem;
+  transform: rotate(6deg);
+  box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.5);
+}
+@keyframes mock-float { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-7px); } }
+
+/* painel com o botão do Google */
+.login-panel {
+  position: relative; z-index: 1;
+  margin-top: -30px;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 28px 24px calc(28px + env(safe-area-inset-bottom));
+  border-radius: 28px 28px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -12px 30px -22px rgba(0, 0, 0, 0.45);
+}
+.login-panel h2 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; }
+.login-lead { color: var(--muted); }
+.login .google-slot { padding: 8px 0 2px; }
+.login .field-error:empty { display: none; }
+.login-perks { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 11px; font-size: .95rem; font-weight: 600; }
+.login-perks li { display: flex; align-items: center; gap: 10px; }
+.login-perks span {
+  width: 24px; height: 24px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--primary);
+}
+.login-legal { margin-top: 6px; color: var(--muted); font-size: .85rem; }
+.login-legal a { color: var(--primary); font-weight: 600; }
+
+/* abertura enquanto confere a sessão */
+.splash { min-height: 100dvh; display: grid; place-items: center; background: linear-gradient(160deg, #CA2851, #6E1230); }
+.splash .login-logo { animation: splash-pulse 1.4s ease-in-out infinite; }
+@keyframes splash-pulse { 50% { transform: scale(.92); opacity: .8; } }
+
+@media (min-width: 900px) {
+  .login { flex-direction: row; }
+  .login-hero { flex: 1.15; min-height: 100dvh; padding: 64px; justify-content: center; }
+  .login-brand h1 { font-size: 3.2rem; }
+  .login-mock { margin: 28px 0 0 48px; align-self: flex-start; width: 300px; }
+  .login-panel {
+    flex: 1; max-width: 560px; margin: 0; border-radius: 0; box-shadow: none;
+    justify-content: center; padding: 64px max(48px, 5vw);
+  }
+}

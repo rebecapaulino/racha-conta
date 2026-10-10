@@ -26,17 +26,21 @@ export default function Privacidade() {
       </p>
 
       <section>
-        <h2>1. Usando sozinho (sem entrar com Google)</h2>
+        <h2>1. Suas contas no aparelho</h2>
         <p>
-          Tudo o que você digita (pessoas, itens, valores, fotos, histórico) fica <b>só no seu aparelho</b>,
-          no armazenamento do próprio navegador. Nada disso é enviado para nós nem para ninguém.
-          Se você limpar os dados do navegador ou apagar o app, essas informações somem.
+          Enquanto uma conta não é compartilhada, tudo o que você digita (pessoas, itens, valores, fotos,
+          histórico) fica <b>só no seu aparelho</b>, no armazenamento do próprio navegador. Nada disso é
+          enviado para nós nem para ninguém. Se você limpar os dados do navegador ou apagar o app, essas
+          informações somem.
         </p>
       </section>
 
       <section>
-        <h2>2. Entrando com Google (para criar um rolê compartilhado)</h2>
-        <p>Quem cria um rolê compartilhado entra com a conta Google. Nesse caso recebemos do Google:</p>
+        <h2>2. Entrando com Google</h2>
+        <p>
+          Para criar contas no app, você entra com a sua conta Google (quem só participa de um rolê pelo
+          link de convite não precisa). Recebemos do Google:
+        </p>
         <ul>
           <li>seu <b>nome</b>, seu <b>e-mail</b> e sua <b>foto do perfil</b>;</li>
           <li>nunca a sua senha, nem acesso ao seu Gmail, contatos ou Drive.</li>
