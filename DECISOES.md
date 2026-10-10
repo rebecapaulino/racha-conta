@@ -96,3 +96,4 @@ Complementa o `BRIEFING.md`. Quando os dois divergirem, vale este arquivo (decis
 - **Expiração: 14 dias depois da última alteração**, apagadas por tarefa diária no banco.
 - Atenção aos limites do plano grátis: 200 conexões de tempo real simultâneas e pausa do projeto após 1 semana sem uso.
 - Ativar captcha invisível no login anônimo.
+- **Ícone no iPhone (10/10/2026):** no Safari, "Adicionar à Tela de Início" não pegava o ícone do app (no Android/Chrome pegava). O ícone de 180×180 agora fica também na raiz do site (`/apple-touch-icon.png` e `-precomposed`), onde o iPhone procura por padrão, com o tamanho declarado e `?v=2` no endereço para o Safari não reaproveitar uma tentativa antiga guardada.

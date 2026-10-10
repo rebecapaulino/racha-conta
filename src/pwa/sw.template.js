@@ -2,7 +2,7 @@
    __VERSION__ é trocado a cada build (ver src/app/sw.js/route.ts). */
 
 const CACHE = 'racha-conta-__VERSION__';
-const SHELL = ['/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
+const SHELL = ['/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png', '/apple-touch-icon.png'];
 // Sinal fraco no bar: se a rede não responder logo, abre a versão guardada.
 const NETWORK_TIMEOUT = 3500;
 

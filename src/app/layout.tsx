@@ -21,7 +21,9 @@ export const metadata: Metadata = {
       { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
     ],
-    apple: "/icons/apple-touch-icon.png",
+    // iPhone ("Adicionar à Tela de Início"): o Safari procura o ícone também na raiz do site,
+    // e guarda tentativas antigas; o "?v=" força buscar de novo.
+    apple: [{ url: "/apple-touch-icon.png?v=2", sizes: "180x180", type: "image/png" }],
   },
   // App instalado no iPhone: abre em tela cheia, com o nome curto embaixo do ícone.
   appleWebApp: { capable: true, title: "Racha Conta", statusBarStyle: "default" },
