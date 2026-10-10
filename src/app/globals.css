@@ -920,13 +920,47 @@ input, textarea, select { font-size: max(16px, 1em); }
 .login-brand p { font-size: 1.02rem; line-height: 1.5; opacity: .92; max-width: 34ch; }
 
 /* mini notinha flutuando */
-.login-mock { position: relative; align-self: center; width: min(290px, 84%); margin-top: auto; }
+.login-mock { position: relative; z-index: 0; align-self: center; width: min(330px, 92%); margin-top: auto; padding-top: 150px; }
+/* nota fiscal do bar, atrás da divisão: serrilhada em cima e embaixo, letra de máquina */
+.mock-receipt {
+  --z: 6px; --w: 12px;
+  position: absolute; z-index: -1; left: -2%; top: 0;
+  width: 60%;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: calc(var(--z) + 12px) 14px calc(var(--z) + 12px);
+  background: #FFFBF4; color: #3B3330;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: .62rem; line-height: 1.35; letter-spacing: .02em;
+  transform: rotate(-7deg);
+  filter: drop-shadow(0 18px 22px rgba(40, 0, 12, 0.45));
+  -webkit-mask:
+    conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / var(--w) var(--z) repeat-x,
+    conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / var(--w) var(--z) repeat-x,
+    linear-gradient(#000 0 0) center / 100% calc(100% - 2 * var(--z) + 2px) no-repeat;
+          mask:
+    conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) top / var(--w) var(--z) repeat-x,
+    conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) bottom / var(--w) var(--z) repeat-x,
+    linear-gradient(#000 0 0) center / 100% calc(100% - 2 * var(--z) + 2px) no-repeat;
+  animation: receipt-float 7s ease-in-out infinite;
+}
+.mock-receipt .r-head { text-align: center; font-size: .78rem; letter-spacing: .12em; }
+.mock-receipt .r-sub { text-align: center; color: #7A6F6A; }
+.mock-receipt hr { width: 100%; margin: 4px 0; border: 0; border-top: 1px dashed #B9AEA8; }
+.mock-receipt .r-line { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
+.mock-receipt .r-total { margin-top: 2px; font-weight: 800; font-size: .72rem; color: #1D1A1B; }
+.mock-receipt .r-barcode {
+  height: 22px; margin-top: 8px;
+  background: repeating-linear-gradient(90deg, #3B3330 0 2px, transparent 2px 4px, #3B3330 4px 5px, transparent 5px 8px, #3B3330 8px 11px, transparent 11px 13px);
+  opacity: .8;
+}
+@keyframes receipt-float { 0%, 100% { transform: rotate(-7deg) translateY(0); } 50% { transform: rotate(-7deg) translateY(-5px); } }
 .mock-paper {
   display: flex; flex-direction: column; gap: 8px;
   padding: 16px 18px 18px; border-radius: 18px;
   background: #FFFFFF; color: #1D1A1B; font-size: .86rem;
+  margin-left: 24%;
   box-shadow: 0 26px 44px -20px rgba(40, 0, 12, 0.7);
-  transform: rotate(-4deg);
+  transform: rotate(4deg);
   animation: mock-float 6s ease-in-out infinite;
 }
 .mock-title { font-weight: 800; font-size: .95rem; margin-bottom: 2px; }
@@ -939,13 +973,13 @@ input, textarea, select { font-size: max(16px, 1em); }
 .mock-total { display: flex; margin-top: 2px; padding-top: 9px; border-top: 1.5px dashed #E6DEDA; font-weight: 700; }
 .mock-total em { color: #CA2851; font-size: 1.05rem; }
 .mock-chip {
-  position: absolute; right: -12px; top: -16px;
+  position: absolute; right: -10px; bottom: -14px;
   padding: 6px 12px; border-radius: 999px;
   background: #FFE3B3; color: #7A2E00; font-weight: 800; font-size: .8rem;
-  transform: rotate(6deg);
+  transform: rotate(-6deg);
   box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.5);
 }
-@keyframes mock-float { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-7px); } }
+@keyframes mock-float { 0%, 100% { transform: rotate(4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-7px); } }
 
 /* painel com o botão do Google */
 .login-panel {
@@ -979,9 +1013,19 @@ input, textarea, select { font-size: max(16px, 1em); }
 
 @media (min-width: 900px) {
   .login { flex-direction: row; }
-  .login-hero { flex: 1.15; min-height: 100dvh; padding: 64px; justify-content: center; }
+  .login-hero { flex: 1.15; min-height: 100dvh; padding: 64px 140px 64px 64px; justify-content: center; }
+  /* divisa esfumada: o carmim se dissolve no fundo do painel, sem linha seca */
+  .login-hero::after {
+    content: ""; position: absolute; z-index: 1; pointer-events: none;
+    top: 0; bottom: 0; right: 0; width: 220px;
+    background: linear-gradient(to right,
+      color-mix(in srgb, var(--surface) 0%, transparent) 0%,
+      color-mix(in srgb, var(--surface) 35%, transparent) 45%,
+      color-mix(in srgb, var(--surface) 80%, transparent) 75%,
+      var(--surface) 100%);
+  }
   .login-brand h1 { font-size: 3.2rem; }
-  .login-mock { margin: 28px 0 0 48px; align-self: flex-start; width: 300px; }
+  .login-mock { margin: 24px 0 0 24px; align-self: flex-start; width: 380px; padding-top: 170px; }
   .login-panel {
     flex: 1; max-width: 560px; margin: 0; border-radius: 0; box-shadow: none;
     justify-content: center; padding: 64px max(48px, 5vw);

@@ -33,8 +33,23 @@ export function LoginScreen() {
           <p>Divida a conta do rolê sem treta: cada um paga o que consumiu, com o serviço certinho.</p>
         </div>
 
-        {/* Mini notinha de enfeite */}
+        {/* Enfeite: a nota do bar (atrás) vira a divisão por pessoa (na frente) */}
         <div className="login-mock" aria-hidden="true">
+          <div className="mock-receipt">
+            <b className="r-head">BAR DO ZÉ</b>
+            <span className="r-sub">MESA 12 · CONSUMO</span>
+            <hr />
+            <span className="r-line"><span>2 CAIPIRINHA</span><span>44,00</span></span>
+            <span className="r-line"><span>3 CHOPP</span><span>43,50</span></span>
+            <span className="r-line"><span>1 PICANHA</span><span>142,00</span></span>
+            <span className="r-line"><span>1 FRITAS</span><span>36,00</span></span>
+            <span className="r-line"><span>1 PUDIM</span><span>21,00</span></span>
+            <hr />
+            <span className="r-line"><span>SUBTOTAL</span><span>286,50</span></span>
+            <span className="r-line"><span>SERVIÇO 10%</span><span>28,65</span></span>
+            <span className="r-line r-total"><span>TOTAL</span><span>R$ 315,15</span></span>
+            <span className="r-barcode" />
+          </div>
           <div className="mock-paper">
             <b className="mock-title">Sexta no Bar do Zé</b>
             <span className="mock-row"><i className="mock-dot d1">A</i>Ana<em>R$ 80,85</em></span>
