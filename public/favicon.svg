@@ -1,0 +1,5 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <style>path{--c:#CA2851}@media (prefers-color-scheme:dark){path{--c:#FF6766}}</style>
+  <path d="M16 3a13 13 0 0 0 0 26z" fill="#CA2851" style="fill:var(--c)"/>
+  <path d="M18 3a13 13 0 0 1 0 26z" fill="none" stroke="#CA2851" style="stroke:var(--c)" stroke-width="2.5"/>
+</svg>

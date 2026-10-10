@@ -1,0 +1,458 @@
+/* =========================================================
+   Racha Conta — visual "fluent": estilo Microsoft atual (Fluent 2),
+   com a marca carmim Marple. Só vale com <html data-visual="fluent">;
+   por baixo continua o visual "suave" de globals.css.
+   Chave: src/ui/visual.ts
+   ========================================================= */
+
+:root[data-visual="fluent"] {
+  --bg: #F5F5F5;
+  --surface: #FFFFFF;
+  --fill: #F5F5F5;
+  --fill-2: #E0E0E0;
+  --hover: #F5F5F5;
+  --pressed: #E0E0E0;
+  --ink: #242424;
+  --muted: #616161;
+  --line: #E0E0E0;
+  --stroke: #D1D1D1;          /* contorno dos controles */
+  --stroke-access: #616161;   /* linha de baixo dos campos */
+  --focus: #000000;
+  --shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.14);
+  --shadow-16: 0 0 2px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.14);
+  --shadow-64: 0 0 8px rgba(0, 0, 0, 0.12), 0 32px 64px rgba(0, 0, 0, 0.14);
+  --shadow-lift: none;
+
+  /* marca: --primary para texto e detalhes, --brand-bg para fundos de botão */
+  --primary: #CA2851;
+  --primary-hover: #B21F45;
+  --primary-soft: #FCE9ED;
+  --on-primary: #FFFFFF;
+  --brand-bg: #CA2851;
+  --brand-bg-hover: #B21F45;
+  --brand-bg-pressed: #941A3A;
+
+  --danger: #C50F1F;
+  --warn-ink: #242424;
+  --warn-soft: #FDF6F3;
+  --warn-line: #F4BFAB;
+  --warn-icon: #DA3B01;
+
+  --font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+  --r-card: 8px;
+  --r-field: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-visual="fluent"] {
+    --bg: #1F1F1F;
+    --surface: #292929;
+    --fill: #333333;
+    --fill-2: #3D3D3D;
+    --hover: #3D3D3D;
+    --pressed: #1F1F1F;
+    --ink: #FFFFFF;
+    --muted: #ADADAD;
+    --line: #3D3D3D;
+    --stroke: #666666;
+    --stroke-access: #ADADAD;
+    --focus: #FFFFFF;
+    --shadow: 0 0 2px rgba(0, 0, 0, 0.24), 0 2px 4px rgba(0, 0, 0, 0.28);
+    --shadow-16: 0 0 2px rgba(0, 0, 0, 0.24), 0 8px 16px rgba(0, 0, 0, 0.28);
+    --shadow-64: 0 0 8px rgba(0, 0, 0, 0.24), 0 32px 64px rgba(0, 0, 0, 0.28);
+
+    --primary: #FF6766;
+    --primary-hover: #FF7F7E;
+    --primary-soft: #3B2226;
+    --on-primary: #FFFFFF;
+    --brand-bg: #CA2851;
+    --brand-bg-hover: #D63A62;
+    --brand-bg-pressed: #A81D43;
+
+    --danger: #DC626D;
+    --warn-ink: #FFFFFF;
+    --warn-soft: #411200;
+    --warn-line: #8A3707;
+    --warn-icon: #F87528;
+  }
+}
+
+:root[data-visual="fluent"] {
+  /* ---------- base ---------- */
+  & body { font-size: 15px; line-height: 1.43; -webkit-font-smoothing: auto; }
+  & body::before { display: none; }
+  & :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  & .muted { font-weight: 400; }
+  /* traço mais fino, como os ícones do Fluent */
+  & svg:not(.logo) { stroke-width: 1.6; }
+  & .avatar-check svg { stroke-width: 3; }
+
+  & .topbar { min-height: 48px; }
+  & .brand { font-weight: 600; font-size: 1.1rem; letter-spacing: 0; }
+
+  /* ---------- botões ---------- */
+  & .btn {
+    min-height: 44px; padding: 0 16px;
+    border-radius: 4px;
+    border: 1px solid var(--stroke);
+    background: var(--surface); color: var(--ink);
+    font-weight: 600; font-size: .95rem;
+    box-shadow: none;
+    transition: background-color .1s, border-color .1s;
+  }
+  & .btn:hover { background: var(--hover); }
+  & .btn:active { transform: none; background: var(--pressed); }
+  & .btn.primary { border-color: transparent; background: var(--brand-bg); color: #FFFFFF; box-shadow: none; }
+  & .btn.primary:hover { background: var(--brand-bg-hover); }
+  & .btn.primary:active { background: var(--brand-bg-pressed); }
+  & .btn.secondary { box-shadow: none; }
+  & .btn.secondary:hover { box-shadow: none; background: var(--hover); }
+  & .btn.big { min-height: 48px; font-size: 1rem; }
+
+  & .round-btn {
+    width: 44px; height: 44px;
+    border-radius: 4px; border: 1px solid transparent;
+    background: transparent;
+  }
+  & .round-btn:hover { border-color: transparent; background: var(--hover); }
+  & .round-btn.primary { background: var(--brand-bg); color: #FFFFFF; }
+  & .round-btn.primary:hover { background: var(--brand-bg-hover); }
+
+  & .icon-btn { border-radius: 4px; }
+  & .icon-btn:hover { background: var(--hover); color: var(--ink); }
+  & .link-btn { font-weight: 600; }
+  & .link-btn:hover { text-decoration: underline; }
+
+  /* ---------- campos: contorno fino e linha de marca embaixo no foco ---------- */
+  & .input {
+    min-height: 44px; padding: 0 12px;
+    border: 1px solid var(--stroke); border-bottom-color: var(--stroke-access);
+    background: var(--surface);
+    font-weight: 400;
+  }
+  & .input:focus { border-color: var(--stroke); border-bottom-color: var(--primary); box-shadow: inset 0 -1px 0 var(--primary); }
+  & .field-label { font-weight: 600; font-size: .95rem; }
+  & .field-error { color: var(--danger); font-weight: 400; }
+
+  & .search {
+    min-height: 46px; padding: 0 0 0 12px; gap: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--stroke); border-bottom-color: var(--stroke-access);
+    overflow: hidden;
+  }
+  & .search:focus-within { border-color: var(--stroke); border-bottom-color: var(--primary); box-shadow: inset 0 -1px 0 var(--primary); }
+  & .search input { font-weight: 400; }
+  & .search .round-btn.primary { border-radius: 0; height: 44px; }
+
+  & .money > span { left: 12px; font-weight: 400; }
+  & .money .input { padding-left: 40px; font-weight: 400; }
+
+  /* ---------- cartões ---------- */
+  & .card { padding: 16px; gap: 12px; }
+  & .card-head h2, & .section-head h2 { font-size: 1rem; font-weight: 600; letter-spacing: 0; }
+  & .section-head { padding: 6px 2px 0; }
+  & .badge { min-width: 20px; height: 20px; padding: 0 6px; font-size: .75rem; font-weight: 600; }
+  & .hint { font-size: .87rem; }
+  & .empty-icon { border-radius: 8px; }
+
+  /* barra de aviso (MessageBar) */
+  & .warn {
+    border-radius: 4px; border: 1px solid var(--warn-line);
+    font-weight: 400;
+  }
+  & .warn svg { color: var(--warn-icon); }
+
+  /* ---------- cartão de destaque ---------- */
+  & .hero {
+    padding: 16px 20px;
+    border-radius: 8px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--brand-bg) 9%, var(--surface)), var(--surface) 65%);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--brand-bg);
+  }
+  & .hero::before, & .hero::after { display: none; }
+  & .hero-title { font-weight: 600; }
+  & .hero-date { border-radius: 4px; background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  & .hero-label { color: var(--muted); opacity: 1; font-weight: 400; }
+  & .hero-total { font-weight: 600; letter-spacing: -0.01em; font-size: clamp(2rem, 9vw, 2.5rem); }
+  & .hero-bottom { color: var(--muted); opacity: 1; font-weight: 400; }
+  & .hero .stack .avatar { box-shadow: 0 0 0 2px var(--surface); }
+
+  /* mesa de exemplo (MessageBar informativa) */
+  & .example {
+    min-height: 48px; padding: 2px 8px 2px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    box-shadow: none;
+  }
+  & .example-icon { width: 20px; height: 20px; background: none; color: var(--primary); }
+
+  /* ---------- abas (TabList com indicador embaixo) ---------- */
+  & .tabs {
+    gap: 0; padding: 0;
+    border-radius: 0; background: none;
+    border-bottom: 1px solid var(--line);
+  }
+  & .tabs button {
+    position: relative;
+    border-radius: 4px 4px 0 0;
+    color: var(--muted);
+    font-weight: 400; font-size: .95rem;
+  }
+  & .tabs button::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
+    height: 3px; border-radius: 999px;
+    background: transparent;
+    transition: background-color .15s;
+  }
+  & .tabs button:hover { background: var(--hover); color: var(--ink); }
+  & .tabs button:hover::after { background: var(--stroke); }
+  & .tabs button[aria-selected="true"] { background: none; box-shadow: none; color: var(--ink); font-weight: 600; }
+  & .tabs button[aria-selected="true"]::after { background: var(--primary); }
+  & .tab-count { background: var(--fill-2); font-weight: 600; }
+  & .tabs button[aria-selected="true"] .tab-count { background: var(--brand-bg); color: #FFFFFF; }
+
+  /* ---------- avatares e listas ---------- */
+  & .avatar { font-weight: 600; }
+  & .row-main b { font-weight: 600; }
+  & .row-main small { font-weight: 400; }
+
+  /* ---------- itens ---------- */
+  & .tile { border-radius: 8px; }
+  & .item-price { font-weight: 600; }
+
+  & .chip {
+    min-height: 44px; padding: 0 12px 0 7px;
+    border-radius: 4px;
+    border: 1px solid var(--stroke);
+    color: var(--ink);
+    font-weight: 400;
+  }
+  & .chip:hover { background: var(--hover); border-color: var(--stroke); }
+  & .chip[aria-pressed="true"] {
+    border-color: var(--pc);
+    background: color-mix(in srgb, var(--pc) 10%, var(--surface));
+  }
+  & .chip-all { padding: 0 12px; border-color: transparent; background: transparent; color: var(--primary); font-weight: 600; }
+  & .chip-all:hover { border-color: transparent; }
+
+  /* serviço: grupo de botões de alternar */
+  & .seg {
+    gap: 0; padding: 0;
+    border-radius: 4px; background: var(--surface);
+    border: 1px solid var(--stroke); overflow: hidden;
+  }
+  & .seg button { border-radius: 0; border-left: 1px solid var(--stroke); font-weight: 400; color: var(--ink); }
+  & .seg button:first-child { border-left: 0; }
+  & .seg button:hover { background: var(--hover); }
+  & .seg button[aria-pressed="true"] { background: var(--brand-bg); color: #FFFFFF; font-weight: 600; box-shadow: none; }
+
+  /* ---------- divisão ---------- */
+  & .share-amt { font-weight: 600; font-size: 1.05rem; }
+  & .tag { border-radius: 4px; font-weight: 600; }
+
+  /* barra de progresso fina, com a % à direita */
+  & .meter { height: 20px; margin: 0 52px 0 0; }
+  & .meter::before { height: 4px; border-radius: 999px; background: var(--line); opacity: 1; }
+  & .meter-fill { height: 4px; background: var(--primary); }
+  & .meter-knob {
+    left: auto; right: -52px; transform: translateY(-50%);
+    min-width: 44px; padding: 0; justify-items: end;
+    background: none; color: var(--muted);
+    font-size: .82rem; font-weight: 600;
+  }
+
+  & .pick { border-radius: 4px; }
+  & .pick:hover { background: var(--hover); }
+  & .pick[aria-checked="true"] .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--pc, var(--primary)); }
+  & .pick-name { font-weight: 400; }
+  & .pick[aria-checked="true"] .pick-name { font-weight: 600; }
+  & .callout { border-radius: 4px; border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); }
+
+  & .receipt {
+    border-radius: 8px 8px 0 0;
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.16)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.1));
+  }
+  & .receipt-brand { font-weight: 600; letter-spacing: .1em; }
+  & .receipt-head h2 { font-weight: 600; letter-spacing: 0; }
+  & .dash { border-top: 1px dashed var(--stroke); }
+  & .sums dd { font-weight: 600; }
+  & .grand span { font-weight: 600; }
+  & .grand b { font-weight: 600; font-size: 1.5rem; letter-spacing: -0.01em; }
+  & .preview summary { font-weight: 600; color: var(--primary); }
+  & .preview textarea { border-radius: 4px; border: 1px solid var(--stroke); background: var(--surface); }
+
+  /* ---------- barra de comandos da base, com vidro fosco (acrílico) ---------- */
+  & .cta, & .share-actions {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+            backdrop-filter: blur(24px) saturate(1.4);
+    border-top: 1px solid var(--line);
+  }
+  & .cta .btn.big:has(.cta-total) { padding-inline: 16px; }
+  & .cta-total { font-weight: 600; }
+
+  /* ---------- aviso rápido (Toast) ---------- */
+  & .toast {
+    border-radius: 8px;
+    background: var(--surface); color: var(--ink);
+    box-shadow: var(--shadow-16);
+    font-weight: 600; text-align: left;
+    padding: 12px 16px;
+  }
+
+  /* ---------- confirmação (Dialog) ---------- */
+  & .sheet { border-radius: 8px 8px 0 0; box-shadow: var(--shadow-64); }
+  & .sheet::backdrop { background: rgba(0, 0, 0, .4); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  & .sheet h2 { font-size: 1.25rem; font-weight: 600; letter-spacing: 0; }
+
+  @media (min-width: 1000px) {
+    & .cta { padding: 4px 0 0; background: none; border-top: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    & .share-actions { padding: 12px 0 4px; }
+    & .sheet { border-radius: 8px; }
+    & .sheet-actions { display: flex; justify-content: flex-end; }
+  }
+}
+
+/* ---------- ilustrações de formas sobrepostas (a escuro · b médio · c claro) ---------- */
+:root[data-visual="fluent"] {
+  --berry-a: #8E1A3A; --berry-b: #CA2851; --berry-c: #F7B6C5;
+  --coral-a: #B93A3A; --coral-b: #FF6766; --coral-c: #FFC6C5;
+  --amber-a: #C2410C; --amber-b: #FFB173; --amber-c: #FFE3B3;
+  --teal-a:  #0F5F58; --teal-b:  #2BA597; --teal-c:  #B5EADF;
+  --tile: #F5F5F5;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-visual="fluent"] {
+    --berry-a: #5C1428; --berry-b: #E0446B; --berry-c: #F9C0CD;
+    --coral-a: #6B2424; --coral-b: #FF6766; --coral-c: #FFC9C8;
+    --amber-a: #6E3A12; --amber-b: #FFB173; --amber-c: #FFE7C2;
+    --teal-a:  #134E48; --teal-b:  #34B3A3; --teal-c:  #BFF0E6;
+    --tile: #1F1F1F;
+  }
+}
+
+:root[data-visual="fluent"] {
+  & .art { flex: none; display: block; }
+  & .art-berry { --a: var(--berry-a); --b: var(--berry-b); --c: var(--berry-c); }
+  & .art-coral { --a: var(--coral-a); --b: var(--coral-b); --c: var(--coral-c); }
+  & .art-amber { --a: var(--amber-a); --b: var(--amber-b); --c: var(--amber-c); }
+  & .art-teal  { --a: var(--teal-a);  --b: var(--teal-b);  --c: var(--teal-c); }
+  & .art .a { fill: var(--a); }
+  & .art .b { fill: var(--b); }
+  & .art .c { fill: var(--c); }
+
+  /* ladrilho arredondado onde a ilustração fica, como os da referência */
+  & .tile { width: 48px; height: 48px; border-radius: 12px; background: var(--tile); }
+  & .empty-icon { width: 64px; height: 64px; border-radius: 16px; background: var(--tile); }
+
+  /* abas: ilustração apagada, ganha cor quando a aba está aberta */
+  & .tabs button .art { filter: grayscale(1); opacity: .6; transition: filter .15s, opacity .15s; }
+  & .tabs button:hover .art, & .tabs button[aria-selected="true"] .art { filter: none; opacity: 1; }
+
+  /* notas e cartões sobrepostos no cartão do total */
+  & .hero-art { position: absolute; right: 18px; top: 48px; width: 64px; height: 64px; }
+  @media (max-width: 369px) { & .hero-art { display: none; } }
+}
+
+/* ---------- foto do rolê e Rolês (histórico) ---------- */
+:root[data-visual="fluent"] {
+  & .top-btn { min-height: 44px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--stroke); font-weight: 600; }
+  & .top-btn:hover { border-color: var(--stroke); background: var(--hover); }
+  & .top-btn .art, & .top-btn svg { flex: none; }
+  & .page-title { font-weight: 600; letter-spacing: 0; }
+
+  & .hero-photo-btn { border-radius: 4px; background: var(--primary-soft); color: var(--primary); margin: -10px -12px -10px 0; }
+  & .hero-photo-btn:hover { background: color-mix(in srgb, var(--primary) 18%, var(--surface)); }
+  & .hero-art { top: 58px; }
+  & .hero.has-photo {
+    border-left: 0;
+    background:
+      linear-gradient(to top, rgba(0, 0, 0, 0.74), rgba(0, 0, 0, 0.18) 55%, rgba(0, 0, 0, 0.42)),
+      var(--photo) center / cover;
+    color: #FFFFFF;
+  }
+  & .hero.has-photo .hero-label, & .hero.has-photo .hero-bottom { color: rgba(255, 255, 255, 0.9); }
+  & .hero.has-photo .hero-date, & .hero.has-photo .hero-photo-btn { background: rgba(0, 0, 0, 0.32); color: #FFFFFF; }
+
+  & .sheet-list .btn { min-height: 48px; }
+  & .btn.ghost { border-color: transparent; background: none; }
+  & .btn.ghost:hover { background: var(--hover); }
+  & .confirm { border-radius: 4px; border: 1px solid var(--warn-line); }
+  & .memory-photo { border-radius: 8px; }
+
+  & .memory { border-radius: 8px; box-shadow: var(--shadow-16); }
+  & .memory:hover { transform: none; box-shadow: var(--shadow-64); }
+  & .memory-date { border-radius: 4px; }
+  & .memory-name { font-weight: 600; }
+  & .memory-total { font-weight: 600; letter-spacing: -0.01em; }
+}
+
+/* ---------- quantidade e registro ---------- */
+:root[data-visual="fluent"] {
+  & .stepper { gap: 0; padding: 0; border-radius: 4px; background: var(--surface); border: 1px solid var(--stroke); overflow: hidden; }
+  & .stepper button { border-radius: 0; background: transparent; box-shadow: none; }
+  & .stepper button:hover:not(:disabled) { background: var(--hover); }
+  & .stepper button:last-child { background: var(--brand-bg); color: #FFFFFF; box-shadow: none; }
+  & .stepper button:last-child:hover:not(:disabled) { background: var(--brand-bg-hover); }
+  & .stepper button:active:not(:disabled) { transform: none; }
+  & .stepper output { font-weight: 600; min-width: 40px; }
+  & .item-total { font-weight: 600; }
+  & .log-dot { border-radius: 4px; font-weight: 600; }
+}
+
+/* ---------- avisos do app ---------- */
+:root[data-visual="fluent"] {
+  & .notice { border-radius: 4px; box-shadow: none; border: 1px solid var(--line); padding: 4px 4px 4px 12px; min-height: 52px; }
+  & .preview textarea { font-size: 16px; }
+}
+
+@media (max-width: 380px) {
+  :root[data-visual="fluent"] .tabs button .art { display: none; }
+}
+
+/* Campos já mostram o foco com a linha de marca embaixo; o contorno extra
+   aparecia como dois traços brancos dentro da caixa de busca. */
+:root[data-visual="fluent"] {
+  & .input:focus-visible, & .search input:focus-visible { outline: none; }
+}
+
+/* cores próprias de alguns desenhos (batata amarela, saquinho vermelho, bife) */
+:root[data-visual="fluent"] {
+  & .art .fry { fill: #FFC93C; }
+  & .art .fry-d { fill: #F2A516; }
+  & .art .box { fill: #E0344F; }
+  & .art .box-d { fill: #A8193A; }
+  & .art .meat { fill: #C23A3F; }
+  & .art .meat-d { fill: #6E1622; }
+  & .art .fat { fill: #FFE3C8; }
+}
+
+:root[data-visual="fluent"] {
+  & .detail-toggle { font-weight: 600; }
+  & .detail-body { border-radius: 4px; background: var(--tile); }
+  & .detail-name { font-weight: 600; }
+  & .detail-list .num, & .detail-sums dd, & .detail-sums .detail-total dt { font-weight: 600; }
+  & .detail-name small.alone { font-weight: 600; }
+}
+
+/* nota estilo delivery */
+:root[data-visual="fluent"] {
+  & .bill-printer .receipt { border-radius: 0; }
+  & .bill-logo { border-radius: 8px; }
+  & .bill-place h2 { font-weight: 600; }
+  & .bill-status { border-radius: 4px; font-weight: 600; }
+  & .bill-meta dd, & .bill-items .num { font-weight: 600; }
+  & .printer { border-radius: 8px; }
+  & .printer-amount { font-weight: 600; }
+}
+
+/* quem já pagou */
+:root[data-visual="fluent"] {
+  & .pay-btn { border-radius: 4px; border: 1px solid var(--stroke); font-weight: 600; }
+  & .pay-btn:hover { background: var(--hover); border-color: var(--stroke); }
+  & .pay-btn[aria-pressed="true"] { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+  & .pay-note { font-weight: 600; }
+}
