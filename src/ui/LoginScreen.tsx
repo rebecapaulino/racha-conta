@@ -33,58 +33,68 @@ export function LoginScreen() {
           <p>Divida a conta do rolê sem treta: cada um paga o que consumiu, com o serviço certinho.</p>
         </div>
 
-        {/* Enfeite: a nota do bar (atrás) vira a divisão por pessoa (na frente) */}
-        <div className="login-mock" aria-hidden="true">
-          <div className="mock-receipt">
-            <b className="r-head">BAR DO ZÉ</b>
-            <span className="r-sub">MESA 12 · CONSUMO</span>
-            <hr />
-            <span className="r-line"><span>2 CAIPIRINHA</span><span>44,00</span></span>
-            <span className="r-line"><span>3 CHOPP</span><span>43,50</span></span>
-            <span className="r-line"><span>1 PICANHA</span><span>142,00</span></span>
-            <span className="r-line"><span>1 FRITAS</span><span>36,00</span></span>
-            <span className="r-line"><span>1 PUDIM</span><span>21,00</span></span>
-            <hr />
-            <span className="r-line"><span>SUBTOTAL</span><span>286,50</span></span>
-            <span className="r-line"><span>SERVIÇO 10%</span><span>28,65</span></span>
-            <span className="r-line r-total"><span>TOTAL</span><span>R$ 315,15</span></span>
-            <span className="r-barcode" />
+        {/* Enfeite: a nota do bar (atrás) vira a divisão por pessoa (na frente).
+            No celular, a "stage" ocupa o espaço livre do carmim e o desenho se ajusta a ele. */}
+        <div className="login-stage">
+          <div className="login-mock" aria-hidden="true">
+            <div className="mock-receipt">
+              <b className="r-head">BAR DO ZÉ</b>
+              <span className="r-sub">MESA 12 · CONSUMO</span>
+              <hr />
+              <span className="r-line"><span>2 CAIPIRINHA</span><span>44,00</span></span>
+              <span className="r-line"><span>3 CHOPP</span><span>43,50</span></span>
+              <span className="r-line"><span>1 PICANHA</span><span>142,00</span></span>
+              <span className="r-line"><span>1 FRITAS</span><span>36,00</span></span>
+              <span className="r-line"><span>1 PUDIM</span><span>21,00</span></span>
+              <hr />
+              <span className="r-line"><span>SUBTOTAL</span><span>286,50</span></span>
+              <span className="r-line"><span>SERVIÇO 10%</span><span>28,65</span></span>
+              <span className="r-line r-total"><span>TOTAL</span><span>R$ 315,15</span></span>
+              <span className="r-barcode" />
+            </div>
+            <div className="mock-paper">
+              <b className="mock-title">Sexta no Bar do Zé</b>
+              <span className="mock-row"><i className="mock-dot d1">A</i>Ana<em>R$ 80,85</em></span>
+              <span className="mock-row"><i className="mock-dot d2">B</i>Bruno<em>R$ 72,88</em></span>
+              <span className="mock-row"><i className="mock-dot d3">C</i>Carla<em>R$ 80,85</em></span>
+              <span className="mock-total">Total<em>R$ 315,15</em></span>
+            </div>
+            <span className="mock-chip">✓ 3/4 pagos</span>
           </div>
-          <div className="mock-paper">
-            <b className="mock-title">Sexta no Bar do Zé</b>
-            <span className="mock-row"><i className="mock-dot d1">A</i>Ana<em>R$ 80,85</em></span>
-            <span className="mock-row"><i className="mock-dot d2">B</i>Bruno<em>R$ 72,88</em></span>
-            <span className="mock-row"><i className="mock-dot d3">C</i>Carla<em>R$ 80,85</em></span>
-            <span className="mock-total">Total<em>R$ 315,15</em></span>
-          </div>
-          <span className="mock-chip">✓ 3/4 pagos</span>
         </div>
       </section>
 
       <section className="login-panel" aria-labelledby="h-login">
-        <h2 id="h-login">Entrar</h2>
+        <div className="login-box">
+          <div className="login-head">
+            <h2 id="h-login">Entre para começar</h2>
+            <p>Rapidinho e sem criar senha.</p>
+          </div>
 
-        <GoogleButton onDone={done} onError={setError} shape="rounded" />
-        <p className="field-error" role="alert">{error}</p>
+          <GoogleButton onDone={done} onError={setError} shape="rounded" fill text="continue_with" />
+          <p className="field-error" role="alert">{error}</p>
 
-        <ul className="login-perks">
-          <li>
-            <span className="perk-icon p1"><IconCamera size={18} /></span>
-            <span className="perk-text"><b className="perk-long">Seus rolês guardados</b><b className="perk-short" aria-hidden="true">Rolês com foto</b><small>Com foto, total e quem foi</small></span>
-          </li>
-          <li>
-            <span className="perk-icon p2"><IconUsers size={18} /></span>
-            <span className="perk-text"><b className="perk-long">Convide a galera por link</b><b className="perk-short" aria-hidden="true">Convite por link</b><small>Cada um vê a sua parte e marca que pagou</small></span>
-          </li>
-          <li>
-            <span className="perk-icon p3"><IconWifiOff size={18} /></span>
-            <span className="perk-text"><b className="perk-long">Funciona até sem internet</b><b className="perk-short" aria-hidden="true">Funciona offline</b><small>Sinal fraco no bar não atrapalha</small></span>
-          </li>
-        </ul>
+          {/* palavras curtas de propósito: nenhuma quebra de linha, nem no celular pequeno */}
+          <ul className="login-perks" aria-label="Com a sua conta">
+            <li>
+              <span className="perk-icon p1"><IconCamera size={20} /></span>
+              <b>Fotos</b> <small>do rolê</small>
+            </li>
+            <li>
+              <span className="perk-icon p2"><IconUsers size={20} /></span>
+              <b>Convites</b> <small>por link</small>
+            </li>
+            <li>
+              <span className="perk-icon p3"><IconWifiOff size={20} /></span>
+              <b>Funciona</b> <small>sem sinal</small>
+            </li>
+          </ul>
 
-        <p className="login-legal">
-          Só usamos seu nome, e-mail e foto. <a href="/privacidade">Política de Privacidade</a>
-        </p>
+          <p className="login-legal">
+            <span>Usamos só seu nome, e-mail e foto.</span>
+            <a href="/privacidade">Política de Privacidade</a>
+          </p>
+        </div>
       </section>
     </main>
   );

@@ -7,11 +7,17 @@ export function GoogleButton({
   onDone,
   onError,
   shape = 'pill',
+  fill = false,
+  text = 'signin_with',
 }: {
   onDone: () => void;
   onError: (msg: string) => void;
   /** 'rounded': retângulo com cantos arredondados (o Google só oferece 4px; o recorte é feito no CSS). */
   shape?: 'pill' | 'rounded';
+  /** Ocupa a largura toda do espaço (o Google aceita de 200 a 400px) e se ajusta se ela mudar. */
+  fill?: boolean;
+  /** "Fazer login com o Google" ou "Continuar com o Google". */
+  text?: 'signin_with' | 'continue_with';
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [problem, setProblem] = useState('');
@@ -19,11 +25,13 @@ export function GoogleButton({
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
     let alive = true;
+    let observer: ResizeObserver | undefined;
     (async () => {
       try {
         const google = await loadGoogle();
         const nonce = await newNonce();
-        if (!alive || !box.current) return;
+        const el = box.current;
+        if (!alive || !el) return;
         google.initialize({
           client_id: GOOGLE_CLIENT_ID,
           nonce: nonce.hashed,
@@ -38,24 +46,40 @@ export function GoogleButton({
           },
         });
         const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        google.renderButton(box.current, {
-          type: 'standard',
-          // no formato arredondado, o botão branco com borda (o quadrado branco do G do tema escuro fica torto no recorte)
-          theme: dark && shape === 'pill' ? 'filled_black' : 'outline',
-          size: 'large',
-          text: 'signin_with',
-          shape: shape === 'rounded' ? 'rectangular' : 'pill',
-          locale: 'pt-BR',
-          width: Math.min(300, box.current.clientWidth || 300),
-        });
+        let drawn = 0;
+        const draw = () => {
+          const width = fill
+            ? Math.max(200, Math.min(400, Math.floor(el.clientWidth)))
+            : Math.min(300, el.clientWidth || 300);
+          if (width === drawn) return;
+          drawn = width;
+          el.replaceChildren();
+          google.renderButton(el, {
+            type: 'standard',
+            // no formato arredondado, o botão branco com borda (o quadrado branco do G do tema escuro fica torto no recorte)
+            theme: dark && shape === 'pill' ? 'filled_black' : 'outline',
+            size: 'large',
+            text,
+            shape: shape === 'rounded' ? 'rectangular' : 'pill',
+            locale: 'pt-BR',
+            width,
+          });
+        };
+        draw();
+        // O Google desenha o botão com largura fixa: se a coluna mudar (ex.: celular deitado), desenha de novo.
+        if (fill && typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(draw);
+          observer.observe(el);
+        }
       } catch {
         if (alive) setProblem('Sem conexão com o Google. Confira a internet e tente de novo.');
       }
     })();
     return () => {
       alive = false;
+      observer?.disconnect();
     };
-  }, [onDone, onError, shape]);
+  }, [onDone, onError, shape, fill, text]);
 
   if (!GOOGLE_CLIENT_ID) return <p className="hint">O login ainda não está configurado neste endereço.</p>;
   return (

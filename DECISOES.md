@@ -97,3 +97,10 @@ Complementa o `BRIEFING.md`. Quando os dois divergirem, vale este arquivo (decis
 - Atenção aos limites do plano grátis: 200 conexões de tempo real simultâneas e pausa do projeto após 1 semana sem uso.
 - Ativar captcha invisível no login anônimo.
 - **Ícone no iPhone (10/10/2026):** no Safari, "Adicionar à Tela de Início" não pegava o ícone do app (no Android/Chrome pegava). O ícone de 180×180 agora fica também na raiz do site (`/apple-touch-icon.png` e `-precomposed`), onde o iPhone procura por padrão, com o tamanho declarado e `?v=2` no endereço para o Safari não reaproveitar uma tentativa antiga guardada.
+- **Painel "Entrar" refeito (10/10/2026):** a parte de baixo da tela de login foi redesenhada do zero para ficar limpa, preenchida e sem nenhum texto quebrado:
+  - Tudo numa coluna centralizada de até 400 px: título "Entre para começar" e a linha "Rapidinho e sem criar senha.".
+  - O botão do Google ("Continuar com o Google") ocupa a largura toda da coluna e se redesenha se a largura mudar (celular girado).
+  - As vantagens viraram 3 colunas sem caixa em volta: ícone colorido, uma palavra e um complemento curto ("Fotos do rolê", "Convites por link", "Funciona sem sinal"). As palavras são curtas de propósito, para nunca quebrar linha, nem no celular de 320 px.
+  - O aviso de privacidade fica em duas linhas pensadas, com o link inteiro na segunda.
+  - O desenho do topo fica numa área que ocupa só o espaço livre do carmim e escolhe sozinho o tamanho (de 100% até 46%). Se não couber nem assim, some em vez de aparecer cortado pelo painel.
+  - Em celular deitado (altura abaixo de 460 px), a tela volta a rolar, para nunca cortar o botão.
