@@ -9,6 +9,7 @@ import { addEntry, fromEntry, loadHistory, removeEntry, saveHistory, toEntry, ty
 import { deletePhoto } from '../state/photos';
 import { AccountButton } from './AccountButton';
 import { DivisaoStep } from './DivisaoStep';
+import { GroupSummary } from './GroupSummary';
 import { HeroCard } from './HeroCard';
 import { HistoryScreen } from './HistoryScreen';
 import { IconArrowRight, IconHistory, IconPie, IconPlus, IconReceipt, IconSparkle, IconUsers, Logo } from './icons';
@@ -122,8 +123,35 @@ export default function SoloApp() {
   ];
   if (!wide) tabs.push({ id: 'divisao', label: 'Divisão', icon: fluent ? <Art kind="pie" size={20} /> : <IconPie size={18} /> });
 
+  // Com várias notas, a Divisão abre no resumo do grupo; "Por nota" mostra uma nota por vez.
+  const [divView, setDivView] = useState<'resumo' | 'nota'>('resumo');
+  const multi = (bill.notes?.length ?? 0) > 1;
+  function openNote(id: string) {
+    if (id) dispatch({ type: 'selectNote', id });
+    setDivView('nota');
+  }
+
   const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} />;
-  const divisao = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
+  const divisaoNota = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
+  const divisao = !multi ? (
+    divisaoNota
+  ) : (
+    <div className="stack-y">
+      <div className="seg div-switch" role="group" aria-label="Como ver a divisão">
+        <button type="button" aria-pressed={divView === 'resumo'} onClick={() => setDivView('resumo')}>Resumo do grupo</button>
+        <button type="button" aria-pressed={divView === 'nota'} onClick={() => setDivView('nota')}>Por nota</button>
+      </div>
+      {divView === 'resumo' ? (
+        <GroupSummary bill={bill} dispatch={dispatch} toast={toast} onOpenNote={openNote} />
+      ) : (
+        <>
+          {/* No computador a barra das notas já está em Pedidos, ao lado. */}
+          {!wide && notesBar}
+          {divisaoNota}
+        </>
+      )}
+    </div>
+  );
 
   if (screen === 'roles') {
     return (
@@ -219,12 +247,7 @@ export default function SoloApp() {
                 toast={toast}
               />
             )}
-            {current === 'divisao' && (
-              <div className="stack-y">
-                {bill.notes && bill.notes.length > 1 && notesBar}
-                {divisao}
-              </div>
-            )}
+            {current === 'divisao' && divisao}
           </div>
 
           {current === 'mesa' && (

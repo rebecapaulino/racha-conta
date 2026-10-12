@@ -85,7 +85,15 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Tela:** em Pedidos, logo abaixo do nome do lugar, a barra das notas (cartões com emoji da categoria e total; "+ Outra nota"), com a linha "paga por Fulano · 2 de 3 dividem", a miniatura da foto (toca e abre grande) e "Editar". Pedidos e Divisão mostram a nota aberta; a Divisão também tem a barra quando há mais de uma nota. O cartão do topo e a Mesa mostram a soma de todas as notas ("2 notas").
 - **Regras:** item novo entra na nota aberta com quem divide ela marcado. Pessoa nova na Mesa entra nas notas que eram de todo mundo (nas de só alguns, fica de fora). Tirar alguém da nota tira dos itens dela; pôr de volta marca nos itens que eram de todos. Quem pagou a nota aparece nela mesmo sem dividir (fica com R$ 0 e recebe tudo dos outros). Apagar a nota apaga os itens dela (com confirmação na própria janela); a última não pode ser apagada.
 - **Foto da nota:** na janela da nota (câmera ou galeria) ou ao ler a nota fiscal ("Guardar a foto da nota neste celular", marcado por padrão). Reduzida e guardada no aparelho (IndexedDB), como a foto do rolê. Política de Privacidade atualizada.
-- **Próximos passos:** (2) resumo do grupo: quanto cada um deve por categoria e no total, e quem paga para quem; (3) "Compartilhar nota" (foto + resumo) e mensagem do WhatsApp com todas as notas; (4) ver a nota no app para o grupo, junto com a Fase 2.
+- **Próximos passos:** (2) resumo do grupo (feito, abaixo); (3) "Compartilhar nota" (foto + resumo) e mensagem do WhatsApp com todas as notas; (4) ver a nota no app para o grupo, junto com a Fase 2.
+
+## Resumo do grupo — 12/10/2026 (passo 2 de 4)
+
+- Com mais de uma nota, a Divisão abre em **"Resumo do grupo"** (com a opção **"Por nota"**, que mostra a divisão de uma nota por vez, como antes).
+- **Quem paga para quem:** em cada nota com pagador, cada um deve a ele a sua parte (menos o que já marcou como pago na nota). As dívidas de todas as notas são compensadas num saldo por pessoa (Ana deve 30 à Rebeca e a Rebeca deve 20 à Ana → "Ana paga 10 para Rebeca") e viram o menor número de transferências. Nota sem pagador não gera dívida: aparece "Doces está sem quem pagou: cada um paga a sua parte no caixa · Escolher".
+- **"Marcar como pago"** em cada transferência guarda o acerto (`settled`), que entra no saldo; a lista "Já acertado" tem "Desfazer". Fica no registro ("Ana pagou R$ 20,00 a Rebeca"). Quando não falta ninguém: "Tudo acertado entre o grupo".
+- **Quanto cada um gastou:** total por pessoa com o valor em cada nota (emoji + categoria). **Notas:** lista com pagador e total; tocar abre a nota em "Por nota".
+- Limite conhecido: na visão "Por nota", o "Falta Fulano receber" considera só os pagamentos marcados naquela nota, não os acertos feitos no resumo.
 
 ## Exceção "consumiu só isso" (Fase 1, passo 3)
 

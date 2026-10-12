@@ -67,6 +67,15 @@ export interface Bill {
    * pagamentos daqui de cima. Com o campo, valem os de cada nota e cada item tem o seu noteId.
    */
   notes?: Note[];
+  /** Acertos feitos no resumo do grupo ("Ana pagou R$ 20 à Rebeca"), em centavos. */
+  settled?: Transfer[];
+}
+
+/** Dinheiro de uma pessoa para outra. */
+export interface Transfer {
+  from: string;
+  to: string;
+  cents: number;
 }
 
 /** Quanto a pessoa pagou de um item (para explicar por que alguém gastou mais). */
@@ -300,6 +309,116 @@ export function payments(bill: Bill, result: SplitResult = computeSplit(bill)): 
   };
 }
 
+/** As notas da conta; a conta de uma nota só vira uma nota com os campos dela (id ""). */
+export function notesOf(bill: Bill): Note[] {
+  if (bill.notes?.length) return bill.notes;
+  return [
+    {
+      id: '',
+      category: '',
+      servicePct: bill.servicePct,
+      payerId: bill.payerId,
+      people: bill.people.map((p) => p.id),
+      photoId: null,
+      ...(bill.paid ? { paid: bill.paid } : {}),
+    },
+  ];
+}
+
+export interface NoteSummary {
+  note: Note;
+  label: string;
+  result: SplitResult;
+  payer: Person | null;
+}
+
+export interface GroupSummary {
+  notes: NoteSummary[];
+  /** Quanto cada pessoa gastou em cada nota (na ordem de `notes`) e no total. */
+  people: { person: Person; byNote: number[]; total: number }[];
+  total: number;
+  /** Saldo de cada pessoa: positivo recebe, negativo paga. Já desconta os acertos. */
+  balance: Record<string, number>;
+  /** Quem paga para quem, com o menor número de transferências. */
+  transfers: Transfer[];
+  /** Notas com valor e sem ninguém marcado como pagador (cada um paga a sua parte no caixa). */
+  withoutPayer: NoteSummary[];
+}
+
+/**
+ * Resumo do grupo: soma as notas por pessoa e diz quem paga para quem.
+ *
+ * - Em cada nota com pagador, cada pessoa deve a ele a sua parte, menos o que já marcou
+ *   como pago naquela nota. Nota sem pagador não gera dívida.
+ * - As dívidas de todas as notas viram um saldo por pessoa (se a Ana deve 30 à Rebeca e a
+ *   Rebeca deve 20 à Ana, fica "Ana paga 10 à Rebeca").
+ * - Os acertos feitos no resumo (`settled`) entram no saldo.
+ * - Quem mais deve paga para quem mais tem a receber, até zerar (no máximo N-1 transferências).
+ */
+export function groupSummary(bill: Bill): GroupSummary {
+  const notes = notesOf(bill).map((note, i): NoteSummary => ({
+    note,
+    label: noteLabel(note, i),
+    result: computeSplit(noteBill(bill, note.id || null)),
+    payer: bill.people.find((p) => p.id === note.payerId) ?? null,
+  }));
+
+  const people = bill.people.map((person) => {
+    const byNote = notes.map((n) => n.result.shares.find((s) => s.person.id === person.id)?.total ?? 0);
+    return { person, byNote, total: byNote.reduce((a, b) => a + b, 0) };
+  });
+
+  const balance: Record<string, number> = {};
+  bill.people.forEach((p) => (balance[p.id] = 0));
+  const move = (from: string, to: string, cents: number) => {
+    if (!(from in balance) || !(to in balance) || from === to) return;
+    balance[from] -= cents;
+    balance[to] += cents;
+  };
+  for (const n of notes) {
+    if (!n.payer) continue;
+    for (const s of n.result.shares) {
+      if (s.person.id === n.payer.id) continue;
+      // Deve a parte dele ao pagador, menos o que já pagou (negativo: pagou a mais, recebe de volta).
+      move(s.person.id, n.payer.id, s.total - (n.note.paid?.[s.person.id] ?? 0));
+    }
+  }
+  for (const t of bill.settled ?? []) move(t.to, t.from, t.cents);
+
+  return {
+    notes,
+    people,
+    total: notes.reduce((a, n) => a + n.result.total, 0),
+    balance,
+    transfers: settleUp(balance, bill.people.map((p) => p.id)),
+    withoutPayer: notes.filter((n) => !n.payer && n.result.total > 0),
+  };
+}
+
+/** Transforma os saldos em transferências: quem mais deve paga primeiro a quem mais tem a receber. */
+export function settleUp(balance: Record<string, number>, order: string[]): Transfer[] {
+  const rank = (id: string) => order.indexOf(id);
+  const side = (sign: 1 | -1) =>
+    order
+      .filter((id) => sign * (balance[id] ?? 0) > 0)
+      .map((id) => ({ id, left: Math.abs(balance[id]) }))
+      .sort((a, b) => b.left - a.left || rank(a.id) - rank(b.id));
+  const creditors = side(1);
+  const debtors = side(-1);
+  const out: Transfer[] = [];
+  let c = 0;
+  let d = 0;
+  while (c < creditors.length && d < debtors.length) {
+    const cents = Math.min(creditors[c].left, debtors[d].left);
+    out.push({ from: debtors[d].id, to: creditors[c].id, cents });
+    creditors[c].left -= cents;
+    debtors[d].left -= cents;
+    if (creditors[c].left === 0) c++;
+    if (debtors[d].left === 0) d++;
+  }
+  return out;
+}
+
 /** Remove a pessoa da mesa, de todos os itens e, se for o caso, do pagador (também em cada nota). */
 export function removePerson(bill: Bill, personId: string): Bill {
   const paid = { ...bill.paid };
@@ -317,6 +436,7 @@ export function removePerson(bill: Bill, personId: string): Bill {
   return {
     ...bill,
     ...(notes ? { notes } : {}),
+    ...(bill.settled ? { settled: bill.settled.filter((t) => t.from !== personId && t.to !== personId) } : {}),
     paid,
     people: bill.people.filter((p) => p.id !== personId),
     items: bill.items.map((it) => ({ ...it, who: it.who.filter((id) => id !== personId) })),

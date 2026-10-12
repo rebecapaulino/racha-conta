@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSplit } from '../core/bill';
+import { computeSplit, groupSummary, settleUp } from '../core/bill';
 import { activeBill, activeNote, blankState, isValidBill, reducer, type Action, type AppState } from './billState';
 
 const run = (s: AppState, ...actions: Action[]) => actions.reduce(reducer, s);
@@ -156,5 +156,79 @@ describe('quem bancou a nota sem consumir', () => {
     expect(view.people.map((p) => p.name)).toEqual(['Ana', 'Bruno', 'Carla']);
     expect(s.bill.items.at(-1)!.who).toEqual([ana, bruno]);
     expect(computeSplit(view).shares.map((x) => x.total)).toEqual([2000, 2000, 0]);
+  });
+});
+
+describe('resumo do grupo: quem paga para quem', () => {
+  // Bar R$ 33,00 (com 10%) pago pela Ana entre os 3; Doces R$ 40,00 pagos pela Carla entre Ana e Bruno.
+  function festa() {
+    const s0 = bar();
+    const [ana, bruno, carla] = ids(s0);
+    const s = run(s0, { type: 'addNote', category: 'Doces', payerId: carla, people: [ana, bruno], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 });
+    return { s, ana, bruno, carla };
+  }
+
+  it('soma por pessoa e por nota', () => {
+    const { s } = festa();
+    const g = groupSummary(s.bill);
+    expect(g.notes.map((n) => [n.label, n.result.total, n.payer?.name])).toEqual([['Nota 1', 3300, 'Ana'], ['Doces', 4000, 'Carla']]);
+    expect(g.people.map((p) => [p.person.name, p.byNote, p.total])).toEqual([
+      ['Ana', [1100, 2000], 3100],
+      ['Bruno', [1100, 2000], 3100],
+      ['Carla', [1100, 0], 1100],
+    ]);
+    expect(g.total).toBe(7300);
+  });
+
+  it('compensa as dívidas entre as notas', () => {
+    const { s, ana, bruno, carla } = festa();
+    const g = groupSummary(s.bill);
+    // Ana: recebe 22 do bar, deve 20 dos doces = +2. Bruno: deve 11 + 20 = -31. Carla: deve 11, recebe 40 = +29.
+    expect(g.balance).toEqual({ [ana]: 200, [bruno]: -3100, [carla]: 2900 });
+    expect(g.transfers).toEqual([
+      { from: bruno, to: carla, cents: 2900 },
+      { from: bruno, to: ana, cents: 200 },
+    ]);
+  });
+
+  it('acerto marcado sai da lista; desfazer volta', () => {
+    const { s, ana, bruno, carla } = festa();
+    const paid = run(s, { type: 'settle', from: bruno, to: carla, cents: 2900 });
+    expect(groupSummary(paid.bill).transfers).toEqual([{ from: bruno, to: ana, cents: 200 }]);
+    expect(paid.log.at(-1)!.text).toBe('Bruno pagou R$ 29,00 a Carla');
+    const undone = run(paid, { type: 'unsettle', index: 0 });
+    expect(groupSummary(undone.bill).transfers.length).toBe(2);
+    expect(undone.log.at(-1)!.text).toBe('Desfez: Bruno pagou R$ 29,00 a Carla');
+    expect(isValidBill(paid.bill)).toBe(true);
+  });
+
+  it('"já pagou" marcado na nota também conta', () => {
+    const { s, ana, bruno } = festa();
+    const opened = run(s, { type: 'selectNote', id: s.bill.notes![0].id }, { type: 'markPaid', personId: bruno, paid: true });
+    expect(groupSummary(opened.bill).balance[bruno]).toBe(-2000);
+    expect(groupSummary(opened.bill).balance[ana]).toBe(-900);
+  });
+
+  it('nota sem pagador não gera dívida e aparece como "cada um paga no caixa"', () => {
+    const s0 = bar();
+    const s = run(s0, { type: 'payer', id: null });
+    const g = groupSummary(s.bill);
+    expect(g.transfers).toEqual([]);
+    expect(g.withoutPayer.map((n) => n.label)).toEqual(['Nota 1']);
+  });
+
+  it('a soma das transferências zera os saldos', () => {
+    const balance = { a: 1234, b: -500, c: -734, d: 0 };
+    const t = settleUp(balance, ['a', 'b', 'c', 'd']);
+    const after = { ...balance } as Record<string, number>;
+    t.forEach((x) => { after[x.from] += x.cents; after[x.to] -= x.cents; });
+    expect(Object.values(after).every((v) => v === 0)).toBe(true);
+    expect(t.length).toBeLessThanOrEqual(3);
+  });
+
+  it('tirar alguém da mesa tira os acertos dele', () => {
+    const { s, bruno, carla } = festa();
+    const t = run(s, { type: 'settle', from: bruno, to: carla, cents: 100 }, { type: 'removePerson', id: bruno });
+    expect(t.bill.settled).toEqual([]);
   });
 });

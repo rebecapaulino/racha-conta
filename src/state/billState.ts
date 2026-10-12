@@ -69,6 +69,10 @@ export type Action =
   /** Apaga a nota e os itens dela (a última nota não pode ser apagada). */
   | { type: 'removeNote'; id: string }
   | { type: 'selectNote'; id: string }
+  /** No resumo do grupo: Fulano pagou a Beltrano (entra no saldo). */
+  | { type: 'settle'; from: string; to: string; cents: number }
+  /** Desfaz um acerto do resumo (posição na lista). */
+  | { type: 'unsettle'; index: number }
   | { type: 'reset' }
   | { type: 'open'; state: AppState };
 
@@ -331,6 +335,19 @@ function apply(state: AppState, action: Action): AppState {
     case 'selectNote':
       return bill.notes?.some((n) => n.id === action.id) ? { ...state, noteId: action.id } : state;
 
+    case 'settle': {
+      const ok = (id: string) => bill.people.some((p) => p.id === id);
+      if (!ok(action.from) || !ok(action.to) || action.from === action.to) return state;
+      if (!Number.isSafeInteger(action.cents) || action.cents <= 0) return state;
+      return next({ settled: [...(bill.settled ?? []), { from: action.from, to: action.to, cents: action.cents }] });
+    }
+
+    case 'unsettle': {
+      const list = bill.settled ?? [];
+      if (!list[action.index]) return state;
+      return next({ settled: list.filter((_, i) => i !== action.index) });
+    }
+
     case 'photo':
       return { ...state, example: false, photoId: action.photoId };
 
@@ -425,6 +442,12 @@ function describe(before: AppState, after: AppState, action: Action): string | n
       if (action.photoId !== undefined && (was?.photoId ?? null) !== now.photoId) changes.push(now.photoId ? 'foto da nota guardada' : 'foto da nota removida');
       return changes.length ? `Nota ${labelOf(now.id)}: ${changes.join(' · ')}` : null;
     }
+    case 'settle':
+      return `${person(action.from)} pagou ${formatBRL(action.cents)} a ${person(action.to)}`;
+    case 'unsettle': {
+      const t = (bill.settled ?? [])[action.index];
+      return `Desfez: ${person(t.from)} pagou ${formatBRL(t.cents)} a ${person(t.to)}`;
+    }
     case 'removeNote':
       return `Apagou a nota ${(() => {
         const list = bill.notes ?? [];
@@ -473,6 +496,9 @@ export function isValidBill(b: unknown): b is Bill {
         (i.qty === undefined || (Number.isSafeInteger(i.qty) && i.qty >= 1 && i.qty <= MAX_QTY)),
     ) &&
     validPaid(x.paid) &&
+    (x.settled === undefined ||
+      (Array.isArray(x.settled) &&
+        x.settled.every((t) => !!t && typeof t.from === 'string' && typeof t.to === 'string' && Number.isSafeInteger(t.cents) && t.cents > 0))) &&
     x.items.every((i) => i.noteId === undefined || typeof i.noteId === 'string') &&
     (x.notes === undefined ||
       (Array.isArray(x.notes) &&

@@ -1253,3 +1253,39 @@ input, textarea, select { font-size: max(16px, 1em); }
 .note-delete { color: var(--danger); align-self: center; }
 #h-note-photo { display: flex; align-items: center; gap: 8px; }
 @media (max-width: 374px) { .notes-strip { margin-inline: -12px; padding-inline: 12px; } }
+
+/* ---------- resumo do grupo (várias notas) ---------- */
+.div-switch { grid-template-columns: 1fr 1fr; }
+.transfers { gap: 10px; }
+.transfer {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border-radius: 16px; background: var(--fill);
+}
+.transfer-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.transfer-text { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .95rem; }
+.transfer-amount { flex: none; font-size: 1.1rem; font-weight: 800; }
+.transfer-btn { width: 100%; justify-content: center; }
+.group-hint {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  color: var(--muted); font-size: .9rem;
+}
+.group-hint > span:nth-child(2) { flex: 1; min-width: 0; }
+.group-hint b { color: var(--ink); }
+.settled { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.settled .field-label { font-size: .9rem; color: var(--muted); }
+.settled-row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.settled-text { flex: 1; min-width: 0; font-size: .9rem; overflow-wrap: anywhere; }
+.ok-dot {
+  width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+  border-radius: 50%; background: var(--ok-soft); color: var(--ok);
+}
+.spent-parts { display: flex; flex-wrap: wrap; column-gap: 10px; }
+.spent-total { flex: none; }
+.group-summary .list > li + li { border-top: 1px solid var(--line); }
+.note-row {
+  width: 100%; border: 0; border-top: 0; background: none; color: inherit; text-align: left;
+  min-height: 56px; padding: 8px 0; font: inherit;
+}
+.note-row:first-child { padding-top: 8px; }
+.note-row svg { flex: none; color: var(--muted); }
+.group-summary .spent-row { border-top: 0; }
