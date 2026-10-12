@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
-import { loadState, reducer, saveState, worthKeeping } from '../state/billState';
+import { activeBill, activeNote, loadState, reducer, saveState, worthKeeping } from '../state/billState';
 import { addEntry, fromEntry, loadHistory, removeEntry, saveHistory, toEntry, type HistoryEntry } from '../state/history';
 import { deletePhoto } from '../state/photos';
 import { AccountButton } from './AccountButton';
@@ -14,6 +14,7 @@ import { HistoryScreen } from './HistoryScreen';
 import { IconArrowRight, IconHistory, IconPie, IconPlus, IconReceipt, IconSparkle, IconUsers, Logo } from './icons';
 import { Art } from './illustrations';
 import { MesaStep } from './MesaStep';
+import { NotesBar } from './NotesBar';
 import { InstallSheet } from './InstallSheet';
 import { PwaBars } from './PwaBars';
 import { PedidosStep } from './PedidosStep';
@@ -29,6 +30,10 @@ export default function SoloApp() {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
   const { bill } = state;
   const result = useMemo(() => computeSplit(bill), [bill]);
+  // Pedidos e Divisão mostram a nota aberta (a conta inteira, quando é de uma nota só).
+  const note = activeNote(state);
+  const view = useMemo(() => activeBill({ bill, noteId: note?.id ?? null }), [bill, note?.id]);
+  const viewResult = useMemo(() => (view === bill ? result : computeSplit(view)), [view, bill, result]);
 
   useEffect(() => saveState(state), [state]);
 
@@ -104,6 +109,7 @@ export default function SoloApp() {
   function forget(e: HistoryEntry) {
     setHistory((h) => removeEntry(h, e.id));
     if (e.photoId) deletePhoto(e.photoId);
+    e.bill.notes?.forEach((n) => n.photoId && deletePhoto(n.photoId));
     toast('Rolê apagado');
   }
 
@@ -116,7 +122,8 @@ export default function SoloApp() {
   ];
   if (!wide) tabs.push({ id: 'divisao', label: 'Divisão', icon: fluent ? <Art kind="pie" size={20} /> : <IconPie size={18} /> });
 
-  const divisao = <DivisaoStep bill={bill} result={result} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
+  const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} />;
+  const divisao = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
 
   if (screen === 'roles') {
     return (
@@ -160,7 +167,8 @@ export default function SoloApp() {
             title={bill.title}
             startedAt={state.startedAt}
             total={result.total}
-            servicePct={bill.servicePct}
+            servicePct={bill.notes && bill.notes.length > 1 ? null : view.servicePct}
+            notesCount={bill.notes?.length ?? 1}
             people={bill.people}
             photoId={state.photoId}
             fluent={fluent}
@@ -199,8 +207,24 @@ export default function SoloApp() {
 
           <div id="panel" role="tabpanel" aria-labelledby={`tab-${current}`} className="panel">
             {current === 'mesa' && <MesaStep bill={bill} result={result} dispatch={dispatch} />}
-            {current === 'pedidos' && <PedidosStep bill={bill} result={result} example={state.example} dispatch={dispatch} toast={toast} />}
-            {current === 'divisao' && divisao}
+            {current === 'pedidos' && (
+              <PedidosStep
+                bill={view}
+                title={bill.title}
+                result={viewResult}
+                example={state.example}
+                notePhotoId={note?.photoId ?? null}
+                notesBar={!state.example && notesBar}
+                dispatch={dispatch}
+                toast={toast}
+              />
+            )}
+            {current === 'divisao' && (
+              <div className="stack-y">
+                {bill.notes && bill.notes.length > 1 && notesBar}
+                {divisao}
+              </div>
+            )}
           </div>
 
           {current === 'mesa' && (
@@ -214,7 +238,7 @@ export default function SoloApp() {
             <div className="cta">
               <button type="button" className="btn primary big" onClick={() => go('divisao')}>
                 <span>Ver divisão</span>
-                <span className="cta-total">{formatBRL(result.total)}</span>
+                <span className="cta-total">{formatBRL(viewResult.total)}</span>
                 <IconArrowRight />
               </button>
             </div>

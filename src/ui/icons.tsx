@@ -94,3 +94,6 @@ export const IconWifiOff = ({ size = 20 }: P) => (
 export const IconChevron = ({ size = 20 }: P) => (
   <svg {...stroke(size)} className="chevron"><path d="M6 9l6 6 6-6" /></svg>
 );
+export const IconPencil = ({ size = 18 }: P) => (
+  <svg {...stroke(size)}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4" /></svg>
+);

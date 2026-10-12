@@ -28,6 +28,30 @@ export interface Item {
   qty?: number;
   /** Ids das pessoas que consumiram o item. */
   who: string[];
+  /** Nota fiscal a que o item pertence (só quando a conta tem mais de uma nota). */
+  noteId?: string;
+}
+
+/** Categorias prontas de nota; a pessoa também pode digitar outra. */
+export const NOTE_CATEGORIES = ['Comida', 'Bebidas', 'Doces', 'Mercado', 'Transporte', 'Outros'] as const;
+export const MAX_CATEGORY = 24;
+
+/**
+ * Uma nota fiscal dentro da conta (ex.: a do bar e a dos doces). Cada nota tem a sua
+ * categoria, quem pagou, quem divide, o serviço e a foto. As pessoas são as da conta.
+ */
+export interface Note {
+  id: string;
+  /** Categoria (da lista ou digitada). Vazia: "Nota 1", "Nota 2"… */
+  category: string;
+  servicePct: ServicePct;
+  payerId: string | null;
+  /** Quem divide esta nota (ids). Item novo começa com essas pessoas marcadas. */
+  people: string[];
+  /** Quanto cada pessoa já pagou desta nota, em centavos. */
+  paid?: Record<string, number>;
+  /** Foto da nota guardada no aparelho (IndexedDB), ou null. */
+  photoId: string | null;
 }
 
 export interface Bill {
@@ -38,6 +62,11 @@ export interface Bill {
   items: Item[];
   /** Quanto cada pessoa já pagou da parte dela, em centavos (id da pessoa → valor). */
   paid?: Record<string, number>;
+  /**
+   * Notas fiscais da conta. Sem o campo, a conta é uma nota só e valem serviço, pagador e
+   * pagamentos daqui de cima. Com o campo, valem os de cada nota e cada item tem o seu noteId.
+   */
+  notes?: Note[];
 }
 
 /** Quanto a pessoa pagou de um item (para explicar por que alguém gastou mais). */
@@ -74,8 +103,93 @@ export function itemTotal(item: Item): number {
   return item.cents * (item.qty ?? 1);
 }
 
+/** Nome da nota para mostrar: a categoria, ou "Nota 2" quando não tem. */
+export function noteLabel(note: Note, index: number): string {
+  return note.category.trim() || `Nota ${index + 1}`;
+}
+
+/** Id da nota de um item (item sem nota, ou de nota que não existe mais, fica na primeira). */
+function noteOfItem(notes: Note[], item: Item): string {
+  return notes.some((n) => n.id === item.noteId) ? item.noteId! : notes[0].id;
+}
+
 /**
- * Calcula quanto cada pessoa paga.
+ * Uma nota vista como uma conta comum: só os itens dela, só quem divide,
+ * e o serviço, o pagador e os pagamentos dela. Sem notas, devolve a própria conta.
+ */
+export function noteBill(bill: Bill, noteId: string | null): Bill {
+  const notes = bill.notes;
+  if (!notes?.length) return bill;
+  const note = notes.find((n) => n.id === noteId) ?? notes[0];
+  // Com várias notas, o título diz qual é ("Festa · Doces"), para a notinha e o resumo.
+  const label = notes.length > 1 ? noteLabel(note, notes.indexOf(note)) : '';
+  return {
+    title: [bill.title.trim(), label].filter(Boolean).join(' · '),
+    servicePct: note.servicePct,
+    payerId: note.payerId,
+    paid: note.paid,
+    // Quem pagou aparece mesmo sem dividir (ex.: bancou os doces e não comeu): fica com R$ 0.
+    people: bill.people.filter((p) => note.people.includes(p.id) || p.id === note.payerId),
+    items: bill.items.filter((i) => noteOfItem(notes, i) === note.id),
+  };
+}
+
+/**
+ * Passa a conta para o modo "várias notas": o que já existe vira a primeira nota.
+ * Se já tem notas, devolve como está.
+ */
+export function withNotes(bill: Bill, firstNoteId: string): Bill {
+  if (bill.notes?.length) return bill;
+  const note: Note = {
+    id: firstNoteId,
+    category: '',
+    servicePct: bill.servicePct,
+    payerId: bill.payerId,
+    people: bill.people.map((p) => p.id),
+    photoId: null,
+    ...(bill.paid && Object.keys(bill.paid).length ? { paid: bill.paid } : {}),
+  };
+  return {
+    ...bill,
+    payerId: null,
+    paid: undefined,
+    notes: [note],
+    items: bill.items.map((i) => ({ ...i, noteId: note.id })),
+  };
+}
+
+/**
+ * Calcula quanto cada pessoa paga. Com várias notas, calcula cada nota (com o serviço
+ * dela) e soma por pessoa; os itens de cada pessoa vêm na ordem das notas.
+ */
+export function computeSplit(bill: Bill): SplitResult {
+  if (!bill.notes?.length) return splitOne(bill);
+  const byNote = bill.notes.map((n) => splitOne(noteBill(bill, n.id)));
+  const shares = bill.people.map((person): PersonShare => {
+    const share: PersonShare = { person, consumption: 0, service: 0, total: 0, parts: [] };
+    for (const r of byNote) {
+      const s = r.shares.find((x) => x.person.id === person.id);
+      if (!s) continue;
+      share.consumption += s.consumption;
+      share.service += s.service;
+      share.total += s.total;
+      share.parts.push(...s.parts);
+    }
+    return share;
+  });
+  const sum = (f: (r: SplitResult) => number) => byNote.reduce((t, r) => t + f(r), 0);
+  return {
+    shares,
+    subtotal: sum((r) => r.subtotal),
+    service: sum((r) => r.service),
+    total: sum((r) => r.total),
+    unassigned: sum((r) => r.unassigned),
+    unassignedItems: byNote.flatMap((r) => r.unassignedItems),
+  };
+}
+
+/**
+ * Calcula quanto cada pessoa paga numa nota.
  *
  * - Item dividido entre N pessoas: cada uma paga floor(valor / N); os centavos
  *   que sobram vão 1 por pessoa, começando numa posição que gira conforme o
@@ -84,7 +198,7 @@ export function itemTotal(item: Item): number {
  *   consumo pelo método do maior resto.
  * - Garantia: soma dos totais individuais === subtotal + serviço.
  */
-export function computeSplit(bill: Bill): SplitResult {
+function splitOne(bill: Bill): SplitResult {
   const consumption = new Map<string, number>();
   const parts = new Map<string, ItemPart[]>();
   bill.people.forEach((p) => {
@@ -186,12 +300,23 @@ export function payments(bill: Bill, result: SplitResult = computeSplit(bill)): 
   };
 }
 
-/** Remove a pessoa da mesa, de todos os itens e, se for o caso, do pagador. */
+/** Remove a pessoa da mesa, de todos os itens e, se for o caso, do pagador (também em cada nota). */
 export function removePerson(bill: Bill, personId: string): Bill {
   const paid = { ...bill.paid };
   delete paid[personId];
+  const notes = bill.notes?.map((n) => {
+    const notePaid = { ...n.paid };
+    delete notePaid[personId];
+    return {
+      ...n,
+      people: n.people.filter((id) => id !== personId),
+      payerId: n.payerId === personId ? null : n.payerId,
+      ...(n.paid ? { paid: notePaid } : {}),
+    };
+  });
   return {
     ...bill,
+    ...(notes ? { notes } : {}),
     paid,
     people: bill.people.filter((p) => p.id !== personId),
     items: bill.items.map((it) => ({ ...it, who: it.who.filter((id) => id !== personId) })),

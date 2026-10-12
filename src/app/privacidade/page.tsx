@@ -35,8 +35,8 @@ export default function Privacidade() {
         </p>
         <p>
           <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot;, a foto é lida no seu
-          próprio celular. Ela não é enviada para nós nem para ninguém, e não fica guardada: depois da
-          leitura, só os itens que você confirmar entram na conta.
+          próprio celular e não é enviada para nós nem para ninguém. Se você escolher guardar a foto na
+          nota, ela fica só neste aparelho, junto com a conta, até você removê-la ou apagar a conta.
         </p>
       </section>
 

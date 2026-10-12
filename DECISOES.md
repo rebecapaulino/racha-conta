@@ -78,6 +78,15 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Privacidade:** a foto da nota não sai do celular nem fica guardada (texto incluído na política, atualizada em 12/10/2026).
 - Testado com nota de bar, cupom NFC-e (serviço de 12%), foto torta e apagada e sem internet.
 
+## Várias notas fiscais na mesma conta — 12/10/2026 (passo 1 de 4)
+
+- **Pedido:** quem banca várias compras (ex.: bar, doces, mercado) guarda cada nota no mesmo grupo e, no fim, cobra o total de cada um. Escolhas da Rebeca: cada nota escolhe quem divide; cada nota tem o seu pagador; categoria da lista pronta (Comida, Bebidas, Doces, Mercado, Transporte, Outros) ou digitada; a foto fica só no celular.
+- **Modelo:** a conta ganha `notes` (opcional). Cada nota tem categoria, serviço, quem pagou, quem divide, o que já foi pago e a foto; cada item tem o `noteId`. Sem `notes`, a conta é uma nota só e tudo funciona como antes (contas antigas não mudam). Ao criar a 2ª nota (ou editar/guardar foto na primeira), o que existia vira a "Nota 1".
+- **Tela:** em Pedidos, logo abaixo do nome do lugar, a barra das notas (cartões com emoji da categoria e total; "+ Outra nota"), com a linha "paga por Fulano · 2 de 3 dividem", a miniatura da foto (toca e abre grande) e "Editar". Pedidos e Divisão mostram a nota aberta; a Divisão também tem a barra quando há mais de uma nota. O cartão do topo e a Mesa mostram a soma de todas as notas ("2 notas").
+- **Regras:** item novo entra na nota aberta com quem divide ela marcado. Pessoa nova na Mesa entra nas notas que eram de todo mundo (nas de só alguns, fica de fora). Tirar alguém da nota tira dos itens dela; pôr de volta marca nos itens que eram de todos. Quem pagou a nota aparece nela mesmo sem dividir (fica com R$ 0 e recebe tudo dos outros). Apagar a nota apaga os itens dela (com confirmação na própria janela); a última não pode ser apagada.
+- **Foto da nota:** na janela da nota (câmera ou galeria) ou ao ler a nota fiscal ("Guardar a foto da nota neste celular", marcado por padrão). Reduzida e guardada no aparelho (IndexedDB), como a foto do rolê. Política de Privacidade atualizada.
+- **Próximos passos:** (2) resumo do grupo: quanto cada um deve por categoria e no total, e quem paga para quem; (3) "Compartilhar nota" (foto + resumo) e mensagem do WhatsApp com todas as notas; (4) ver a nota no app para o grupo, junto com a Fase 2.
+
 ## Exceção "consumiu só isso" (Fase 1, passo 3)
 
 - Os itens escolhidos ficam **só para a pessoa** (ela paga o valor inteiro). Ela sai de todos os outros itens.

@@ -3,12 +3,16 @@ import { MAX_ITEM_NAME, MAX_QTY, SERVICE_OPTIONS, type Bill, type ServicePct } f
 import { formatBRL, parseBRL } from '../core/money';
 import { expectedItemsTotal, type ParsedReceipt } from '../receipt/parse';
 import { defaultReader, type ReadProgress } from '../receipt/reader';
-import type { Action } from '../state/billState';
+import { newId, type Action } from '../state/billState';
+import { deletePhoto, putPhoto, shrinkPhoto } from '../state/photos';
+import { forgetPhotoUrl, rememberPhotoUrl } from './usePhotoUrl';
 import { IconAlert, IconCamera, IconCheck, IconChevron, IconImage, IconMinus, IconPlus, IconReceipt, IconTrash } from './icons';
 
 interface Props {
   bill: Bill;
   example: boolean;
+  /** Foto já guardada na nota aberta (guardar a nova substitui). */
+  notePhotoId: string | null;
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
 }
@@ -36,7 +40,7 @@ const toRow = (name: string, qty: number, cents: number): Row => ({
  * Lê no próprio celular, mostra uma revisão rápida (corrigir valor, apagar ou incluir linha,
  * conferir com o total da nota) e só então lança os itens.
  */
-export function ReceiptScan({ bill, example, dispatch, toast }: Props) {
+export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<ReadProgress>({ fraction: 0, label: '' });
   const [photo, setPhoto] = useState<string | null>(null);
@@ -45,6 +49,9 @@ export function ReceiptScan({ bill, example, dispatch, toast }: Props) {
   const [replace, setReplace] = useState(false);
   const [useService, setUseService] = useState(true);
   const [showErrors, setShowErrors] = useState(false);
+  const [keepPhoto, setKeepPhoto] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef<File | null>(null);
 
   const chooseRef = useRef<HTMLDialogElement>(null);
   const readingRef = useRef<HTMLDialogElement>(null);
@@ -84,6 +91,7 @@ export function ReceiptScan({ bill, example, dispatch, toast }: Props) {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    fileRef.current = file;
     setPhoto(URL.createObjectURL(file));
     setProgress({ fraction: 0, label: 'Ajustando a foto…' });
     setPhase('reading');
@@ -118,6 +126,7 @@ export function ReceiptScan({ bill, example, dispatch, toast }: Props) {
     setPhase('idle');
     setParsed(null);
     setRows([]);
+    fileRef.current = null;
   }
 
   const update = (key: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -141,18 +150,41 @@ export function ReceiptScan({ bill, example, dispatch, toast }: Props) {
   const pctUsable = pct !== null && (SERVICE_OPTIONS as readonly number[]).includes(pct) && pct !== bill.servicePct;
   const canMerge = !example && bill.items.length > 0;
 
-  function confirm() {
-    if (!rows.length) return;
+  // Guarda a foto da nota no aparelho (reduzida), para ver e mandar depois. Falhar não impede lançar.
+  async function storePhoto(): Promise<string | undefined> {
+    const file = fileRef.current;
+    if (!keepPhoto || !file) return undefined;
+    try {
+      const blob = await shrinkPhoto(file);
+      const id = newId();
+      if (!(await putPhoto(id, blob))) return undefined;
+      rememberPhotoUrl(id, blob);
+      if (notePhotoId && !example) {
+        forgetPhotoUrl(notePhotoId);
+        deletePhoto(notePhotoId);
+      }
+      return id;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function confirm() {
+    if (!rows.length || saving) return;
     if (invalid.length) {
       setShowErrors(true);
       document.getElementById(`scan-name-${invalid[0].row.key}`)?.focus();
       return;
     }
+    setSaving(true);
+    const photoId = await storePhoto();
+    setSaving(false);
     dispatch({
       type: 'addItems',
       items: checked.map((c) => ({ name: c.row.name, qty: c.row.qty, cents: c.cents! })),
       replace: canMerge && replace,
       ...(pctUsable && useService ? { servicePct: pct as ServicePct } : {}),
+      ...(photoId ? { photoId } : {}),
     });
     const n = rows.length;
     const people = example ? 0 : bill.people.length;
@@ -374,13 +406,20 @@ export function ReceiptScan({ bill, example, dispatch, toast }: Props) {
               )}
               {example && <p className="hint">A mesa de exemplo sai e entra a sua nota.</p>}
 
+              {photo && (
+                <label className="scan-option">
+                  <input type="checkbox" checked={keepPhoto} onChange={(e) => setKeepPhoto(e.target.checked)} />
+                  <span>{notePhotoId && !example ? 'Guardar esta foto no lugar da anterior' : 'Guardar a foto da nota neste celular'}</span>
+                </label>
+              )}
+
               {showErrors && invalid.length > 0 && (
                 <p className="field-error" role="alert">Preencha o nome e o valor das linhas marcadas, ou apague-as.</p>
               )}
 
               <div className="sheet-actions scan-actions">
                 <button type="button" className="btn secondary" onClick={closeReview}>Cancelar</button>
-                <button type="button" className="btn primary" onClick={confirm} disabled={!rows.length}>
+                <button type="button" className="btn primary" onClick={confirm} disabled={!rows.length || saving}>
                   Lançar {rows.length} {rows.length === 1 ? 'item' : 'itens'}
                 </button>
               </div>

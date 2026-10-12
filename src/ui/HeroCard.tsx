@@ -13,7 +13,9 @@ interface Props {
   title: string;
   startedAt: number;
   total: number;
-  servicePct: number;
+  /** Serviço da conta; null quando ela tem várias notas (cada uma com o seu). */
+  servicePct: number | null;
+  notesCount: number;
   people: Person[];
   photoId: string | null;
   fluent: boolean;
@@ -22,7 +24,7 @@ interface Props {
 }
 
 /** Cartão do total. Com foto do rolê, a foto vira o fundo (fica como lembrança no histórico). */
-export function HeroCard({ title, startedAt, total, servicePct, people, photoId, fluent, onPhoto, toast }: Props) {
+export function HeroCard({ title, startedAt, total, servicePct, notesCount, people, photoId, fluent, onPhoto, toast }: Props) {
   const photoUrl = usePhotoUrl(photoId);
   const [busy, setBusy] = useState(false);
   const sheetRef = useRef<HTMLDialogElement>(null);
@@ -92,7 +94,7 @@ export function HeroCard({ title, startedAt, total, servicePct, people, photoId,
       <b className="hero-total">{formatBRL(total)}</b>
       <div className="hero-bottom">
         <span>
-          {servicePct ? `${servicePct}% de serviço` : 'sem serviço'}
+          {servicePct === null ? `${notesCount} notas` : servicePct ? `${servicePct}% de serviço` : 'sem serviço'}
           {people.length > 0 && ` · ${people.length} ${people.length === 1 ? 'pessoa' : 'pessoas'}`}
         </span>
         {people.length > 0 && <AvatarStack people={people} />}

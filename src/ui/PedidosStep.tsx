@@ -10,15 +10,22 @@ import { ReceiptScan } from './ReceiptScan';
 import { activeVisual } from './visual';
 
 interface Props {
+  /** A nota aberta (ou a conta inteira, quando é de uma nota só). */
   bill: Bill;
+  /** Nome do lugar (é da conta inteira, não da nota). */
+  title: string;
   result: SplitResult;
   example: boolean;
+  /** Foto guardada da nota aberta (a leitura da nota pode trocá-la). */
+  notePhotoId: string | null;
+  /** Barra das notas fiscais (fica logo abaixo do nome do lugar). */
+  notesBar?: React.ReactNode;
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
 }
 
 /** Etapa 2: nome da conta, itens, quem consumiu e serviço (referência: "Split The Bill"). */
-export function PedidosStep({ bill, result, example, dispatch, toast }: Props) {
+export function PedidosStep({ bill, title, result, example, notePhotoId, notesBar, dispatch, toast }: Props) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [error, setError] = useState('');
@@ -56,12 +63,14 @@ export function PedidosStep({ bill, result, example, dispatch, toast }: Props) {
           placeholder="Ex.: Bar do Zé"
           autoComplete="off"
           autoCapitalize="sentences"
-          value={bill.title}
+          value={title}
           onChange={(e) => dispatch({ type: 'title', title: e.target.value })}
         />
       </section>
 
-      <ReceiptScan bill={bill} example={example} dispatch={dispatch} toast={toast} />
+      {notesBar}
+
+      <ReceiptScan bill={bill} example={example} notePhotoId={notePhotoId} dispatch={dispatch} toast={toast} />
 
       <section className="card" aria-labelledby="h-add">
         <h2 id="h-add" className="field-label">Adicionar item</h2>

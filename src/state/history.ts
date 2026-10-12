@@ -13,7 +13,7 @@ export function toEntry(s: AppState): HistoryEntry {
 }
 
 export function fromEntry(e: HistoryEntry): AppState {
-  return { ...e, log: validLog(e.log), example: false };
+  return { ...e, noteId: null, log: validLog(e.log), example: false };
 }
 
 /** Guarda (ou atualiza) um rolê, mantendo o mais recente primeiro. */
