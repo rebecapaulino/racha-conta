@@ -2,6 +2,7 @@
 // para poder ser testado sozinho e reaproveitado (ex.: app Capacitor depois).
 
 import { formatBRL } from './money';
+import { categoryEmoji } from './noteCategory';
 
 export const SERVICE_OPTIONS = [0, 10, 12, 15] as const;
 export type ServicePct = (typeof SERVICE_OPTIONS)[number];
@@ -488,4 +489,40 @@ export function summaryText(bill: Bill, result: SplitResult = computeSplit(bill)
 
 export function whatsappUrl(text: string): string {
   return 'https://wa.me/?text=' + encodeURIComponent(text);
+}
+
+/** Texto do resumo do grupo (várias notas) para colar no WhatsApp. */
+export function groupSummaryText(bill: Bill, g: GroupSummary = groupSummary(bill)): string {
+  const name = (id: string) => bill.people.find((p) => p.id === id)?.name ?? 'alguém';
+  const title = bill.title.trim();
+  const lines: string[] = [];
+  lines.push('*Racha Conta*' + (title ? ' - ' + title : ''));
+  lines.push(`Total: ${formatBRL(g.total)} (${g.notes.length} ${g.notes.length === 1 ? 'nota' : 'notas'})`);
+  lines.push('');
+
+  lines.push('*Notas*');
+  for (const n of g.notes) {
+    lines.push(`${categoryEmoji(n.note.category)} ${n.label}: ${formatBRL(n.result.total)}` + (n.payer ? ` · pago por ${n.payer.name}` : ' · sem quem pagou'));
+  }
+  lines.push('');
+
+  lines.push('*Quanto cada um gastou*');
+  for (const p of g.people) {
+    const parts = g.notes.map((n, i) => (p.byNote[i] > 0 ? `${n.label} ${formatBRL(p.byNote[i])}` : '')).filter(Boolean);
+    lines.push(`- ${p.person.name}: ${formatBRL(p.total)}` + (parts.length > 1 ? ` (${parts.join(' · ')})` : ''));
+  }
+
+  const settled = bill.settled ?? [];
+  if (g.transfers.length || settled.length || g.notes.some((n) => n.payer)) {
+    lines.push('');
+    lines.push('*Quem paga para quem*');
+    for (const t of g.transfers) lines.push(`- ${name(t.from)} paga ${formatBRL(t.cents)} para ${name(t.to)}`);
+    for (const t of settled) lines.push(`- ${name(t.from)} pagou ${formatBRL(t.cents)} a ${name(t.to)} ✅`);
+    if (!g.transfers.length) lines.push('Tudo acertado ✅');
+  }
+  for (const n of g.withoutPayer) {
+    lines.push('');
+    lines.push(`${n.label} está sem quem pagou: cada um paga a sua parte no caixa.`);
+  }
+  return lines.join('\n');
 }

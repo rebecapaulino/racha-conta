@@ -4,7 +4,7 @@ import { newId, type Action } from '../state/billState';
 import { deletePhoto, putPhoto, shrinkPhoto } from '../state/photos';
 import { Avatar, personStyle } from './Avatar';
 import { IconCamera, IconCheck, IconImage, IconTrash } from './icons';
-import { categoryEmoji } from './noteCategory';
+import { categoryEmoji } from '../core/noteCategory';
 import { forgetPhotoUrl, rememberPhotoUrl, usePhotoUrl } from './usePhotoUrl';
 
 /** O que a janela está fazendo: criando uma nota ou editando uma (a da conta de nota só também). */

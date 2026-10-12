@@ -1,10 +1,10 @@
 import type { Dispatch } from 'react';
-import { groupSummary, type Bill } from '../core/bill';
+import { groupSummary, groupSummaryText, whatsappUrl, type Bill } from '../core/bill';
 import { formatBRL } from '../core/money';
 import type { Action } from '../state/billState';
 import { Avatar } from './Avatar';
-import { IconArrowRight, IconCheck } from './icons';
-import { categoryEmoji } from './noteCategory';
+import { IconArrowRight, IconCheck, IconCopy, IconShare } from './icons';
+import { categoryEmoji } from '../core/noteCategory';
 
 interface Props {
   /** A conta inteira, com todas as notas. */
@@ -21,6 +21,31 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
   const name = (id: string) => bill.people.find((p) => p.id === id)!;
   const settled = bill.settled ?? [];
   const anyPayer = g.notes.some((n) => n.payer);
+  const text = groupSummaryText(bill, g);
+
+  function copy() {
+    if (!navigator.clipboard?.writeText) {
+      toast('Não deu para copiar neste navegador. Use Enviar resumo.');
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+      () => toast('Resumo copiado'),
+      () => toast('Não deu para copiar. Use Enviar resumo.'),
+    );
+  }
+
+  // Abre o menu de compartilhar do celular (WhatsApp, Telegram…); sem ele, vai direto ao WhatsApp.
+  async function send() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+      } catch {
+        /* a pessoa fechou o menu */
+      }
+      return;
+    }
+    window.open(whatsappUrl(text), '_blank', 'noopener');
+  }
 
   return (
     <div className="stack-y group-summary">
@@ -146,6 +171,15 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
           ))}
         </ul>
       </section>
+
+      <div className="share-actions">
+        <button type="button" className="btn secondary" onClick={copy}>
+          <IconCopy /> Copiar texto
+        </button>
+        <button type="button" className="btn primary" onClick={send}>
+          <IconShare /> Enviar resumo
+        </button>
+      </div>
     </div>
   );
 }

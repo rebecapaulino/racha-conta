@@ -1,9 +1,10 @@
-import { useRef, useState, type Dispatch } from 'react';
-import { computeSplit, noteBill, noteLabel, type Bill, type Note } from '../core/bill';
+import { useEffect, useRef, useState, type Dispatch } from 'react';
+import { computeSplit, noteBill, noteLabel, summaryText, type Bill, type Note } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { newId, type Action } from '../state/billState';
-import { IconImage, IconPencil, IconPlus } from './icons';
-import { categoryEmoji } from './noteCategory';
+import { getPhoto } from '../state/photos';
+import { IconImage, IconPencil, IconPlus, IconShare } from './icons';
+import { categoryEmoji } from '../core/noteCategory';
 import { NoteSheet, type NoteSheetMode } from './NoteSheet';
 import { usePhotoUrl } from './usePhotoUrl';
 
@@ -35,12 +36,51 @@ export function NotesBar({ bill, active, dispatch, toast }: Props) {
   const named = current.category.trim() ? `Nota ${label}` : label;
   const photoUrl = usePhotoUrl(current.photoId);
 
+  // A foto fica pronta antes do toque: o celular só abre o menu de compartilhar logo depois dele.
+  const photoBlob = useRef<Blob | null>(null);
+  useEffect(() => {
+    photoBlob.current = null;
+    if (!current.photoId) return;
+    let alive = true;
+    getPhoto(current.photoId).then((b) => alive && (photoBlob.current = b));
+    return () => {
+      alive = false;
+    };
+  }, [current.photoId]);
+
   const payer = bill.people.find((p) => p.id === current.payerId);
   const meta: string[] = [];
   if (payer) meta.push(`paga por ${payer.name}`);
   if (bill.people.length) {
     const n = current.people.length;
     meta.push(n === bill.people.length ? 'todos dividem' : n === 0 ? 'ninguém divide' : `${n} de ${bill.people.length} dividem`);
+  }
+
+  async function share() {
+    const text = summaryText(noteBill(bill, current.id || null));
+    const blob = photoBlob.current;
+    const file = blob ? new File([blob], `nota-${label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-')}.jpg`, { type: blob.type || 'image/jpeg' }) : null;
+    if (file && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], text });
+      } catch (e) {
+        if ((e as DOMException).name === 'NotAllowedError') toast('Toque de novo em Compartilhar.');
+      }
+      return;
+    }
+    // Sem compartilhar arquivos (computador): baixa a foto e copia o resumo.
+    if (file) {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+    navigator.clipboard?.writeText(text).then(
+      () => toast(file ? 'Foto baixada e resumo copiado' : 'Resumo copiado'),
+      () => toast(file ? 'Foto baixada' : 'Não deu para copiar'),
+    );
   }
 
   function edit() {
@@ -108,6 +148,10 @@ export function NotesBar({ bill, active, dispatch, toast }: Props) {
           <h2 id="h-note-photo"><IconImage size={20} /> {named}</h2>
           {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
           {photoUrl && <img className="note-photo-big" src={photoUrl} alt={`Foto da ${named.toLowerCase()}`} />}
+          <button type="button" className="btn primary" onClick={share}>
+            <IconShare /> Compartilhar nota
+          </button>
+          <p className="hint">Vai a foto e quanto cada um paga nesta nota.</p>
           <button type="button" className="btn ghost" onClick={() => photoRef.current?.close()}>Fechar</button>
         </div>
       </dialog>

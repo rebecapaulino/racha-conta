@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSplit, groupSummary, settleUp } from '../core/bill';
+import { computeSplit, groupSummary, groupSummaryText, settleUp } from '../core/bill';
 import { activeBill, activeNote, blankState, isValidBill, reducer, type Action, type AppState } from './billState';
 
 const run = (s: AppState, ...actions: Action[]) => actions.reduce(reducer, s);
@@ -230,5 +230,33 @@ describe('resumo do grupo: quem paga para quem', () => {
     const { s, bruno, carla } = festa();
     const t = run(s, { type: 'settle', from: bruno, to: carla, cents: 100 }, { type: 'removePerson', id: bruno });
     expect(t.bill.settled).toEqual([]);
+  });
+});
+
+describe('texto do resumo do grupo', () => {
+  it('lista notas, quanto cada um gastou e quem paga para quem', () => {
+    const s0 = run(bar(), { type: 'title', title: 'Festa' });
+    const [ana, bruno, carla] = ids(s0);
+    let s = run(s0, { type: 'addNote', category: 'Doces', payerId: carla, people: [ana, bruno], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 });
+    s = run(s, { type: 'settle', from: bruno, to: ana, cents: 200 });
+    expect(groupSummaryText(s.bill)).toBe(
+      [
+        '*Racha Conta* - Festa',
+        'Total: R$ 73,00 (2 notas)',
+        '',
+        '*Notas*',
+        '🧾 Nota 1: R$ 33,00 · pago por Ana',
+        '🍬 Doces: R$ 40,00 · pago por Carla',
+        '',
+        '*Quanto cada um gastou*',
+        '- Ana: R$ 31,00 (Nota 1 R$ 11,00 · Doces R$ 20,00)',
+        '- Bruno: R$ 31,00 (Nota 1 R$ 11,00 · Doces R$ 20,00)',
+        '- Carla: R$ 11,00',
+        '',
+        '*Quem paga para quem*',
+        '- Bruno paga R$ 29,00 para Carla',
+        '- Bruno pagou R$ 2,00 a Ana ✅',
+      ].join('\n'),
+    );
   });
 });
