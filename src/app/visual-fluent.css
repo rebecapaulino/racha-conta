@@ -291,6 +291,15 @@
             backdrop-filter: blur(24px) saturate(1.4);
     border-top: 1px solid var(--line);
   }
+  /* No celular, fundo sólido e camada própria: no iPhone, o vidro fosco numa barra presa à base
+     se atrasa na rolagem e aparece desenhado no meio da tela. */
+  @media (max-width: 999px) {
+    & .cta, & .share-actions {
+      background: var(--bg);
+      -webkit-backdrop-filter: none; backdrop-filter: none;
+      transform: translateZ(0);
+    }
+  }
   & .cta .btn.big:has(.cta-total) { padding-inline: 16px; }
   & .cta-total { font-weight: 600; }
 
