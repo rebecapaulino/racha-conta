@@ -52,7 +52,15 @@ export type Action =
   | { type: 'removePerson'; id: string }
   | { type: 'addItem'; name: string; cents: number }
   /** Itens lidos da foto da nota: somam aos atuais ou trocam por eles; pode trazer o serviço da nota. */
-  | { type: 'addItems'; items: { name: string; cents: number; qty: number }[]; replace: boolean; servicePct?: ServicePct; photoId?: string }
+  | {
+      type: 'addItems';
+      items: { name: string; cents: number; qty: number }[];
+      replace: boolean;
+      servicePct?: ServicePct;
+      photoId?: string;
+      /** Lança numa nota nova, separada das outras (com todo mundo dividindo; quem pagou se escolhe depois). */
+      newNote?: boolean;
+    }
   | { type: 'removeItem'; id: string }
   | { type: 'qty'; id: string; delta: 1 | -1 }
   | { type: 'toggle'; itemId: string; personId: string }
@@ -192,7 +200,11 @@ function apply(state: AppState, action: Action): AppState {
       // A mesa de exemplo é de mentira: a nota de verdade começa uma conta nova.
       let base = state.example ? blankState() : state;
       // Guardar a foto pede uma nota para ela ficar (a conta passa a ter notas).
-      if (action.photoId && !base.bill.notes?.length) base = { ...base, bill: withNotes(base.bill, newId()) };
+      if ((action.photoId || action.newNote) && !base.bill.notes?.length) base = { ...base, bill: withNotes(base.bill, newId()) };
+      if (action.newNote) {
+        const created: Note = { id: newId(), category: '', servicePct: 0, payerId: null, people: base.bill.people.map((p) => p.id), photoId: null };
+        base = { ...base, noteId: created.id, bill: { ...base.bill, notes: [...base.bill.notes!, created] } };
+      }
       const target = activeNote(base);
       const everyone = target ? base.bill.people.map((p) => p.id).filter((id) => target.people.includes(id)) : base.bill.people.map((p) => p.id);
       const items = read.map((i) => ({
@@ -204,7 +216,7 @@ function apply(state: AppState, action: Action): AppState {
         ...(target ? { noteId: target.id } : {}),
       }));
       // "Trocar" troca só os itens da nota aberta.
-      const replaced = new Set(action.replace ? noteBill(base.bill, target?.id ?? null).items.map((i) => i.id) : []);
+      const replaced = new Set(action.replace && !action.newNote ? noteBill(base.bill, target?.id ?? null).items.map((i) => i.id) : []);
       const kept = base.bill.items.filter((i) => !replaced.has(i.id));
       const nextBill: Bill = { ...base.bill, items: [...kept, ...items] };
       if (target) {
@@ -392,7 +404,8 @@ function describe(before: AppState, after: AppState, action: Action): string | n
       const n = added.length;
       const sum = added.reduce((t, i) => t + itemTotal(i), 0);
       const parts = [`Leu a nota fiscal: ${n} ${n === 1 ? 'item' : 'itens'} · ${formatBRL(sum)}`];
-      if (action.replace && !before.example && activeBill(before).items.length) parts.push('no lugar dos itens anteriores');
+      if (action.newNote) parts.push('em nota nova');
+      else if (action.replace && !before.example && activeBill(before).items.length) parts.push('no lugar dos itens anteriores');
       if (action.servicePct !== undefined && action.servicePct !== activeBill(before).servicePct) parts.push(`serviço em ${action.servicePct}%`);
       if (action.photoId) parts.push('foto guardada');
       return inNote(parts.join(' · '));
@@ -554,12 +567,13 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && isValidBill(parsed.bill)) return upgrade(parsed);
+      // A mesa de exemplo das versões antigas também sai: quem entra encontra a conta zerada.
+      if (parsed && !parsed.example && isValidBill(parsed.bill)) return upgrade(parsed);
     }
   } catch {
-    /* armazenamento indisponível ou dado corrompido: começa com o exemplo */
+    /* armazenamento indisponível ou dado corrompido: começa zerado */
   }
-  return exampleState();
+  return blankState();
 }
 
 export function saveState(state: AppState): void {

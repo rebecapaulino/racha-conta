@@ -131,7 +131,9 @@ export default function SoloApp() {
     setDivView('nota');
   }
 
-  const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} />;
+  // Pedido para abrir a nota que a leitura da foto acabou de criar (quem pagou, quem divide).
+  const [editRequest, setEditRequest] = useState(0);
+  const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} editRequest={editRequest} />;
   const divisaoNota = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
   const divisao = !multi ? (
     divisaoNota
@@ -243,6 +245,7 @@ export default function SoloApp() {
                 example={state.example}
                 notePhotoId={note?.photoId ?? null}
                 notesBar={!state.example && notesBar}
+                onNewNote={() => setEditRequest((n) => n + 1)}
                 dispatch={dispatch}
                 toast={toast}
               />

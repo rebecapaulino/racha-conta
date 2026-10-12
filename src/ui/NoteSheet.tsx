@@ -8,7 +8,7 @@ import { categoryEmoji } from '../core/noteCategory';
 import { forgetPhotoUrl, rememberPhotoUrl, usePhotoUrl } from './usePhotoUrl';
 
 /** O que a janela está fazendo: criando uma nota ou editando uma (a da conta de nota só também). */
-export type NoteSheetMode = { kind: 'create' } | { kind: 'edit'; note: Note; label: string; items: number };
+export type NoteSheetMode = { kind: 'create' } | { kind: 'edit'; note: Note; label: string; items: number; intro?: string };
 
 interface Props {
   mode: NoteSheetMode | null;
@@ -148,6 +148,7 @@ export function NoteSheet({ mode, people, notesCount, dispatch, toast, onClose }
         <span className="sheet-grip" aria-hidden="true" />
         <h2 id="h-note" tabIndex={-1}>{mode?.kind === 'edit' ? `Editar ${mode.label.charAt(0).toLowerCase()}${mode.label.slice(1)}` : 'Nova nota fiscal'}</h2>
         {mode?.kind === 'create' && <p>Cada nota tem quem pagou e quem divide. No fim, o app soma tudo por pessoa.</p>}
+        {mode?.kind === 'edit' && mode.intro && <p>{mode.intro}</p>}
 
         <fieldset className="note-field">
           <legend className="field-label">Categoria</legend>

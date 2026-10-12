@@ -1187,7 +1187,17 @@ input, textarea, select { font-size: max(16px, 1em); }
 
 .scan-option { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; cursor: pointer; }
 .scan-option input { width: 22px; height: 22px; flex: none; accent-color: var(--primary); }
-.scan-mode { margin-top: 2px; }
+.scan-modes { display: flex; flex-direction: column; gap: 8px; border: 0; padding: 0; margin: 2px 0 0; min-width: 0; }
+.scan-modes legend { margin-bottom: 8px; font-size: .95rem; }
+.scan-mode {
+  display: flex; align-items: flex-start; gap: 12px; min-height: 44px; cursor: pointer;
+  padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface);
+}
+.scan-mode:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.scan-mode input { width: 20px; height: 20px; flex: none; margin: 2px 0 0; accent-color: var(--primary); }
+.scan-mode span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.scan-mode b { font-weight: 700; font-size: .95rem; }
+.scan-mode small { color: var(--muted); font-size: .84rem; }
 
 .scan-photo summary { min-height: 44px; display: flex; align-items: center; color: var(--primary); font-weight: 600; cursor: pointer; }
 .scan-photo img { display: block; width: 100%; max-height: 60dvh; object-fit: contain; border-radius: 12px; background: #111; }

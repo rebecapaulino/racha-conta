@@ -15,13 +15,15 @@ interface Props {
   active: Note | null;
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
+  /** Muda quando uma nota acabou de ser criada pela leitura da foto: abre a nota para completar. */
+  editRequest?: number;
 }
 
 /**
  * Notas fiscais da conta (ex.: a do bar e a dos doces): troca a nota aberta em Pedidos e
  * Divisão, cria uma nova e edita a aberta (categoria, quem pagou, quem divide, foto).
  */
-export function NotesBar({ bill, active, dispatch, toast }: Props) {
+export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) {
   const [mode, setMode] = useState<NoteSheetMode | null>(null);
   const photoRef = useRef<HTMLDialogElement>(null);
   const notes = bill.notes ?? [];
@@ -83,9 +85,17 @@ export function NotesBar({ bill, active, dispatch, toast }: Props) {
     );
   }
 
-  function edit() {
+  function edit(intro?: string) {
     const items = noteBill(bill, current.id || null).items.length;
-    setMode({ kind: 'edit', note: current.id ? current : { ...current, id: newId() }, label: named, items });
+    setMode({ kind: 'edit', note: current.id ? current : { ...current, id: newId() }, label: named, items, intro });
+  }
+
+  // Pedido novo (nota criada pela foto): abre a nota aberta, que é a recém-criada.
+  const [seenRequest, setSeenRequest] = useState(editRequest);
+  if (editRequest !== seenRequest) {
+    setSeenRequest(editRequest);
+    const n = noteBill(bill, current.id || null).items.length;
+    edit(`${n === 1 ? 'O item da foto foi' : `Os ${n} itens da foto foram`} para esta nota. Diga a categoria, quem pagou e quem divide.`);
   }
 
   return (
@@ -123,7 +133,7 @@ export function NotesBar({ bill, active, dispatch, toast }: Props) {
             <img src={photoUrl} alt="" />
           </button>
         )}
-        <button type="button" className="link-btn notes-edit" onClick={edit} aria-label={`Editar ${named}`}>
+        <button type="button" className="link-btn notes-edit" onClick={() => edit()} aria-label={`Editar ${named}`}>
           <IconPencil size={16} /> Editar
         </button>
       </div>

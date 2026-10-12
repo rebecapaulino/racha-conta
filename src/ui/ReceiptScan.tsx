@@ -15,7 +15,12 @@ interface Props {
   notePhotoId: string | null;
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
+  /** Os itens foram para uma nota nova: abre a nota para escolher quem pagou e quem divide. */
+  onNewNote?: () => void;
 }
+
+/** O que fazer com os itens lidos quando a nota aberta já tem itens. */
+type Mode = 'nova' | 'juntar' | 'trocar';
 
 interface Row {
   key: number;
@@ -40,13 +45,13 @@ const toRow = (name: string, qty: number, cents: number): Row => ({
  * Lê no próprio celular, mostra uma revisão rápida (corrigir valor, apagar ou incluir linha,
  * conferir com o total da nota) e só então lança os itens.
  */
-export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Props) {
+export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNewNote }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<ReadProgress>({ fraction: 0, label: '' });
   const [photo, setPhoto] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
-  const [replace, setReplace] = useState(false);
+  const [mode, setMode] = useState<Mode>('nova');
   const [useService, setUseService] = useState(true);
   const [showErrors, setShowErrors] = useState(false);
   const [keepPhoto, setKeepPhoto] = useState(true);
@@ -102,7 +107,7 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Pro
       if (ctrl.signal.aborted) return;
       setParsed(result);
       setRows(result.items.map((i) => toRow(i.name, i.qty, i.cents)));
-      setReplace(false);
+      setMode('nova');
       setUseService(true);
       setShowErrors(false);
       setPhase('review');
@@ -147,8 +152,10 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Pro
   const diff = expected === null ? null : sum - expected;
 
   const pct = parsed?.servicePct ?? null;
-  const pctUsable = pct !== null && (SERVICE_OPTIONS as readonly number[]).includes(pct) && pct !== bill.servicePct;
   const canMerge = !example && bill.items.length > 0;
+  // Nota nova começa sem serviço; nas outras opções, compara com o serviço da nota aberta.
+  const currentPct = canMerge && mode === 'nova' ? 0 : bill.servicePct;
+  const pctUsable = pct !== null && (SERVICE_OPTIONS as readonly number[]).includes(pct) && pct !== currentPct;
 
   // Guarda a foto da nota no aparelho (reduzida), para ver e mandar depois. Falhar não impede lançar.
   async function storePhoto(): Promise<string | undefined> {
@@ -159,7 +166,7 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Pro
       const id = newId();
       if (!(await putPhoto(id, blob))) return undefined;
       rememberPhotoUrl(id, blob);
-      if (notePhotoId && !example) {
+      if (notePhotoId && !example && !(canMerge && mode === 'nova')) {
         forgetPhotoUrl(notePhotoId);
         deletePhoto(notePhotoId);
       }
@@ -182,17 +189,23 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Pro
     dispatch({
       type: 'addItems',
       items: checked.map((c) => ({ name: c.row.name, qty: c.row.qty, cents: c.cents! })),
-      replace: canMerge && replace,
+      replace: canMerge && mode === 'trocar',
+      newNote: canMerge && mode === 'nova',
       ...(pctUsable && useService ? { servicePct: pct as ServicePct } : {}),
       ...(photoId ? { photoId } : {}),
     });
     const n = rows.length;
     const people = example ? 0 : bill.people.length;
+    const toNewNote = canMerge && mode === 'nova';
+    closeReview();
+    if (toNewNote && onNewNote) {
+      onNewNote();
+      return;
+    }
     toast(
       `${n} ${n === 1 ? 'item lançado' : 'itens lançados'}. ` +
         (people ? 'Agora marque quem consumiu cada um.' : 'Agora adicione quem estava na mesa.'),
     );
-    closeReview();
   }
 
   return (
@@ -395,21 +408,31 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast }: Pro
               )}
 
               {canMerge && (
-                <div className="seg scan-mode" role="group" aria-label="O que fazer com os itens que já estão na conta">
-                  <button type="button" aria-pressed={!replace} onClick={() => setReplace(false)}>
-                    Somar aos {bill.items.length}
-                  </button>
-                  <button type="button" aria-pressed={replace} onClick={() => setReplace(true)}>
-                    Trocar pelos da nota
-                  </button>
-                </div>
+                <fieldset className="scan-modes">
+                  <legend className="field-label">Esta conta já tem {bill.items.length === 1 ? '1 item' : `${bill.items.length} itens`}. O que fazer?</legend>
+                  {(
+                    [
+                      ['nova', 'Criar uma nota separada', 'Outra compra: fica à parte, com quem pagou e quem divide só dela.'],
+                      ['juntar', `Juntar com ${bill.items.length === 1 ? 'o item' : `os ${bill.items.length} itens`} desta nota`, 'É a mesma compra (ex.: a nota veio em duas partes).'],
+                      ['trocar', `Trocar ${bill.items.length === 1 ? 'o item' : `os ${bill.items.length} itens`} pelos da foto`, 'Apaga o que foi lançado à mão nesta nota.'],
+                    ] as const
+                  ).map(([value, label, help]) => (
+                    <label key={value} className="scan-mode">
+                      <input type="radio" name="scan-mode" value={value} checked={mode === value} onChange={() => setMode(value)} />
+                      <span>
+                        <b>{label}</b>
+                        <small>{help}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
               )}
               {example && <p className="hint">A mesa de exemplo sai e entra a sua nota.</p>}
 
               {photo && (
                 <label className="scan-option">
                   <input type="checkbox" checked={keepPhoto} onChange={(e) => setKeepPhoto(e.target.checked)} />
-                  <span>{notePhotoId && !example ? 'Guardar esta foto no lugar da anterior' : 'Guardar a foto da nota neste celular'}</span>
+                  <span>{notePhotoId && !example && !(canMerge && mode === 'nova') ? 'Guardar esta foto no lugar da anterior' : 'Guardar a foto da nota neste celular'}</span>
                 </label>
               )}
 

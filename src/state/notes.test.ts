@@ -260,3 +260,16 @@ describe('texto do resumo do grupo', () => {
     );
   });
 });
+
+describe('ler nota em nota nova', () => {
+  it('cria uma nota separada só com os itens da foto, e ela fica aberta', () => {
+    const s0 = bar();
+    const s = run(s0, { type: 'addItems', items: [{ name: 'Pimenta', cents: 1320, qty: 1 }], replace: true, newNote: true, photoId: 'f' });
+    expect(s.bill.notes!.length).toBe(2);
+    expect(activeNote(s)).toMatchObject({ photoId: 'f', payerId: null, people: ids(s0) });
+    expect(activeBill(s).items.map((i) => i.name)).toEqual(['Pimenta']);
+    expect(s.bill.items.map((i) => i.name)).toEqual(['Chopp', 'Pimenta']);
+    expect(s.bill.notes![0].photoId).toBeNull();
+    expect(s.log.at(-1)!.text).toContain('em nota nova');
+  });
+});

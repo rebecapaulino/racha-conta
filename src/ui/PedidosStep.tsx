@@ -20,12 +20,14 @@ interface Props {
   notePhotoId: string | null;
   /** Barra das notas fiscais (fica logo abaixo do nome do lugar). */
   notesBar?: React.ReactNode;
+  /** A leitura da foto criou uma nota nova. */
+  onNewNote?: () => void;
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
 }
 
 /** Etapa 2: nome da conta, itens, quem consumiu e serviço (referência: "Split The Bill"). */
-export function PedidosStep({ bill, title, result, example, notePhotoId, notesBar, dispatch, toast }: Props) {
+export function PedidosStep({ bill, title, result, example, notePhotoId, notesBar, onNewNote, dispatch, toast }: Props) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [error, setError] = useState('');
@@ -70,7 +72,7 @@ export function PedidosStep({ bill, title, result, example, notePhotoId, notesBa
 
       {notesBar}
 
-      <ReceiptScan bill={bill} example={example} notePhotoId={notePhotoId} dispatch={dispatch} toast={toast} />
+      <ReceiptScan bill={bill} example={example} notePhotoId={notePhotoId} dispatch={dispatch} toast={toast} onNewNote={onNewNote} />
 
       <section className="card" aria-labelledby="h-add">
         <h2 id="h-add" className="field-label">Adicionar item</h2>

@@ -101,6 +101,11 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Compartilhar nota:** tocando na miniatura da foto da nota, a foto abre grande com "Compartilhar nota": vai a foto + o resumo daquela nota (quanto cada um paga). Sem compartilhar arquivos (computador), baixa a foto e copia o resumo. Sem foto, a nota continua tendo "Enviar notinha" em "Por nota".
 - A foto continua só no celular: ela só sai quando a pessoa compartilha.
 
+## Ajustes depois do teste no celular — 12/10/2026
+
+- **Ler nota com a conta já tendo itens:** o "Somar aos N / Trocar pelos da nota" (quebrava o layout e confundia) virou 3 opções com explicação: **"Criar uma nota separada"** (padrão), "Juntar com os N itens desta nota" e "Trocar os N itens pelos da foto". Motivo: a Rebeca leu uma nota de R$ 13,20 e ela foi somada à pizza lançada à mão; ao compartilhar, saiu tudo junto. Na nota separada, o serviço da nota fiscal é oferecido de novo (a nota nova começa sem serviço) e, ao lançar, abre a janela da nota para escolher categoria, quem pagou e quem divide.
+- **Primeira vez no app:** começa zerado (sem a mesa de exemplo). Quem tinha a mesa de exemplo salva também passa a ver a conta zerada.
+
 ## Exceção "consumiu só isso" (Fase 1, passo 3)
 
 - Os itens escolhidos ficam **só para a pessoa** (ela paga o valor inteiro). Ela sai de todos os outros itens.
