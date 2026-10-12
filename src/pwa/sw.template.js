@@ -2,6 +2,8 @@
    __VERSION__ é trocado a cada build (ver src/app/sw.js/route.ts). */
 
 const CACHE = 'racha-conta-__VERSION__';
+// Fora do prefixo "racha-conta-": a limpeza de versões antigas não apaga.
+const OCR_CACHE = 'rc-ocr-tesseract-7.0.0';
 const SHELL = ['/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png', '/apple-touch-icon.png'];
 // Sinal fraco no bar: se a rede não responder logo, abre a versão guardada.
 const NETWORK_TIMEOUT = 3500;
@@ -61,6 +63,22 @@ self.addEventListener('fetch', (event) => {
         } catch {
           return (await cached) || fetch(req);
         }
+      })(),
+    );
+    return;
+  }
+
+  // Leitor da nota fiscal (~5 MB): guardado num espaço próprio, que não é apagado a cada
+  // versão do app, para não baixar de novo. Troque o nome quando o tesseract.js mudar de versão.
+  if (url.pathname.startsWith('/ocr/')) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(OCR_CACHE);
+        const hit = await cache.match(req);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok) cache.put(req, res.clone());
+        return res;
       })(),
     );
     return;

@@ -3,6 +3,7 @@
 // Salvo no aparelho; se o armazenamento falhar, o app segue funcionando em memória.
 
 import {
+  MAX_ITEM_NAME,
   MAX_NAME,
   MAX_QTY,
   computeSplit,
@@ -43,6 +44,8 @@ export type Action =
   | { type: 'addPerson'; name: string }
   | { type: 'removePerson'; id: string }
   | { type: 'addItem'; name: string; cents: number }
+  /** Itens lidos da foto da nota: somam aos atuais ou trocam por eles; pode trazer o serviço da nota. */
+  | { type: 'addItems'; items: { name: string; cents: number; qty: number }[]; replace: boolean; servicePct?: ServicePct }
   | { type: 'removeItem'; id: string }
   | { type: 'qty'; id: string; delta: 1 | -1 }
   | { type: 'toggle'; itemId: string; personId: string }
@@ -134,6 +137,26 @@ function apply(state: AppState, action: Action): AppState {
       return next({ items: [...bill.items, item] });
     }
 
+    case 'addItems': {
+      const read = action.items
+        .map((i) => ({ name: i.name.trim().slice(0, MAX_ITEM_NAME), cents: i.cents, qty: Math.min(MAX_QTY, Math.max(1, Math.round(i.qty))) }))
+        .filter((i) => i.name && Number.isSafeInteger(i.cents) && i.cents > 0);
+      if (!read.length) return state;
+      // A mesa de exemplo é de mentira: a nota de verdade começa uma conta nova.
+      const base = state.example ? blankState() : state;
+      const everyone = base.bill.people.map((p) => p.id);
+      const items = read.map((i) => ({ id: newId(), name: i.name, cents: i.cents, ...(i.qty > 1 ? { qty: i.qty } : {}), who: [...everyone] }));
+      return {
+        ...base,
+        example: false,
+        bill: {
+          ...base.bill,
+          items: action.replace ? items : [...base.bill.items, ...items],
+          servicePct: action.servicePct ?? base.bill.servicePct,
+        },
+      };
+    }
+
     case 'removeItem':
       return next({ items: bill.items.filter((i) => i.id !== action.id) });
 
@@ -214,6 +237,15 @@ function describe(before: AppState, after: AppState, action: Action): string | n
     case 'addItem': {
       const it = after.bill.items.at(-1)!;
       return `Adicionou ${it.name} · ${formatBRL(it.cents)}`;
+    }
+    case 'addItems': {
+      const added = action.replace ? after.bill.items : after.bill.items.slice(before.example ? 0 : bill.items.length);
+      const n = added.length;
+      const sum = added.reduce((t, i) => t + itemTotal(i), 0);
+      const parts = [`Leu a nota fiscal: ${n} ${n === 1 ? 'item' : 'itens'} · ${formatBRL(sum)}`];
+      if (action.replace && !before.example && bill.items.length) parts.push('no lugar dos itens anteriores');
+      if (action.servicePct !== undefined && action.servicePct !== bill.servicePct) parts.push(`serviço em ${action.servicePct}%`);
+      return parts.join(' · ');
     }
     case 'removeItem': {
       const it = item(action.id)!;

@@ -1,21 +1,24 @@
 import { Fragment, useRef, useState, type Dispatch } from 'react';
-import { MAX_QTY, SERVICE_OPTIONS, itemTotal, type Bill, type Item, type Person, type SplitResult } from '../core/bill';
+import { MAX_ITEM_NAME, MAX_QTY, SERVICE_OPTIONS, itemTotal, type Bill, type Item, type Person, type SplitResult } from '../core/bill';
 import { formatBRL, parseBRL } from '../core/money';
 import type { Action } from '../state/billState';
 import { Avatar, personStyle } from './Avatar';
 import { IconAlert, IconMinus, IconPlus, IconTrash } from './icons';
 import { Art, artForItem } from './illustrations';
 import { itemEmoji, itemKind } from './itemEmoji';
+import { ReceiptScan } from './ReceiptScan';
 import { activeVisual } from './visual';
 
 interface Props {
   bill: Bill;
   result: SplitResult;
+  example: boolean;
   dispatch: Dispatch<Action>;
+  toast: (msg: string) => void;
 }
 
 /** Etapa 2: nome da conta, itens, quem consumiu e serviço (referência: "Split The Bill"). */
-export function PedidosStep({ bill, result, dispatch }: Props) {
+export function PedidosStep({ bill, result, example, dispatch, toast }: Props) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [error, setError] = useState('');
@@ -58,6 +61,8 @@ export function PedidosStep({ bill, result, dispatch }: Props) {
         />
       </section>
 
+      <ReceiptScan bill={bill} example={example} dispatch={dispatch} toast={toast} />
+
       <section className="card" aria-labelledby="h-add">
         <h2 id="h-add" className="field-label">Adicionar item</h2>
         <form className="add-item" onSubmit={add} noValidate>
@@ -66,7 +71,7 @@ export function PedidosStep({ bill, result, dispatch }: Props) {
             id="item-name"
             ref={nameRef}
             className="input"
-            maxLength={40}
+            maxLength={MAX_ITEM_NAME}
             placeholder="Item (ex.: Chopp)"
             autoComplete="off"
             autoCapitalize="sentences"
@@ -109,7 +114,7 @@ export function PedidosStep({ bill, result, dispatch }: Props) {
         {bill.items.length === 0 ? (
           <div className="card empty">
             <span className="empty-icon" aria-hidden="true">{activeVisual() === 'fluent' ? <Art kind="dish" size={36} /> : '🍽️'}</span>
-            <p><b>Nenhum item ainda.</b><br />Lance o que foi pedido acima.</p>
+            <p><b>Nenhum item ainda.</b><br />Leia a nota fiscal ou lance o que foi pedido acima.</p>
           </div>
         ) : (
           <ul className="items">

@@ -65,6 +65,19 @@ Complementa o `BRIEFING.md`. Quando os dois divergirem, vale este arquivo (decis
 - Nota no app: selo **"2/4 pagos"** (ref.: "3/4 Paid" do McDonald's) ou "Tudo pago"; ✓ nas bolinhas do "Dividido com"; impressora mostra **"Falta Fulano receber R$ X · N de M já pagaram"** ou "Tudo acertado ✓".
 - Também em: aviso sob "Quem pagou no caixa?", mensagem do WhatsApp ("✅ pago", "Falta receber", "Tudo pago ✅", "pagou a mais, receber de volta"), notinha em imagem (etiqueta verde "pago ✓"), cartões dos Rolês ("2/4 pagos" / "✓ Tudo pago") e registro de alterações ("Ana pagou R$ 80,85").
 
+## Ler nota fiscal (OCR) — 12/10/2026
+
+Pedida antes da Fase 2 (no briefing era a Fase 3).
+
+- **Onde:** botão "Ler nota fiscal" na aba Pedidos → tirar foto ou escolher da galeria → "Lendo a nota" (barra de progresso, Cancelar) → "Confira os itens" → "Lançar N itens".
+- **No celular, sem servidor:** Tesseract (tesseract.js 7.0.0) com o português compacto (~1,3 MB). Os arquivos (~5 MB no total) são servidos pelo próprio site em `/ocr` (copiados de `node_modules` por `scripts/copy-ocr.mjs` antes do build; a pasta não vai para o Git). O service worker guarda esses arquivos num espaço próprio, que não é apagado nas atualizações do app, e a leitura funciona sem internet depois do primeiro uso.
+- **Peça trocável:** a tela só conhece `ReceiptReader` (`src/receipt/reader.ts`). O Tesseract é um leitor (`tesseract.ts`). Uma IA no futuro seria outro, com a chave numa função do Next. A interpretação do texto (`parse.ts`) é pura e testada: itens, quantidade (do "2 CAIPIRINHA", do "3 X 14,50" ou do unitário × total), peso vira 1 unidade, item em duas linhas (NFC-e), pontilhado, R$, milhar e trocas comuns do OCR (O→0, l→1). Ignora CNPJ, data, pagamento, troco, impostos, desconto e "por pessoa".
+- **Foto:** é ajustada antes (gira pela câmera, tamanho, tons de cinza e contraste) e lida como um bloco só, o que mantém o preço na linha do nome mesmo com a nota um pouco torta.
+- **Revisão:** cada linha com nome, quantidade (− +) e valor da unidade editáveis, apagar e "Incluir linha que faltou". Confere a soma com a nota ("A soma bate com a nota" ou "faltam/sobram R$ X"). Se a nota trouxer serviço de 10/12/15% diferente do atual, oferece "Usar o serviço da nota". Com itens já lançados, escolhe "Somar aos N" ou "Trocar pelos da nota". Na mesa de exemplo, a nota começa uma conta nova.
+- **Itens lidos** entram como os digitados: todo mundo da mesa marcado. Se ainda não há pessoas, o aviso pede para adicionar quem estava na mesa.
+- **Privacidade:** a foto da nota não sai do celular nem fica guardada (texto incluído na política, atualizada em 12/10/2026).
+- Testado com nota de bar, cupom NFC-e (serviço de 12%), foto torta e apagada e sem internet.
+
 ## Exceção "consumiu só isso" (Fase 1, passo 3)
 
 - Os itens escolhidos ficam **só para a pessoa** (ela paga o valor inteiro). Ela sai de todos os outros itens.

@@ -199,7 +199,7 @@ export default function SoloApp() {
 
           <div id="panel" role="tabpanel" aria-labelledby={`tab-${current}`} className="panel">
             {current === 'mesa' && <MesaStep bill={bill} result={result} dispatch={dispatch} />}
-            {current === 'pedidos' && <PedidosStep bill={bill} result={result} dispatch={dispatch} />}
+            {current === 'pedidos' && <PedidosStep bill={bill} result={result} example={state.example} dispatch={dispatch} toast={toast} />}
             {current === 'divisao' && divisao}
           </div>
 

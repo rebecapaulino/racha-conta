@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 // E-mail de contato mostrado na página. Deixe vazio para não mostrar nenhum.
 const CONTACT_EMAIL = "rebecaoliveir2000@gmail.com";
-const UPDATED = "10 de outubro de 2026";
+const UPDATED = "12 de outubro de 2026";
 
 export default function Privacidade() {
   return (
@@ -32,6 +32,11 @@ export default function Privacidade() {
           histórico) fica <b>só no seu aparelho</b>, no armazenamento do próprio navegador. Nada disso é
           enviado para nós nem para ninguém. Se você limpar os dados do navegador ou apagar o app, essas
           informações somem.
+        </p>
+        <p>
+          <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot;, a foto é lida no seu
+          próprio celular. Ela não é enviada para nós nem para ninguém, e não fica guardada: depois da
+          leitura, só os itens que você confirmar entram na conta.
         </p>
       </section>
 

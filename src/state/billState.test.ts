@@ -87,3 +87,52 @@ describe('marcar quem já pagou', () => {
     expect(run(s0, { type: 'markPaid', personId: ana, paid: false })).toBe(s0);
   });
 });
+
+describe('itens lidos da nota fiscal', () => {
+  const read = [
+    { name: 'Caipirinha', cents: 2200, qty: 2 },
+    { name: 'Picanha', cents: 14200, qty: 1 },
+  ];
+  const mesa = run(blankState(), { type: 'addPerson', name: 'Ana' }, { type: 'addPerson', name: 'Bruno' }, { type: 'addItem', name: 'Água', cents: 600 });
+
+  it('soma aos itens atuais, com todo mundo marcado e a quantidade lida', () => {
+    const s = run(mesa, { type: 'addItems', items: read, replace: false });
+    expect(s.bill.items.map((i) => [i.name, i.cents, i.qty ?? 1])).toEqual([
+      ['Água', 600, 1],
+      ['Caipirinha', 2200, 2],
+      ['Picanha', 14200, 1],
+    ]);
+    expect(s.bill.items[1].who).toEqual(mesa.bill.people.map((p) => p.id));
+    expect(texts(s).at(-1)).toBe('Leu a nota fiscal: 2 itens · R$ 186,00');
+  });
+
+  it('troca os itens atuais e usa o serviço da nota', () => {
+    const s = run(mesa, { type: 'addItems', items: read, replace: true, servicePct: 12 });
+    expect(s.bill.items.map((i) => i.name)).toEqual(['Caipirinha', 'Picanha']);
+    expect(s.bill.servicePct).toBe(12);
+    expect(texts(s).at(-1)).toBe('Leu a nota fiscal: 2 itens · R$ 186,00 · no lugar dos itens anteriores · serviço em 12%');
+  });
+
+  it('na mesa de exemplo, começa uma conta nova só com a nota', () => {
+    const s = run(exampleState(), { type: 'addItems', items: read, replace: false });
+    expect(s.example).toBe(false);
+    expect(s.id).not.toBe('exemplo');
+    expect(s.bill.people).toEqual([]);
+    expect(s.bill.title).toBe('');
+    expect(s.bill.items.map((i) => i.name)).toEqual(['Caipirinha', 'Picanha']);
+  });
+
+  it('descarta linhas sem nome ou sem valor e limita a quantidade', () => {
+    const s = run(mesa, {
+      type: 'addItems',
+      replace: true,
+      items: [
+        { name: '  ', cents: 1000, qty: 1 },
+        { name: 'Chopp', cents: 0, qty: 1 },
+        { name: 'Chopp', cents: 1450, qty: 500 },
+      ],
+    });
+    expect(s.bill.items.map((i) => [i.name, i.qty])).toEqual([['Chopp', MAX_QTY]]);
+    expect(run(mesa, { type: 'addItems', items: [], replace: true })).toBe(mesa);
+  });
+});

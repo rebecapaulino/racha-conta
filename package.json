@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-ocr.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-ocr.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -14,9 +16,11 @@
     "@supabase/supabase-js": "^2.109.0",
     "next": "^16.4.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
+    "@tesseract.js-data/por": "1.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

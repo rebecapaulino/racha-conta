@@ -7,6 +7,8 @@ export const SERVICE_OPTIONS = [0, 10, 12, 15] as const;
 export type ServicePct = (typeof SERVICE_OPTIONS)[number];
 
 export const MAX_NAME = 24;
+/** Nome de item: o mesmo limite do campo "Adicionar item". */
+export const MAX_ITEM_NAME = 40;
 export const MAX_QTY = 99;
 export const PERSON_COLORS = 6;
 
