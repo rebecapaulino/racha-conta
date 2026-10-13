@@ -459,18 +459,19 @@ h3.field-label { margin: 0; }
 .pay-who { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
 .pay-who b { font-size: 1rem; }
 .pay-who small { color: var(--muted); font-size: .8rem; }
-.pay-total { flex: none; font-size: 1.2rem; font-weight: 800; }
 .pay-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.pay-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
-.pay-to { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; column-gap: 4px; font-size: .95rem; overflow-wrap: anywhere; }
-.pay-to b { font-weight: 800; }
+.pay-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; }
+.pay-to { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pay-line { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; }
+.pay-name { min-width: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.pay-name b { font-weight: 700; }
+.pay-amount { flex: none; font-size: 1.1rem; font-weight: 800; }
 .settle-btn { flex: none; min-height: 44px; padding-inline: 12px; }
 .pay-why { color: var(--info) !important; align-self: stretch; min-height: 44px; text-align: left; white-space: normal; overflow-wrap: anywhere; justify-content: flex-start; }
 .trip-balances .see-image { width: 100%; justify-content: center; margin-top: 12px; }
 @media (max-width: 360px) {
-  .pay-head .avatar { --size: 36px; }
-  .pay-total { font-size: 1.05rem; }
-}
+  .pay-group .avatar-md { --size: 38px; }
+  }
 
 /* valores com sinal: verde recebe, vermelho deve */
 .amt-pos { color: var(--pos); }

@@ -190,27 +190,32 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
                   <Avatar person={person(g.from)} size="md" />
                   <span className="pay-who">
                     <b>{called(g.from)} paga</b>
-                    <small>para {g.items.length} {g.items.length === 1 ? 'pessoa' : 'pessoas'}</small>
+                    <small>
+                      {g.items.length === 1 ? 'para 1 pessoa' : `${glued(g.cents)} no total, para ${g.items.length} pessoas`}
+                    </small>
                   </span>
-                  <Signed cents={-g.cents} className="pay-total" />
                 </div>
                 <ul className="pay-items">
                   {g.items.map((t) => (
                     <li key={t.to} className="pay-item">
-                      <Avatar person={person(t.to)} size="sm" />
+                      <Avatar person={person(t.to)} size="md" />
                       <span className="pay-to">
-                        <span className="sr">{called(g.from)} paga </span>
-                        <Signed cents={-t.cents} />
-                        <span> para {called(t.to, true)}</span>
+                        <span className="pay-line">
+                          <span className="pay-name">
+                            <span className="sr">{called(g.from)} paga </span>
+                            para <b>{called(t.to, true)}</b>
+                          </span>
+                          <Signed cents={-t.cents} className="pay-amount" />
+                        </span>
+                        <button
+                          type="button"
+                          className="btn secondary settle-btn"
+                          onClick={() => onSettle(t)}
+                          aria-label={`Registrar: ${called(t.from)} pagou ${formatBRL(t.cents)} para ${called(t.to, true)}`}
+                        >
+                          <IconCheck size={16} /> Pago
+                        </button>
                       </span>
-                      <button
-                        type="button"
-                        className="btn secondary settle-btn"
-                        onClick={() => onSettle(t)}
-                        aria-label={`Registrar: ${called(t.from)} pagou ${formatBRL(t.cents)} para ${called(t.to, true)}`}
-                      >
-                        <IconCheck size={16} /> Pago
-                      </button>
                     </li>
                   ))}
                 </ul>
