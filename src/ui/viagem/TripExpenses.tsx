@@ -29,7 +29,8 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
   const all = activeExpenses(trip);
   const deleted = trip.expenses.filter((e) => e.deleted);
   const name = (id: string) => (id === meId ? 'Você' : trip.people.find((p) => p.id === id)?.name ?? '?');
-  const tip = nextPayer(summary);
+  // Sem despesa ativa (todas excluídas), não há o que equilibrar: a dica some.
+  const tip = all.length > 0 ? nextPayer(summary) : null;
 
   if (trip.people.length === 0) {
     return (
