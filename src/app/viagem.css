@@ -521,3 +521,7 @@ h3.field-label { margin: 0; }
 .pay-expense small { color: var(--muted); font-size: .8rem; }
 .parts-tag { font-weight: 700; color: var(--info); }
 .settle-label { margin: -4px 0 0; text-align: center; color: var(--muted); font-weight: 600; }
+
+/* Valor sempre embaixo do nome, no mesmo lugar em todas as linhas; seta com respiro do ícone */
+.pay-line { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; min-height: 0; }
+.pay-flow { gap: 8px; padding-top: 2px; }
