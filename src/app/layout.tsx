@@ -9,6 +9,7 @@ import "@fontsource/plus-jakarta-sans/latin-700.css";
 import "@fontsource/plus-jakarta-sans/latin-800.css";
 import "./globals.css";
 import "./visual-fluent.css";
+import "./viagem.css";
 import { THEME_COLOR, VISUAL, VISUAL_OVERRIDE_SCRIPT } from "@/ui/visual";
 
 export const metadata: Metadata = {

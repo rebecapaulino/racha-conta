@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { activeBill, activeNote, loadState, reducer, saveState, worthKeeping } from '../state/billState';
@@ -16,7 +16,6 @@ import { IconArrowRight, IconHistory, IconPie, IconPlus, IconReceipt, IconSparkl
 import { Art } from './illustrations';
 import { MesaStep } from './MesaStep';
 import { NotesBar } from './NotesBar';
-import { InstallSheet } from './InstallSheet';
 import { PwaBars } from './PwaBars';
 import { PedidosStep } from './PedidosStep';
 import { useMediaQuery } from './useMediaQuery';
@@ -26,7 +25,7 @@ type Tab = 'mesa' | 'pedidos' | 'divisao';
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export default function SoloApp() {
+export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   // Roda só no aparelho (ver ClientOnly em page.tsx), então pode ler o que está salvo.
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
   const { bill } = state;
@@ -193,6 +192,8 @@ export default function SoloApp() {
             </div>
           </header>
 
+          {areaSwitch}
+
           <HeroCard
             title={bill.title}
             startedAt={state.startedAt}
@@ -207,7 +208,6 @@ export default function SoloApp() {
           />
 
           <PwaBars />
-          <InstallSheet />
 
           {state.example && (
             <div className="example" role="note">

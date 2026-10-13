@@ -97,3 +97,18 @@ export const IconChevron = ({ size = 20 }: P) => (
 export const IconPencil = ({ size = 18 }: P) => (
   <svg {...stroke(size)}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4" /></svg>
 );
+export const IconSuitcase = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><rect x="3.5" y="7" width="17" height="13" rx="2.5" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M8 11v5M16 11v5" /></svg>
+);
+export const IconBook = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><rect x="5" y="3" width="15" height="18" rx="2" /><path d="M3 7h3M3 12h3M3 17h3M10 8h6M10 12h6" /></svg>
+);
+export const IconScale = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><path d="M12 4v16M8 20h8M5 7h14M5 7l-2.5 6a2.5 2.5 0 0 0 5 0zM19 7l-2.5 6a2.5 2.5 0 0 0 5 0z" /></svg>
+);
+export const IconFilter = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+);
+export const IconBulb = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z" /></svg>
+);

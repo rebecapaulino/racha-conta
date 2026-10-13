@@ -9,13 +9,14 @@ type Family = 'berry' | 'coral' | 'amber' | 'teal';
 export type ArtKind =
   | 'beer' | 'glass' | 'soft' | 'coffee' | 'pizza' | 'burger' | 'snack' | 'meat'
   | 'fish' | 'pudding' | 'cake' | 'candy' | 'icecream' | 'salad' | 'ticket' | 'dish'
-  | 'people' | 'receipt' | 'pie' | 'money';
+  | 'people' | 'receipt' | 'pie' | 'money' | 'suitcase' | 'notebook';
 
 const FAMILY: Record<ArtKind, Family> = {
   beer: 'amber', glass: 'coral', soft: 'berry', coffee: 'amber', pizza: 'coral',
   burger: 'amber', snack: 'amber', meat: 'berry', fish: 'coral', pudding: 'amber', cake: 'amber', candy: 'berry', icecream: 'berry',
   salad: 'teal', ticket: 'berry', dish: 'coral',
   people: 'berry', receipt: 'coral', pie: 'amber', money: 'amber',
+  suitcase: 'teal', notebook: 'berry',
 };
 
 const FROM_ITEM: Record<ItemKind, ArtKind> = {
@@ -197,6 +198,30 @@ const SHAPES: Record<ArtKind, React.ReactNode> = {
       <rect className="a" x="4" y="13" width="30" height="19" rx="3" transform="rotate(-10 19 22)" />
       <rect className="b" x="10" y="15" width="30" height="19" rx="3" opacity={O} />
       <rect className="c" x="14" y="18" width="30" height="19" rx="3" transform="rotate(6 29 27)" opacity={O} />
+    </>
+  ),
+  suitcase: (
+    <>
+      {/* mala de viagem: alça, corpo, faixa e rodinhas */}
+      <path className="a" d="M17 14V9.5A3.5 3.5 0 0 1 20.5 6h7A3.5 3.5 0 0 1 31 9.5V14h-3.5V9.5h-7V14z" />
+      <rect className="b" x="7" y="13" width="34" height="25" rx="5" />
+      <rect className="c" x="7" y="22" width="34" height="5" opacity={O} />
+      <rect className="a" x="21" y="20" width="6" height="9" rx="2" opacity={O} />
+      <circle className="a" cx="14" cy="41" r="3" />
+      <circle className="a" cx="34" cy="41" r="3" />
+    </>
+  ),
+  notebook: (
+    <>
+      {/* caderneta: capa, folha com linhas e o espiral */}
+      <rect className="a" x="11" y="6" width="29" height="36" rx="4" />
+      <rect className="c" x="15" y="9" width="22" height="30" rx="2.5" opacity={O} />
+      <rect className="b" x="19" y="16" width="14" height="3" rx="1.5" opacity={O} />
+      <rect className="b" x="19" y="23" width="10" height="3" rx="1.5" opacity={O} />
+      <rect className="b" x="19" y="30" width="12" height="3" rx="1.5" opacity={O} />
+      <rect className="b" x="7" y="11" width="8" height="4" rx="2" />
+      <rect className="b" x="7" y="22" width="8" height="4" rx="2" />
+      <rect className="b" x="7" y="33" width="8" height="4" rx="2" />
     </>
   ),
 };

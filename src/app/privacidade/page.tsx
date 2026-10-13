@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 // E-mail de contato mostrado na página. Deixe vazio para não mostrar nenhum.
 const CONTACT_EMAIL = "rebecaoliveir2000@gmail.com";
-const UPDATED = "12 de outubro de 2026";
+const UPDATED = "13 de outubro de 2026";
 
 export default function Privacidade() {
   return (
@@ -21,7 +21,7 @@ export default function Privacidade() {
       <p className="muted">Racha Conta · atualizada em {UPDATED}</p>
 
       <p>
-        O Racha Conta ajuda você a dividir a conta do bar ou restaurante. Esta página explica, sem
+        O Racha Conta ajuda você a dividir a conta do bar ou restaurante e as despesas de uma viagem. Esta página explica, sem
         juridiquês, quais dados o app usa, onde eles ficam e como você apaga tudo.
       </p>
 
@@ -37,6 +37,11 @@ export default function Privacidade() {
           <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot;, a foto é lida no seu
           próprio celular e não é enviada para nós nem para ninguém. Se você escolher guardar a foto na
           nota, ela fica só neste aparelho, junto com a conta, até você removê-la ou apagar a conta.
+        </p>
+        <p>
+          <b>Viagens:</b> os nomes de quem vai, as despesas (valor, data, categoria, quem pagou) e os
+          pagamentos registrados também ficam <b>só neste aparelho</b>. O app não pede documentos, CPF nem
+          dados de cartão. Ao apagar a viagem, tudo isso sai do aparelho.
         </p>
       </section>
 
