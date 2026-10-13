@@ -406,3 +406,45 @@ h3.field-label { margin: 0; }
 @media (max-width: 380px) {
   :root[data-visual="fluent"] .area-switch .art { width: 22px; height: 22px; }
 }
+
+/* ---------- Conta de cada um (extrato por pessoa) ---------- */
+.transfer-actions { display: flex; gap: 8px; }
+.transfer-actions .transfer-btn { flex: 1; width: auto; min-width: 0; }
+.why-btn { flex: none; min-height: 44px; padding-inline: 14px; }
+.person-account { scroll-margin-top: 12px; }
+.person-account:focus { outline: none; }
+.person-account:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.acc-chips .chip { min-height: 44px; }
+.acc-body { display: flex; flex-direction: column; gap: 16px; margin-top: 14px; }
+.acc-block { display: flex; flex-direction: column; gap: 8px; }
+.acc-pairs { gap: 8px; }
+.acc-pair { border-radius: 14px; background: var(--fill); }
+.acc-pair > summary {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 52px; padding: 8px 12px; cursor: pointer; list-style: none;
+}
+.acc-pair > summary::-webkit-details-marker { display: none; }
+.acc-pair > summary > .num { flex: none; font-weight: 700; }
+.acc-pair-text { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.acc-pair-text small { color: var(--muted); font-size: .8rem; }
+.acc-pair[open] .acc-pair-text small { visibility: hidden; }
+.acc-lines { list-style: none; margin: 0; padding: 0 12px 10px 54px; display: flex; flex-direction: column; gap: 8px; }
+.acc-lines li { display: flex; justify-content: space-between; gap: 10px; font-size: .9rem; }
+.acc-lines li > span { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.acc-lines small { color: var(--muted); font-size: .78rem; }
+.acc-lines .num { flex: none; }
+.acc-total { display: flex; justify-content: space-between; margin: 0; padding: 0 12px; font-size: .9rem; color: var(--muted); }
+.acc-total b { color: var(--ink); }
+.acc-note { margin: 0; font-size: .85rem; color: var(--muted); }
+.acc-sum { margin: 0; padding: 12px; border-radius: 14px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.acc-sum > div { display: flex; justify-content: space-between; gap: 10px; }
+.acc-sum dt { color: var(--muted); }
+.acc-sum dd { margin: 0; }
+.acc-sum .acc-result { padding-top: 8px; border-top: 1px dashed var(--line); font-weight: 800; font-size: 1.05rem; }
+.acc-sum .acc-result dt { color: var(--ink); }
+.acc-final { display: flex; flex-direction: column; gap: 6px; }
+.acc-final ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.acc-why { margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--tip-soft); font-size: .85rem; line-height: 1.4; }
+@media (max-width: 360px) {
+  .acc-lines { padding-left: 12px; }
+}

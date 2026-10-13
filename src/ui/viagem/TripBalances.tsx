@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type Dispatch } from 'react';
+import { useRef, useState, type CSSProperties, type Dispatch } from 'react';
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
@@ -8,6 +8,7 @@ import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconShare } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
+import { PersonAccount } from './PersonAccount';
 
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
 const glued = (cents: number) => formatBRL(cents).replace(' ', '\u00a0');
@@ -30,6 +31,18 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
   const hasExpenses = activeExpenses(trip).length > 0;
   const text = kind === 'acerto' ? tripSettleText(trip, summary) : tripBalancesText(trip, summary);
   const biggest = Math.max(1, ...summary.people.map((r) => Math.abs(r.balance)));
+  const [selected, setSelected] = useState(meId ?? trip.people[0]?.id ?? '');
+  const accountRef = useRef<HTMLElement>(null);
+
+  /** Abre a conta detalhada da pessoa e rola até ela. */
+  function explain(id: string) {
+    setSelected(id);
+    const el = accountRef.current;
+    if (!el) return;
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+    el.focus({ preventScroll: true });
+  }
 
   function copy() {
     if (!navigator.clipboard?.writeText) {
@@ -97,9 +110,19 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
                     </span>
                     <b className="transfer-amount num">{formatBRL(t.cents)}</b>
                   </span>
-                  <button type="button" className="btn secondary transfer-btn" onClick={() => onSettle(t)}>
-                    <IconCheck size={16} /> Registrar pagamento
-                  </button>
+                  <div className="transfer-actions">
+                    <button
+                      type="button"
+                      className="btn secondary why-btn"
+                      onClick={() => explain(t.from)}
+                      aria-label={`Por que ${called(t.from, true)} paga ${formatBRL(t.cents)}? Ver a conta`}
+                    >
+                      Por quê?
+                    </button>
+                    <button type="button" className="btn secondary transfer-btn" onClick={() => onSettle(t)}>
+                      <IconCheck size={16} /> Registrar pagamento
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -133,6 +156,10 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
           </div>
         )}
       </section>
+
+      {trip.people.length > 0 && (
+        <PersonAccount ref={accountRef} trip={trip} summary={summary} meId={meId} selected={selected} onSelect={setSelected} />
+      )}
 
       <section className="card" aria-labelledby="h-balances">
         <div className="card-head">

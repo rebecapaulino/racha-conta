@@ -8,6 +8,7 @@ import {
   newTrip,
   nextPayer,
   parseWeight,
+  personStatement,
   removeTraveler,
   setExpenseDeleted,
   splitExpense,
@@ -377,5 +378,48 @@ describe('proteções', () => {
       left[x.to] -= x.cents;
     }
     expect(Object.values(left).every((v) => v === 0)).toBe(true);
+  });
+});
+
+describe('conta detalhada de cada pessoa', () => {
+  /** Mauricio pagou o mercado (3 pessoas), Natacha o jantar (só ela e Rebeca), Rebeca a gasolina. */
+  function chacara(): Trip {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Natacha']);
+    t = add(t, { description: 'Mercado', cents: 30000, payerId: 'mauricio' });
+    t = add(t, { description: 'Jantar', cents: 12000, payerId: 'natacha', people: ['rebeca', 'natacha'] });
+    t = add(t, { description: 'Gasolina', cents: 9000, payerId: 'rebeca' });
+    return t;
+  }
+
+  it('mostra quanto deve a cada um, sem compensar, e o total', () => {
+    const r = personStatement(chacara(), 'rebeca');
+    expect(r.owesTo.map((d) => [d.other, d.cents])).toEqual([['mauricio', 10000], ['natacha', 6000]]);
+    expect(r.owesTotal).toBe(16000);
+    expect(r.owesTo[0].lines.map((l) => [l.expense.description, l.cents])).toEqual([['Mercado', 10000]]);
+    expect(r.owedBy.map((d) => [d.other, d.cents])).toEqual([['mauricio', 3000], ['natacha', 3000]]);
+    expect(r.owedTotal).toBe(6000);
+    expect(r.ownShare).toBe(3000);
+    expect(r.balance).toBe(-10000);
+  });
+
+  it('quem pagou vê só o que devem a ele pelas despesas dele', () => {
+    const r = personStatement(chacara(), 'mauricio');
+    expect(r.owedBy.map((d) => [d.other, d.cents])).toEqual([['rebeca', 10000], ['natacha', 10000]]);
+    expect(r.owesTo.map((d) => [d.other, d.cents])).toEqual([['rebeca', 3000]]);
+  });
+
+  it('o saldo da conta detalhada é sempre o mesmo do resumo, com acertos e exclusões', () => {
+    let t = chacara();
+    t = setExpenseDeleted(t, t.expenses.find((e) => e.description === 'Jantar')!.id, true, NOW);
+    t = add(t, { description: 'Pousada', cents: 100001, payerId: 'natacha', split: 'weight' });
+    const r = addSettlement(t, { from: 'rebeca', to: 'mauricio', cents: 2500 }, 's1', NOW);
+    if (!r.ok) throw new Error(r.error);
+    t = r.trip;
+    for (const row of tripSummary(t).people) {
+      const st = personStatement(t, row.person.id);
+      expect(st.balance).toBe(row.balance);
+      expect(st.ownShare + st.owesTotal).toBe(row.owes);
+    }
+    expect(personStatement(t, 'rebeca').owesTo.find((d) => d.other === 'natacha')?.lines.map((l) => l.expense.description)).toEqual(['Pousada']);
   });
 });

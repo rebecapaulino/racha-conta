@@ -105,11 +105,6 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
               <div className="brand"><Logo size={28} /><span>Racha Conta</span></div>
               <div className="top-actions">
                 <AccountButton toast={toast} />
-                {state.trips.length > 0 && (
-                  <button type="button" className="round-btn" onClick={() => setTripMode({ kind: 'create' })} aria-label="Nova viagem" title="Nova viagem">
-                    <IconPlus />
-                  </button>
-                )}
               </div>
             </header>
             {areaSwitch}
@@ -147,9 +142,6 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
                 {state.trips.length > 1 && <span className="tab-count">{state.trips.length}</span>}
               </button>
               <AccountButton toast={toast} />
-              <button type="button" className="round-btn" onClick={() => setTripMode({ kind: 'create' })} aria-label="Nova viagem" title="Nova viagem">
-                <IconPlus />
-              </button>
             </div>
           </header>
 
@@ -188,7 +180,6 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
                 dispatch={dispatch}
                 toast={toast}
                 onEdit={(e: Expense) => setExpenseMode({ kind: 'edit', expense: e })}
-                onNew={newExpense}
                 onGoPeople={() => go('pessoas')}
               />
             )}

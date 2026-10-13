@@ -16,14 +16,13 @@ interface Props {
   dispatch: Dispatch<TripAction>;
   toast: (msg: string, undo?: () => void) => void;
   onEdit: (e: Expense) => void;
-  onNew: (payerId?: string) => void;
   onGoPeople: () => void;
 }
 
 const SPLIT_TAG = { equal: '', weight: 'por peso', exact: 'valores exatos' } as const;
 
 /** Caderneta: as despesas em páginas, uma por dia (a mais recente primeiro). */
-export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onNew, onGoPeople }: Props) {
+export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onGoPeople }: Props) {
   const [person, setPerson] = useState('');
   const [category, setCategory] = useState('');
   const [day, setDay] = useState('');
@@ -75,9 +74,11 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
             <b>
               <Avatar person={tip.person} size="xs" /> {tip.person.id === meId ? 'Você' : tip.person.name}
             </b>
-            <small>Deve {formatBRL(-tip.balance)} ao caixa. Pagando, os saldos se equilibram.</small>
+            <small>
+              {tip.person.id === meId ? 'Dica: pague você o próximo gasto. Você é' : `Dica: deixe ${tip.person.name} pagar o próximo gasto. É`} quem
+              mais deve ao grupo ({formatBRL(-tip.balance)}), então sobra menos Pix para acertar no fim.
+            </small>
           </p>
-          <button type="button" className="btn secondary small" onClick={() => onNew(tip.person.id)}>Lançar</button>
         </section>
       )}
 

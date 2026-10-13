@@ -350,6 +350,72 @@ export function nextPayer(summary: TripSummary): TravelerBalance | null {
   return best;
 }
 
+/** Uma despesa na conta de alguém: quanto daquela despesa entra nessa dívida. */
+export interface StatementLine {
+  expense: Expense;
+  cents: number;
+}
+
+/** Tudo o que uma pessoa deve (ou tem a receber de) outra, despesa por despesa. */
+export interface PairDebt {
+  other: string;
+  cents: number;
+  lines: StatementLine[];
+}
+
+/** A conta detalhada de uma pessoa: de onde sai o saldo dela. */
+export interface PersonStatement {
+  /** O que ela deve a cada um que pagou despesas das quais ela participou. */
+  owesTo: PairDebt[];
+  owesTotal: number;
+  /** O que cada um deve a ela pelas despesas que ela pagou. */
+  owedBy: PairDebt[];
+  owedTotal: number;
+  /** A parte dela nas despesas que ela mesma pagou: já está paga, não entra no acerto. */
+  ownShare: number;
+  sent: number;
+  received: number;
+  /** owedTotal − owesTotal + sent − received. É o mesmo saldo do tripSummary. */
+  balance: number;
+}
+
+/**
+ * A conta de uma pessoa, sem compensar nada: cada despesa paga por outro vira uma dívida
+ * com quem pagou, e cada despesa paga por ela vira um crédito com quem participou.
+ * O acerto final (tripSummary.transfers) junta tudo isso para fazer menos Pix.
+ */
+export function personStatement(trip: Trip, id: string): PersonStatement {
+  const owes = new Map<string, StatementLine[]>();
+  const owed = new Map<string, StatementLine[]>();
+  const push = (m: Map<string, StatementLine[]>, k: string, l: StatementLine) => m.set(k, [...(m.get(k) ?? []), l]);
+  let ownShare = 0;
+  const expenses = [...activeExpenses(trip)].sort((a, b) => a.date.localeCompare(b.date) || a.seq - b.seq);
+  for (const e of expenses) {
+    if (e.payerId === id) {
+      for (const [pid, c] of Object.entries(e.shares)) {
+        if (pid === id) ownShare += c;
+        else if (c > 0) push(owed, pid, { expense: e, cents: c });
+      }
+    } else if (Object.hasOwn(e.shares, id) && e.shares[id] > 0) {
+      push(owes, e.payerId, { expense: e, cents: e.shares[id] });
+    }
+  }
+  const pairs = (m: Map<string, StatementLine[]>): PairDebt[] =>
+    trip.people
+      .filter((p) => m.has(p.id))
+      .map((p) => {
+        const lines = m.get(p.id)!;
+        return { other: p.id, cents: lines.reduce((a, l) => a + l.cents, 0), lines };
+      });
+  const owesTo = pairs(owes);
+  const owedBy = pairs(owed);
+  const owesTotal = owesTo.reduce((a, d) => a + d.cents, 0);
+  const owedTotal = owedBy.reduce((a, d) => a + d.cents, 0);
+  const sent = trip.settlements.filter((s) => s.from === id).reduce((a, s) => a + s.cents, 0);
+  const received = trip.settlements.filter((s) => s.to === id).reduce((a, s) => a + s.cents, 0);
+  return { owesTo, owesTotal, owedBy, owedTotal, ownShare, sent, received, balance: owedTotal - owesTotal + sent - received };
+}
+
 const header = (trip: Trip) => `*Racha Conta* - ${trip.name.trim() || 'Viagem'}`;
 
 /** Texto para o WhatsApp com os saldos até agora. */
