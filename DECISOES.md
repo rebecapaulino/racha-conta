@@ -168,3 +168,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
   - O aviso de privacidade fica em duas linhas pensadas, com o link inteiro na segunda.
   - O desenho do topo fica numa área que ocupa só o espaço livre do carmim e escolhe sozinho o tamanho (de 100% até 46%). Se não couber nem assim, some em vez de aparecer cortado pelo painel.
   - Em celular deitado (altura abaixo de 460 px), a tela volta a rolar, para nunca cortar o botão.
+
+### Viagem — acerto "Direto para quem pagou" (padrão) e resumo em imagem
+- **Por quê:** no modo "menos Pix" o dinheiro pode ir para outra pessoa (Mauricio pagava a Natacha uma parte que devia à Rebeca). Isso confunde quem confere na mão.
+- **Direto para quem pagou (padrão):** para cada dupla, soma o que um deve ao outro pelas despesas que o outro pagou, desconta o caminho contrário e os pagamentos já feitos entre os dois, e sobra um Pix. Fica salvo na viagem (`settleMode`); "Menos Pix" continua como opção.
+- Os dois modos dão o mesmo total para cada pessoa (testado).
+- Acerto agrupado por quem paga ("Você paga R$ 100: R$ 70 para Mauricio, R$ 30 para Natacha"), com "Pago" em cada linha e "Ver a conta" levando à Conta de cada um.
+- Resumo em imagem (canvas, no aparelho, funciona offline), no mesmo papel da notinha do Rolê: quem paga quem e quanto cada um pagou/consumiu. Texto do WhatsApp agrupado do mesmo jeito.

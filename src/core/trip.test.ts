@@ -3,6 +3,8 @@ import {
   addExpense,
   addSettlement,
   canRemoveTraveler,
+  directTransfers,
+  groupByPayer,
   findDuplicate,
   mergeTraveler,
   newTrip,
@@ -421,5 +423,72 @@ describe('conta detalhada de cada pessoa', () => {
       expect(st.ownShare + st.owesTotal).toBe(row.owes);
     }
     expect(personStatement(t, 'rebeca').owesTo.find((d) => d.other === 'natacha')?.lines.map((l) => l.expense.description)).toEqual(['Pousada']);
+  });
+});
+
+describe('acerto direto para quem pagou', () => {
+  function chacara(): Trip {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Natacha']);
+    t = add(t, { description: 'Mercado', cents: 30000, payerId: 'mauricio' });
+    t = add(t, { description: 'Alimentação', cents: 12000, payerId: 'rebeca', people: ['rebeca', 'mauricio'] });
+    t = add(t, { description: 'Gasolina', cents: 9000, payerId: 'natacha' });
+    return t;
+  }
+  const net = (list: { from: string; to: string; cents: number }[], id: string) =>
+    list.reduce((a, x) => a + (x.to === id ? x.cents : 0) - (x.from === id ? x.cents : 0), 0);
+
+  it('quem deve para quem pagou paga direto, só a diferença entre os dois', () => {
+    const t = chacara();
+    // Rebeca deve 100 ao Mauricio e ele deve 60 a ela: só 40. Ninguém paga a Rebeca por outro.
+    // Mauricio deve 30 da gasolina à Natacha e ela deve 100 do mercado a ele: ela paga 70.
+    expect(directTransfers(t)).toEqual([
+      { from: 'rebeca', to: 'mauricio', cents: 4000 },
+      { from: 'rebeca', to: 'natacha', cents: 3000 },
+      { from: 'natacha', to: 'mauricio', cents: 7000 },
+    ]);
+  });
+
+  it('cada pessoa paga ou recebe o mesmo total do acerto com menos Pix', () => {
+    let t = chacara();
+    t = add(t, { description: 'Pousada', cents: 100001, payerId: 'natacha', split: 'weight' });
+    const r = addSettlement(t, { from: 'mauricio', to: 'rebeca', cents: 1234 }, 's1', NOW);
+    if (!r.ok) throw new Error(r.error);
+    t = r.trip;
+    const s = tripSummary(t);
+    for (const row of s.people) {
+      expect(net(s.direct, row.person.id)).toBe(row.balance);
+      expect(net(s.transfers, row.person.id)).toBe(row.balance);
+    }
+    expect(s.direct.every((x) => x.cents > 0 && x.from !== x.to)).toBe(true);
+  });
+
+  it('pagando tudo o que o acerto direto diz, fica tudo quite', () => {
+    let t = chacara();
+    for (const x of tripSummary(t).direct) {
+      const r = addSettlement(t, x, `s${t.settlements.length}`, NOW);
+      if (!r.ok) throw new Error(r.error);
+      t = r.trip;
+    }
+    expect(tripSummary(t).direct).toEqual([]);
+    expect(tripSettleText(t, tripSummary(t), 'direct')).toBe('*Racha Conta* - Réveillon 2027\nEstá tudo quite! ✅');
+  });
+
+  it('texto agrupado por quem paga', () => {
+    const t = chacara();
+    const s = tripSummary(t);
+    expect(groupByPayer(s.direct, t).map((g) => [g.from, g.cents])).toEqual([['rebeca', 7000], ['natacha', 7000]]);
+    expect(tripSettleText(t, s, 'direct')).toBe(
+      [
+        '*Racha Conta* - Réveillon 2027',
+        'Para ficar tudo quite (cada um paga para quem pagou):',
+        '',
+        '*Rebeca* paga R$ 70,00 no total:',
+        '- R$ 40,00 para Mauricio',
+        '- R$ 30,00 para Natacha',
+        '',
+        '*Natacha* paga:',
+        '- R$ 70,00 para Mauricio',
+      ].join('\n'),
+    );
   });
 });

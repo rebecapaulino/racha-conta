@@ -87,7 +87,15 @@ export interface Trip {
   nextSeq: number;
   /** Nomes de categoria trocados pela pessoa ("Passeios" → "Praia"). */
   categoryNames?: Partial<Record<TripCategory, string>>;
+  /** Como mostrar o acerto. Sem valor: 'direct'. */
+  settleMode?: SettleMode;
 }
+
+/**
+ * 'direct': cada um paga para quem pagou as despesas dele (só a diferença entre duas pessoas).
+ * 'min': o app junta tudo e faz o menor número de Pix (o dinheiro pode ir para outra pessoa).
+ */
+export type SettleMode = 'direct' | 'min';
 
 export function newTrip(id: string, name: string): Trip {
   return { id, name, currency: 'BRL', people: [], expenses: [], settlements: [], nextSeq: 0 };
@@ -285,6 +293,8 @@ export interface TripSummary {
   byDay: { date: string; cents: number }[];
   /** Menor número de pagamentos para todos ficarem quites. */
   transfers: Transfer[];
+  /** Cada um paga direto para quem pagou as despesas dele, compensando só entre as duas pessoas. */
+  direct: Transfer[];
   /**
    * false se alguma conta não fechar ao centavo (nunca deveria acontecer). A tela mostra um
    * aviso em vez de números errados, e `transfers` vem vazio.
@@ -336,6 +346,7 @@ export function tripSummary(trip: Trip): TripSummary {
     byCategory: [...byCategory].map(([category, cents]) => ({ category, cents })).sort((a, b) => b.cents - a.cents),
     byDay: [...byDay].map(([date, cents]) => ({ date, cents })).sort((a, b) => a.date.localeCompare(b.date)),
     transfers: ok ? minTransfers(balance, trip.people.map((p) => p.id)) : [],
+    direct: ok ? directTransfers(trip) : [],
     ok,
   };
 }
@@ -348,6 +359,51 @@ export function nextPayer(summary: TripSummary): TravelerBalance | null {
   let best: TravelerBalance | null = null;
   for (const r of summary.people) if (r.balance < 0 && (!best || r.balance < best.balance)) best = r;
   return best;
+}
+
+/** Os pagamentos do modo escolhido. */
+export const settleTransfers = (summary: TripSummary, mode: SettleMode = 'direct') =>
+  mode === 'min' ? summary.transfers : summary.direct;
+
+/**
+ * Acerto direto: para cada dupla, soma o que um deve ao outro pelas despesas que o outro
+ * pagou, desconta o caminho contrário e os pagamentos já feitos entre os dois, e sobra
+ * um único Pix (ou nenhum). Ninguém recebe dinheiro que é de outra pessoa.
+ */
+export function directTransfers(trip: Trip): Transfer[] {
+  const order = trip.people.map((p) => p.id);
+  const ids = new Set(order);
+  // debt[a][b]: quanto a deve para b (antes de compensar).
+  const debt = new Map<string, number>();
+  const key = (a: string, b: string) => `${a}\u0000${b}`;
+  const addDebt = (a: string, b: string, c: number) => debt.set(key(a, b), (debt.get(key(a, b)) ?? 0) + c);
+  for (const e of activeExpenses(trip)) {
+    if (!ids.has(e.payerId)) continue;
+    for (const [pid, c] of Object.entries(e.shares)) if (pid !== e.payerId && ids.has(pid)) addDebt(pid, e.payerId, c);
+  }
+  // Um pagamento de a para b diminui o que a deve para b (ou faz b passar a dever para a).
+  for (const s of trip.settlements) if (ids.has(s.from) && ids.has(s.to)) addDebt(s.to, s.from, s.cents);
+  const out: Transfer[] = [];
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 1; j < order.length; j++) {
+      const [a, b] = [order[i], order[j]];
+      const net = (debt.get(key(a, b)) ?? 0) - (debt.get(key(b, a)) ?? 0);
+      if (net > 0) out.push({ from: a, to: b, cents: net });
+      else if (net < 0) out.push({ from: b, to: a, cents: -net });
+    }
+  }
+  const pos = (id: string) => order.indexOf(id);
+  return out.sort((x, y) => pos(x.from) - pos(y.from) || y.cents - x.cents || pos(x.to) - pos(y.to));
+}
+
+/** Pagamentos agrupados por quem paga, na ordem da viagem: "Rebeca paga R$ 160: 100 para…, 60 para…". */
+export function groupByPayer(transfers: Transfer[], trip: Trip): { from: string; cents: number; items: Transfer[] }[] {
+  return trip.people
+    .map((p) => {
+      const items = transfers.filter((t) => t.from === p.id);
+      return { from: p.id, cents: items.reduce((a, t) => a + t.cents, 0), items };
+    })
+    .filter((g) => g.items.length > 0);
 }
 
 /** Uma despesa na conta de alguém: quanto daquela despesa entra nessa dívida. */
@@ -431,9 +487,21 @@ export function tripBalancesText(trip: Trip, summary: TripSummary): string {
 }
 
 /** Texto para o WhatsApp com o acerto final (quem paga quem). */
-export function tripSettleText(trip: Trip, summary: TripSummary): string {
-  if (summary.transfers.length === 0) return [header(trip), 'Está tudo quite! ✅'].join('\n');
+export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMode = 'min'): string {
+  const list = settleTransfers(summary, mode);
+  if (list.length === 0) return [header(trip), 'Está tudo quite! ✅'].join('\n');
   const name = (id: string) => trip.people.find((p) => p.id === id)?.name ?? '?';
+  if (mode === 'direct') {
+    return [
+      header(trip),
+      'Para ficar tudo quite (cada um paga para quem pagou):',
+      ...groupByPayer(list, trip).flatMap((g) => [
+        '',
+        g.items.length > 1 ? `*${name(g.from)}* paga ${formatBRL(g.cents)} no total:` : `*${name(g.from)}* paga:`,
+        ...g.items.map((t) => `- ${formatBRL(t.cents)} para ${name(t.to)}`),
+      ]),
+    ].join('\n');
+  }
   return [
     header(trip),
     'Para ficar tudo quite:',

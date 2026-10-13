@@ -110,6 +110,15 @@ describe('viagens no aparelho', () => {
     expect(trip(s).name).toBe('Natal');
   });
 
+  it('modo do acerto: guarda "menos Pix"; o padrão (direto) não precisa ser guardado', () => {
+    let s = run(base(), { type: 'editTrip', settleMode: 'min' });
+    expect(trip(s).settleMode).toBe('min');
+    s = run(s, { type: 'editTrip', name: 'Natal' });
+    expect(trip(s).settleMode).toBe('min');
+    s = run(s, { type: 'editTrip', settleMode: 'direct' });
+    expect(trip(s).settleMode).toBeUndefined();
+  });
+
   it('apagar a viagem aberta volta para a lista', () => {
     const s = run(base(), { type: 'deleteTrip', id: 't1' });
     expect(s).toEqual({ trips: [], openId: null, me: {} });

@@ -13,7 +13,7 @@ const PW = W - 2 * M;
 const CW = PW - 2 * P;
 const TEETH = 18;
 
-const C = {
+export const C = {
   page: '#121212',
   glow: 'rgba(202, 40, 81, 0.28)',
   footer: '#BEB9B2',
@@ -29,7 +29,7 @@ const C = {
   warnInk: '#8A3B00',
   warnSoft: '#FFF1DE',
 };
-const PERSON = ['#CA2851', '#C2410C', '#0F766E', '#4338CA', '#9333EA', '#A16207'];
+export const PERSON = ['#CA2851', '#C2410C', '#0F766E', '#4338CA', '#9333EA', '#A16207'];
 
 interface Input {
   bill: Bill;
@@ -39,9 +39,9 @@ interface Input {
 }
 
 // Fonte do app que já vem no pacote: a notinha sai igual em qualquer celular, até offline.
-const FONT = '"Plus Jakarta Sans", system-ui, sans-serif';
+export const FONT = '"Plus Jakarta Sans", system-ui, sans-serif';
 
-async function loadFonts() {
+export async function loadFonts() {
   try {
     await Promise.all([500, 600, 700, 800].map((w) => document.fonts.load(`${w} 32px "Plus Jakarta Sans"`)));
   } catch {
@@ -58,14 +58,14 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
   if (ctx.measureText(text).width <= maxW) return text;
   let t = text.replace(/…$/, '');
   while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
   return t.trimEnd() + '…';
 }
 
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
+export function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
@@ -86,12 +86,12 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLine
   return lines.map((l) => fitText(ctx, l, maxW));
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
 }
 
-function dash(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
+export function dash(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
   ctx.save();
   ctx.strokeStyle = C.line;
   ctx.lineWidth = 3;
@@ -103,7 +103,7 @@ function dash(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
   ctx.restore();
 }
 
-function coin(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+export function coin(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(size / 32, size / 32);
@@ -116,7 +116,7 @@ function coin(ctx: CanvasRenderingContext2D, x: number, y: number, size: number,
 }
 
 /** Mistura a cor com branco (como o fundo claro dos avatares no app). */
-function tint(hex: string, amount: number): string {
+export function tint(hex: string, amount: number): string {
   const n = parseInt(hex.slice(1), 16);
   const mix = (c: number) => Math.round(c * amount + 255 * (1 - amount));
   return `rgb(${mix(n >> 16)}, ${mix((n >> 8) & 255)}, ${mix(n & 255)})`;

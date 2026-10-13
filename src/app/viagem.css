@@ -408,9 +408,6 @@ h3.field-label { margin: 0; }
 }
 
 /* ---------- Conta de cada um (extrato por pessoa) ---------- */
-.transfer-actions { display: flex; gap: 8px; }
-.transfer-actions .transfer-btn { flex: 1; width: auto; min-width: 0; }
-.why-btn { flex: none; min-height: 44px; padding-inline: 14px; }
 .person-account { scroll-margin-top: 12px; }
 .person-account:focus { outline: none; }
 .person-account:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -447,4 +444,26 @@ h3.field-label { margin: 0; }
 .acc-why { margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--tip-soft); font-size: .85rem; line-height: 1.4; }
 @media (max-width: 360px) {
   .acc-lines { padding-left: 12px; }
+}
+
+/* ---------- Acerto agrupado por quem paga ---------- */
+.pay-groups { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.pay-group { padding: 12px; border-radius: 16px; background: var(--fill); display: flex; flex-direction: column; gap: 8px; }
+.pay-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pay-who { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.pay-who b { font-size: 1rem; }
+.pay-who small { color: var(--muted); font-size: .8rem; }
+.pay-total { flex: none; font-size: 1.2rem; font-weight: 800; color: var(--primary); }
+.pay-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pay-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
+.pay-arrow { flex: none; color: var(--muted); display: inline-flex; padding-left: 6px; }
+.pay-to { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; column-gap: 4px; font-size: .95rem; overflow-wrap: anywhere; }
+.pay-to b { font-weight: 800; }
+.pay-btn { flex: none; min-height: 44px; padding-inline: 12px; }
+.pay-why { align-self: stretch; min-height: 44px; text-align: left; white-space: normal; overflow-wrap: anywhere; justify-content: flex-start; }
+.trip-balances .see-image { width: 100%; justify-content: center; margin-top: 12px; }
+@media (max-width: 360px) {
+  .pay-arrow { display: none; }
+  .pay-head .avatar { --size: 36px; }
+  .pay-total { font-size: 1.05rem; }
 }

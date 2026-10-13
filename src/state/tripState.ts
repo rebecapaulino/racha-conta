@@ -16,6 +16,7 @@ import {
   updateExpense,
   type Expense,
   type ExpenseInput,
+  type SettleMode,
   type Trip,
   type TripCategory,
 } from '../core/trip';
@@ -33,7 +34,7 @@ export interface TripsState {
 export type TripAction =
   | { type: 'createTrip'; id: string; name: string; start?: string; end?: string; meName?: string; meId?: string }
   | { type: 'openTrip'; id: string | null }
-  | { type: 'editTrip'; name?: string; start?: string | null; end?: string | null; categoryNames?: Partial<Record<TripCategory, string>> }
+  | { type: 'editTrip'; name?: string; start?: string | null; end?: string | null; categoryNames?: Partial<Record<TripCategory, string>>; settleMode?: SettleMode }
   | { type: 'deleteTrip'; id: string }
   | { type: 'addTraveler'; id: string; name: string; weight?: number }
   | { type: 'editTraveler'; id: string; name?: string; weight?: number }
@@ -111,6 +112,8 @@ export function tripsReducer(s: TripsState, a: TripAction): TripsState {
           if (Object.keys(names).length) next.categoryNames = names;
           else delete next.categoryNames;
         }
+        if (a.settleMode === 'min') next.settleMode = 'min';
+        else if (a.settleMode === 'direct') delete next.settleMode;
         return next;
       });
     case 'deleteTrip': {
@@ -220,6 +223,7 @@ export function isValidTrip(t: unknown): t is Trip {
     Array.isArray(t.settlements) &&
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at)) &&
     isInt(t.nextSeq) &&
+    (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr)))
   );
 }

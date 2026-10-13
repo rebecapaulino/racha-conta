@@ -1,14 +1,16 @@
-import { useRef, useState, type CSSProperties, type Dispatch } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type Dispatch } from 'react';
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
-import { activeExpenses, categoryLabel, tripBalancesText, tripSettleText, type Trip, type TripSummary } from '../../core/trip';
+import { activeExpenses, categoryLabel, groupByPayer, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
-import { IconAlert, IconCheck, IconCopy, IconShare } from '../icons';
+import { IconAlert, IconArrowRight, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { PersonAccount } from './PersonAccount';
+import { Sheet } from './Sheet';
+import { renderTripImage } from './tripImage';
 
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
 const glued = (cents: number) => formatBRL(cents).replace(' ', '\u00a0');
@@ -29,7 +31,80 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
   const person = (id: string) => trip.people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
   const hasExpenses = activeExpenses(trip).length > 0;
-  const text = kind === 'acerto' ? tripSettleText(trip, summary) : tripBalancesText(trip, summary);
+  const mode: SettleMode = trip.settleMode ?? 'direct';
+  const transfers = settleTransfers(summary, mode);
+  const groups = groupByPayer(transfers, trip);
+  const text = kind === 'acerto' ? tripSettleText(trip, summary, mode) : tripBalancesText(trip, summary);
+
+  // Resumo em imagem: fica pronto antes do toque, porque o celular só abre o menu de
+  // compartilhar logo depois do toque (se demorar, ele recusa).
+  const imageRef = useRef<Blob | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const fileName = `racha-conta-${(trip.name.trim() || 'viagem').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.png`;
+  useEffect(() => {
+    imageRef.current = null;
+    let alive = true;
+    const t = window.setTimeout(() => {
+      renderTripImage({ trip, summary, mode }).then(
+        (b) => alive && (imageRef.current = b),
+        () => {},
+      );
+    }, 250);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [trip, summary, mode]);
+
+  async function getImage() {
+    return imageRef.current ?? (imageRef.current = await renderTripImage({ trip, summary, mode }));
+  }
+
+  async function showImage() {
+    try {
+      const blob = await getImage();
+      setImageUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return URL.createObjectURL(blob);
+      });
+    } catch {
+      toast('Não deu para montar a imagem.');
+    }
+  }
+
+  function download(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  async function shareImage() {
+    let blob: Blob;
+    try {
+      blob = await getImage();
+    } catch {
+      toast('Não deu para montar a imagem. Copie o texto.');
+      return;
+    }
+    const file = new File([blob], fileName, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: trip.name });
+      } catch (e) {
+        if ((e as DOMException).name === 'NotAllowedError') toast('Toque de novo em Enviar.');
+      }
+      return;
+    }
+    download(blob);
+    toast('Imagem salva. Anexe no WhatsApp.');
+  }
+
+  function setMode(next: SettleMode) {
+    if (next !== mode) dispatch({ type: 'editTrip', settleMode: next });
+  }
   const biggest = Math.max(1, ...summary.people.map((r) => Math.abs(r.balance)));
   const [selected, setSelected] = useState(meId ?? trip.people[0]?.id ?? '');
   const accountRef = useRef<HTMLElement>(null);
@@ -93,40 +168,58 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
       <section className="card" aria-labelledby="h-quite">
         <div className="card-head">
           <h2 id="h-quite">Para ficar tudo quite</h2>
-          {summary.transfers.length > 0 && <span className="badge">{summary.transfers.length}</span>}
+          {transfers.length > 0 && <span className="badge" aria-label={`${transfers.length} pagamentos`}>{transfers.length}</span>}
         </div>
-        {summary.transfers.length === 0 ? (
+        <div className="seg two" role="group" aria-label="Como acertar">
+          <button type="button" aria-pressed={mode === 'direct'} onClick={() => setMode('direct')}>Direto para quem pagou</button>
+          <button type="button" aria-pressed={mode === 'min'} onClick={() => setMode('min')}>Menos Pix</button>
+        </div>
+        <p className="hint" aria-live="polite">
+          {mode === 'direct'
+            ? 'Cada um paga para quem pagou as despesas dele. Entre duas pessoas, só a diferença.'
+            : 'O app junta tudo e faz o menor número de Pix. O dinheiro pode ir para outra pessoa, mas o total de cada um é o mesmo.'}
+        </p>
+        {groups.length === 0 ? (
           <p className="all-square"><IconCheck size={16} /> Está tudo quite!</p>
         ) : (
-          <>
-            <p className="hint">O menor número de pagamentos para zerar todo mundo.</p>
-            <ul className="list transfers">
-              {summary.transfers.map((t) => (
-                <li key={`${t.from}-${t.to}`} className="transfer">
-                  <span className="transfer-who">
-                    <Avatar person={person(t.from)} size="sm" />
-                    <span className="transfer-text">
-                      <b>{called(t.from)}</b> paga para <b>{called(t.to, true)}</b>
-                    </span>
-                    <b className="transfer-amount num">{formatBRL(t.cents)}</b>
+          <ul className="pay-groups">
+            {groups.map((g) => (
+              <li key={g.from} className="pay-group">
+                <div className="pay-head">
+                  <Avatar person={person(g.from)} size="md" />
+                  <span className="pay-who">
+                    <b>{called(g.from)} paga</b>
+                    <small>para {g.items.length} {g.items.length === 1 ? 'pessoa' : 'pessoas'}</small>
                   </span>
-                  <div className="transfer-actions">
-                    <button
-                      type="button"
-                      className="btn secondary why-btn"
-                      onClick={() => explain(t.from)}
-                      aria-label={`Por que ${called(t.from, true)} paga ${formatBRL(t.cents)}? Ver a conta`}
-                    >
-                      Por quê?
-                    </button>
-                    <button type="button" className="btn secondary transfer-btn" onClick={() => onSettle(t)}>
-                      <IconCheck size={16} /> Registrar pagamento
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
+                  <b className="pay-total num">{glued(g.cents)}</b>
+                </div>
+                <ul className="pay-items">
+                  {g.items.map((t) => (
+                    <li key={t.to} className="pay-item">
+                      <span className="pay-arrow" aria-hidden="true"><IconArrowRight size={16} /></span>
+                      <Avatar person={person(t.to)} size="sm" />
+                      <span className="pay-to">
+                        <span className="sr">{called(g.from)} paga </span>
+                        <b className="num">{glued(t.cents)}</b>
+                        <span> para {called(t.to, true)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn secondary pay-btn"
+                        onClick={() => onSettle(t)}
+                        aria-label={`Registrar: ${called(t.from)} pagou ${formatBRL(t.cents)} para ${called(t.to, true)}`}
+                      >
+                        <IconCheck size={16} /> Pago
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="link-btn pay-why" onClick={() => explain(g.from)}>
+                  Por que {called(g.from, true)} paga isso? Ver a conta
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
 
         {trip.settlements.length > 0 && (
@@ -158,7 +251,7 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
       </section>
 
       {trip.people.length > 0 && (
-        <PersonAccount ref={accountRef} trip={trip} summary={summary} meId={meId} selected={selected} onSelect={setSelected} />
+        <PersonAccount ref={accountRef} trip={trip} transfers={transfers} mode={mode} meId={meId} selected={selected} onSelect={setSelected} />
       )}
 
       <section className="card" aria-labelledby="h-balances">
@@ -232,6 +325,9 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
           <button type="button" aria-pressed={kind === 'saldos'} onClick={() => setKind('saldos')}>Saldos</button>
         </div>
         <pre className="share-preview" aria-label="Texto que vai ser enviado">{text}</pre>
+        <button type="button" className="btn secondary see-image" onClick={showImage}>
+          <IconImage /> Ver o resumo em imagem
+        </button>
       </section>
 
       <div className="share-actions">
@@ -239,9 +335,27 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
           <IconCopy /> Copiar texto
         </button>
         <button type="button" className="btn primary" onClick={send}>
-          <IconShare /> Enviar resumo
+          <IconShare /> Enviar texto
         </button>
       </div>
+
+      <Sheet open={!!imageUrl} onClose={() => setImageUrl(null)} labelledBy="h-trip-image">
+        <div className="sheet-body">
+          <span className="sheet-grip" aria-hidden="true" />
+          <h2 id="h-trip-image" tabIndex={-1}>Resumo em imagem</h2>
+          {/* eslint-disable-next-line @next/next/no-img-element -- imagem gerada no aparelho */}
+          {imageUrl && <img className="receipt-image" src={imageUrl} alt="Resumo da viagem: quem paga quem e quanto cada um gastou" />}
+          <div className="sheet-actions">
+            <button type="button" className="btn secondary" onClick={() => imageRef.current && download(imageRef.current)}>
+              Baixar
+            </button>
+            <button type="button" className="btn primary" onClick={shareImage}>
+              <IconShare /> Enviar
+            </button>
+          </div>
+          <button type="button" className="btn ghost" onClick={() => setImageUrl(null)}>Fechar</button>
+        </div>
+      </Sheet>
     </div>
   );
 }

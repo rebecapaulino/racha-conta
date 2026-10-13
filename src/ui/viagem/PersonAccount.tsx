@@ -1,12 +1,15 @@
 import { forwardRef, type ReactNode } from 'react';
 import { formatBRL } from '../../core/money';
-import { personStatement, type PairDebt, type Trip, type TripSummary } from '../../core/trip';
+import type { Transfer } from '../../core/settle';
+import { personStatement, type PairDebt, type SettleMode, type Trip } from '../../core/trip';
 import { Avatar, personStyle } from '../Avatar';
 import { shortDay } from './tripDates';
 
 interface Props {
   trip: Trip;
-  summary: TripSummary;
+  /** Pagamentos do modo escolhido no acerto. */
+  transfers: Transfer[];
+  mode: SettleMode;
   meId: string | null;
   selected: string;
   onSelect: (id: string) => void;
@@ -16,13 +19,13 @@ interface Props {
  * Conta de cada um: como um extrato. Mostra, despesa por despesa, quanto a pessoa deve a
  * cada um que pagou e quanto cada um deve a ela. Serve para conferir o acerto na mão.
  */
-export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccount({ trip, summary, meId, selected, onSelect }, ref) {
+export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccount({ trip, transfers, mode, meId, selected, onSelect }, ref) {
   const person = trip.people.find((p) => p.id === selected) ?? trip.people[0];
   const me = person.id === meId;
   const st = personStatement(trip, person.id);
   const name = (id: string) => (id === meId ? 'você' : trip.people.find((p) => p.id === id)?.name ?? '?');
   const subject = me ? 'Você' : person.name;
-  const mine = summary.transfers.filter((t) => t.from === person.id || t.to === person.id);
+  const mine = transfers.filter((t) => t.from === person.id || t.to === person.id);
   // O Pix final só bate com a soma das dívidas quando não há nada para compensar.
   const compensated = st.owesTo.length > 0 && st.owedBy.length > 0;
   const rerouted = mine.some((t) => {
@@ -125,11 +128,18 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
                     </li>
                   ))}
                 </ul>
-                {(compensated || rerouted) && (
+                {rerouted && mode === 'direct' && (
                   <p className="acc-why">
-                    <b>Por que não é a soma de cada dívida?</b> O app junta todas as contas da viagem: o que {me ? 'te' : 'lhe'} devem
-                    desconta do que {me ? 'você deve' : 'deve'}, e às vezes o Pix vai direto para outra pessoa para o grupo fazer
-                    menos pagamentos. O valor final de cada um é o mesmo.
+                    <b>Por que não é a soma de cada dívida?</b> Entre duas pessoas, o app desconta uma dívida da outra
+                    {st.sent || st.received ? ' e os pagamentos já feitos' : ''}. Se {me ? 'você deve' : `${person.name} deve`} R$ 100
+                    para alguém e essa pessoa {me ? 'te deve' : 'deve'} R$ 60, o Pix é só de R$ 40.
+                  </p>
+                )}
+                {(compensated || rerouted) && mode === 'min' && (
+                  <p className="acc-why">
+                    <b>Por que não é a soma de cada dívida?</b> No modo Menos Pix, o app junta todas as contas da viagem: o que{' '}
+                    {me ? 'te devem' : 'devem'} desconta do que {me ? 'você deve' : 'deve'}, e às vezes o Pix vai para outra pessoa.
+                    O total de cada um é o mesmo. Para pagar cada um direto, escolha &quot;Direto para quem pagou&quot;.
                   </p>
                 )}
               </div>
