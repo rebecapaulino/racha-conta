@@ -94,6 +94,42 @@ export interface Trip {
   categoryNames?: Partial<Record<TripCategory, string>>;
   /** Como mostrar o acerto. Sem valor: 'direct'. */
   settleMode?: SettleMode;
+  /** Em quantas vezes cada pagamento do acerto vai ser pago, por dupla (pairKey). */
+  installments?: Record<string, number>;
+}
+
+export const MAX_INSTALLMENTS = 24;
+
+/** Chave de uma dupla do acerto ("quem paga>quem recebe"). */
+export const pairKey = (from: string, to: string) => `${from}>${to}`;
+
+export interface InstallmentInfo {
+  count: number;
+  /** Valor de cada parcela (somam o total; o centavo que sobra vai nas primeiras). */
+  parts: number[];
+  /** Quantas parcelas já foram pagas inteiras. */
+  paidCount: number;
+  /** Quanto falta da próxima parcela (0 se já pagou tudo). */
+  next: number;
+}
+
+/**
+ * Parcelamento de um pagamento: divide o total em `count` parcelas e vê, pelo que já foi
+ * pago, quantas estão quitadas e quanto falta da próxima. Pagou um valor quebrado? A conta
+ * segue pelo acumulado: R$ 30 de 3x R$ 20 = 1 parcela paga e faltam R$ 10 da segunda.
+ */
+export function installmentInfo(cents: number, paid: number, count: number): InstallmentInfo {
+  const n = Math.max(1, Math.min(MAX_INSTALLMENTS, Math.floor(count)));
+  const parts = splitEven(cents, n);
+  let acc = 0;
+  let paidCount = 0;
+  for (const p of parts) {
+    if (acc + p > paid) break;
+    acc += p;
+    paidCount++;
+  }
+  const next = paidCount < n ? acc + parts[paidCount] - paid : 0;
+  return { count: n, parts, paidCount, next: Math.max(0, Math.min(next, cents - paid)) };
 }
 
 /**
@@ -632,6 +668,10 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
   const list = settleTransfers(summary, mode);
   if (list.length === 0) return [header(trip), 'Está tudo quite! ✅'].join('\n');
   const name = (id: string) => accountName(trip, id);
+  const split = (t: Transfer) => {
+    const n = trip.installments?.[pairKey(t.from, t.to)] ?? 1;
+    return n > 1 ? ` (parcelado em ${n}x)` : '';
+  };
   if (mode === 'direct') {
     return [
       header(trip),
@@ -639,7 +679,7 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
       ...groupByPayer(list, trip).flatMap((g) => [
         '',
         g.items.length > 1 ? `*${name(g.from)}* paga ${formatBRL(g.cents)} no total:` : `*${name(g.from)}* paga:`,
-        ...g.items.map((t) => `- ${formatBRL(t.cents)} para ${name(t.to)}`),
+        ...g.items.map((t) => `- ${formatBRL(t.cents)} para ${name(t.to)}${split(t)}`),
       ]),
     ].join('\n');
   }
@@ -647,6 +687,6 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
     header(trip),
     'Para ficar tudo quite:',
     '',
-    ...summary.transfers.map((t) => `- ${name(t.from)} paga ${formatBRL(t.cents)} para ${name(t.to)}`),
+    ...summary.transfers.map((t) => `- ${name(t.from)} paga ${formatBRL(t.cents)} para ${name(t.to)}${split(t)}`),
   ].join('\n');
 }

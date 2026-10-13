@@ -180,3 +180,8 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Pago não some:** o acerto é calculado só com as despesas (o "plano"). Cada pagamento registrado abate da linha da mesma dupla: pago inteiro fica verde com "Pago" (tocar desmarca, com Desfazer); parcial mostra "já pagou X de Y" e "Pagar o resto". Se alguém pagar a mais ou para outra pessoa, entra uma linha de ajuste, para o que falta continuar fechando ao centavo com os saldos (testado nos dois modos).
 - **Quem paga a parte de outra pessoa** (`Traveler.coveredBy`): o pai paga a da filha, o Robin paga a da Rebeca. As despesas continuam no nome de cada um (dá para ver quanto cada um consumiu); só no acerto a conta entra na de quem paga. Não deixa fechar círculo; ao remover/juntar quem pagava, a ligação é limpa ou passa para quem recebeu.
 - Diferente de "família = 1 participante com peso": aqui cada um continua sendo uma pessoa na divisão.
+
+### Viagem — setinha, filtro "Ver de quem" e parcelas
+- Cada pagamento mostra quem paga → quem recebe (avatar pequeno, seta, avatar de quem recebe).
+- **Ver de quem:** escolhe uma pessoa e mostra "Quem deve para ela" (+ verde) e "Ela deve para" (− vermelho), com Pago e parcelas. Quem tem a parte paga por outro mostra a conta de quem paga.
+- **Parcelas** (`Trip.installments`, por dupla "de>para", 2 a 24x): o total é dividido ao centavo (centavo extra nas primeiras). As parcelas pagas são contadas pelo acumulado pago, então um valor quebrado também conta. O botão vira "Pagar 2/3" e já vem com o valor da parcela. No texto do WhatsApp aparece "(parcelado em 3x)".

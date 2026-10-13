@@ -8,9 +8,11 @@ import {
   canCover,
   MAX_DESCRIPTION,
   MAX_TRIP_NAME,
+  MAX_INSTALLMENTS,
   MAX_WEIGHT,
   mergeTraveler,
   newTrip,
+  pairKey,
   removeTraveler,
   setExpenseDeleted,
   TRIP_CATEGORIES,
@@ -48,7 +50,9 @@ export type TripAction =
   | { type: 'editExpense'; id: string; input: ExpenseInput }
   | { type: 'deleteExpense'; id: string; deleted: boolean }
   | { type: 'settle'; id: string; from: string; to: string; cents: number }
-  | { type: 'unsettle'; id: string };
+  | { type: 'unsettle'; id: string }
+  /** Em quantas vezes um pagamento do acerto vai ser pago (1 = de uma vez). */
+  | { type: 'setInstallments'; from: string; to: string; count: number };
 
 export const blankTrips = (): TripsState => ({ trips: [], openId: null, me: {} });
 
@@ -183,6 +187,16 @@ export function tripsReducer(s: TripsState, a: TripAction): TripsState {
       });
     case 'unsettle':
       return onOpen(s, (t) => ({ ...t, settlements: t.settlements.filter((x) => x.id !== a.id) }));
+    case 'setInstallments':
+      return onOpen(s, (t) => {
+        if (!Number.isInteger(a.count) || a.count < 1 || a.count > MAX_INSTALLMENTS || a.from === a.to) return null;
+        const installments = { ...t.installments };
+        if (a.count === 1) delete installments[pairKey(a.from, a.to)];
+        else installments[pairKey(a.from, a.to)] = a.count;
+        const next: Trip = { ...t, installments };
+        if (Object.keys(installments).length === 0) delete next.installments;
+        return next;
+      });
   }
 }
 
@@ -229,6 +243,8 @@ export function isValidTrip(t: unknown): t is Trip {
     Array.isArray(t.settlements) &&
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at)) &&
     isInt(t.nextSeq) &&
+    (t.installments === undefined ||
+      (isObj(t.installments) && Object.values(t.installments).every((n) => isInt(n, 2) && (n as number) <= MAX_INSTALLMENTS))) &&
     (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr)))
   );

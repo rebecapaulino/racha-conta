@@ -9,6 +9,7 @@ import {
   directTransfers,
   groupByPayer,
   findDuplicate,
+  installmentInfo,
   mergeTraveler,
   newTrip,
   nextPayer,
@@ -608,5 +609,30 @@ describe('quem paga a parte de outra pessoa', () => {
     const merged2 = mergeTraveler(t, 'mauricio', 'natacha');
     if (!merged2.ok) throw new Error(merged2.error);
     expect(merged2.trip.people.find((p) => p.id === 'lara')?.coveredBy).toBe('natacha');
+  });
+});
+
+describe('parcelas de um pagamento do acerto', () => {
+  it('divide ao centavo, o centavo que sobra vai nas primeiras', () => {
+    const i = installmentInfo(7000, 0, 3);
+    expect(i.parts).toEqual([2334, 2333, 2333]);
+    expect(i.parts.reduce((a, c) => a + c, 0)).toBe(7000);
+    expect([i.paidCount, i.next]).toEqual([0, 2334]);
+  });
+
+  it('conta as parcelas pagas pelo acumulado, mesmo com valor quebrado', () => {
+    expect(installmentInfo(6000, 2000, 3)).toMatchObject({ paidCount: 1, next: 2000 });
+    expect(installmentInfo(6000, 3000, 3)).toMatchObject({ paidCount: 1, next: 1000 });
+    expect(installmentInfo(6000, 6000, 3)).toMatchObject({ paidCount: 3, next: 0 });
+  });
+
+  it('nunca pede mais do que falta, e limita o número de parcelas', () => {
+    expect(installmentInfo(100, 0, 99).count).toBe(24);
+    expect(installmentInfo(5, 0, 24).parts.filter((c) => c > 0).length).toBe(5);
+    for (let paid = 0; paid <= 1000; paid += 37) {
+      const i = installmentInfo(1000, paid, 7);
+      expect(i.next).toBeLessThanOrEqual(1000 - paid);
+      expect(i.next >= 0).toBe(true);
+    }
   });
 });

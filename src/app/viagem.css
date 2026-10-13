@@ -488,3 +488,27 @@ h3.field-label { margin: 0; }
 .acc-covered { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--fill); font-size: .88rem; line-height: 1.4; }
 .covered-tag { display: block; color: var(--info); font-size: .8rem; font-weight: 600; }
 .cover-chips .chip { min-height: 44px; }
+
+/* ---------- Setinha de quem paga para quem, filtro e parcelas ---------- */
+.pay-flow { flex: none; display: inline-flex; align-items: center; gap: 2px; color: var(--muted); }
+.pay-flow svg { flex: none; }
+.pay-line { flex-wrap: wrap; row-gap: 2px; }
+.pay-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.pay-split { min-height: 44px; color: var(--info) !important; }
+.settle-filter { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; }
+.settle-filter select { min-height: 48px; }
+.settle-person { display: flex; flex-direction: column; gap: 12px; }
+.install-total { margin: 0; text-align: center; color: var(--muted); }
+.install-total b { color: var(--ink); }
+.install-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; max-height: 260px; overflow-y: auto; }
+.install-list li { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.install-list li:first-child { border-top: 0; }
+.install-list li > span:first-child { flex: 1; color: var(--muted); }
+.install-list li.is-paid b { color: var(--pos); }
+.install-ok { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; font-weight: 700; }
+@media (max-width: 360px) {
+  .pay-flow .avatar-sm { --size: 24px; }
+  .pay-item { gap: 6px; }
+}
+.pay-actions .settle-btn { max-width: 100%; white-space: normal; text-align: left; }
+.pay-to { min-width: 0; }
