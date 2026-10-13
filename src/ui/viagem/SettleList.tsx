@@ -58,10 +58,10 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
     const payNow = inst && inst.next > 0 ? inst.next : r.remaining;
     return (
       <li key={`${r.from}-${r.to}`} className={`pay-item${done ? ' is-paid' : ''}`}>
-        <span className="pay-flow" aria-hidden="true">
-          <Avatar person={person(r.from)} size="sm" />
-          <IconArrowRight size={16} />
-          <Avatar person={person(r.to)} size="md" />
+        {/* Seta vertical ligando ao avatar do alto do cartão: desce para quem recebe, sobe de quem paga. */}
+        <span className={`pay-flow pay-flow-${side}`} aria-hidden="true">
+          <IconArrowRight size={18} />
+          <Avatar person={person(side === 'out' ? r.to : r.from)} size="md" />
         </span>
         <span className="pay-to">
           <span className="pay-line">

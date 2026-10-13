@@ -490,8 +490,9 @@ h3.field-label { margin: 0; }
 .cover-chips .chip { min-height: 44px; }
 
 /* ---------- Setinha de quem paga para quem, filtro e parcelas ---------- */
-.pay-flow { flex: none; display: inline-flex; align-items: center; gap: 2px; color: var(--muted); }
-.pay-flow svg { flex: none; }
+.pay-flow { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted); }
+.pay-flow svg { flex: none; transform: rotate(90deg); }
+.pay-flow-in svg { transform: rotate(-90deg); }
 .pay-line { flex-wrap: wrap; row-gap: 2px; }
 .pay-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .pay-split { min-height: 44px; color: var(--info) !important; }
@@ -507,7 +508,6 @@ h3.field-label { margin: 0; }
 .install-list li.is-paid b { color: var(--pos); }
 .install-ok { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; font-weight: 700; }
 @media (max-width: 360px) {
-  .pay-flow .avatar-sm { --size: 24px; }
   .pay-item { gap: 6px; }
 }
 .pay-actions .settle-btn { max-width: 100%; white-space: normal; text-align: left; }
