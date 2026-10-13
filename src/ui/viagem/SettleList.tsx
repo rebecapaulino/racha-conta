@@ -109,7 +109,7 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
                 type="button"
                 className="btn secondary settle-btn"
                 onClick={() => onSettle({ from: r.from, to: r.to, cents: payNow })}
-                aria-label={`Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
+                aria-label={`${inst ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
               >
                 <IconCheck size={16} />{' '}
                 {inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago'}

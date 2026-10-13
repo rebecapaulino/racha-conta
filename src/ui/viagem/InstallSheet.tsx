@@ -17,7 +17,7 @@ interface Props {
 
 const QUICK = [1, 2, 3, 4, 6, 10, 12];
 
-/** Em quantas vezes um pagamento do acerto vai ser pago. Cada parcela vira um "Pagar parcela". */
+/** Em quantas vezes um pagamento do acerto vai ser pago. Cada parcela vira um "Pagar 1/3". */
 export function InstallSheet({ row, onClose, ...rest }: Props) {
   return (
     <Sheet open={!!row} onClose={onClose} labelledBy="h-install">
@@ -88,7 +88,7 @@ function InstallForm({ trip, row, meId, dispatch, toast, onClose }: Props & { ro
         </ol>
       )}
       <p className="hint">
-        O botão vira &quot;Pagar parcela&quot;: cada toque registra uma parcela, e o que falta continua no acerto.
+        O botão vira &quot;Pagar 1/3&quot;, &quot;Pagar 2/3&quot;…: cada toque registra uma parcela, e o que falta continua no acerto.
       </p>
 
       <div className="sheet-actions">
