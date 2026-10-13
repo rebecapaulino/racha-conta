@@ -1,27 +1,9 @@
-import { useId } from 'react';
 import { formatBRL } from '../../core/money';
 import { activeExpenses, tripSummary, type Trip } from '../../core/trip';
 import { AvatarStack } from '../Avatar';
 import { IconPencil } from '../icons';
 import { Art } from '../illustrations';
 import { tripDates } from './tripDates';
-
-/** Espiral da caderneta: furos no papel e o arame passando por eles. */
-export function Spiral() {
-  const id = useId();
-  return (
-    <svg className="spiral" width="30" height="100%" aria-hidden="true" focusable="false">
-      <defs>
-        <pattern id={id} width="30" height="20" patternUnits="userSpaceOnUse" y="4">
-          <circle className="spiral-hole" cx="21" cy="10" r="3.6" />
-          <path className="spiral-wire" d="M-4 7.4h24.6a2.6 2.6 0 0 1 0 5.2H-4z" />
-          <path className="spiral-shine" d="M0 8.6h19" />
-        </pattern>
-      </defs>
-      <rect width="30" height="100%" fill={`url(#${id})`} />
-    </svg>
-  );
-}
 
 interface CoverProps {
   trip: Trip;
@@ -37,7 +19,6 @@ export function TripCover({ trip, fluent, onEdit }: CoverProps) {
   const n = trip.people.length;
   return (
     <section className="hero trip-hero" aria-label="Resumo da viagem">
-      <Spiral />
       <div className="hero-top">
         <span className="trip-title">
           <span className="hero-title">{trip.name}</span>
@@ -105,8 +86,7 @@ export function TripList({ trips, fluent, onOpen, onCreate }: ListProps) {
                 onClick={() => onOpen(t.id)}
                 aria-label={`${t.name}${dates ? `, ${dates}` : ''}, ${formatBRL(s.total)}, ${t.people.length} pessoas`}
               >
-                <Spiral />
-                <span className="cover-body">
+                          <span className="cover-body">
                   <span className="cover-top">
                     <b className="cover-name">{t.name}</b>
                     {dates && <span className="hero-date">{dates}</span>}

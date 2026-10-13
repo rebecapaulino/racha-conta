@@ -1,6 +1,6 @@
 /* =========================================================
    Aba Viagem — "caderneta de gastos": mesma paleta, fontes e
-   componentes do Rolê, com detalhes de caderno (espiral na capa,
+   componentes do Rolê, com detalhes de caderno (
    página por dia com linha de margem e linhas pautadas).
    Vale nos dois visuais; os ajustes do fluent ficam no fim.
    ========================================================= */
@@ -51,11 +51,6 @@ h3.field-label { margin: 0; }
 .area-text small { color: var(--muted); font-size: .76rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- capa da caderneta (cartão do topo) ---------- */
-.spiral { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; }
-.spiral-hole { fill: color-mix(in srgb, var(--ink) 55%, var(--surface)); }
-.spiral-wire { fill: color-mix(in srgb, var(--ink) 30%, var(--surface)); }
-.spiral-shine { stroke: color-mix(in srgb, var(--surface) 75%, transparent); stroke-width: 1.2; stroke-linecap: round; }
-.trip-hero { padding-left: 44px; }
 .trip-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .trip-hero .hero-top .hero-title { flex: none; max-width: 100%; overflow-wrap: break-word; }
 
@@ -82,7 +77,8 @@ h3.field-label { margin: 0; }
 .covers li { min-width: 0; animation: pop .2s ease-out; }
 .cover {
   position: relative; overflow: hidden;
-  width: 100%; min-height: 132px; padding: 16px 16px 16px 44px;
+  width: 100%; min-height: 132px; padding: 16px 16px 16px 20px;
+  border-left: 4px solid var(--primary) !important;
   display: flex; border: 0; border-radius: var(--r-card);
   background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 10%, var(--surface)), var(--surface) 68%);
   box-shadow: var(--shadow); color: var(--ink); text-align: left; font: inherit;
@@ -379,7 +375,6 @@ h3.field-label { margin: 0; }
   }
   & .area-text b { font-weight: 600; }
 
-  & .trip-hero { border-left: 0; padding-left: 44px; }
   & .cover { box-shadow: var(--shadow); }
   & .cover:hover { transform: none; box-shadow: var(--shadow-16); }
   & .cover-name, & .cover-total, & .trip-welcome h2 { font-weight: 600; }
