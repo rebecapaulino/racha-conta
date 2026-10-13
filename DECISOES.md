@@ -106,6 +106,18 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Ler nota com a conta já tendo itens:** o "Somar aos N / Trocar pelos da nota" (quebrava o layout e confundia) virou 3 opções com explicação: **"Criar uma nota separada"** (padrão), "Juntar com os N itens desta nota" e "Trocar os N itens pelos da foto". Motivo: a Rebeca leu uma nota de R$ 13,20 e ela foi somada à pizza lançada à mão; ao compartilhar, saiu tudo junto. Na nota separada, o serviço da nota fiscal é oferecido de novo (a nota nova começa sem serviço) e, ao lançar, abre a janela da nota para escolher categoria, quem pagou e quem divide.
 - **Primeira vez no app:** começa zerado (sem a mesa de exemplo). Quem tinha a mesa de exemplo salva também passa a ver a conta zerada.
 
+## Aba Viagem — 13/10/2026 (passo 1 de 4: cálculo)
+
+- **Pedido:** uma segunda área para despesas de viagem em grupo (vários dias, várias pessoas pagando), com saldo e acerto no fim. Briefing em `BRIEFING-VIAGEM` (colado na conversa). Prazo: viagem do fim do ano.
+- **Nomes:** as áreas se chamam **Rolê** (bar/restaurante, o que já existe) e **Viagem**. "Mesa" continua sendo só a 1ª etapa do Rolê.
+- **Famílias:** o participante pode ser a família inteira, com peso = número de pessoas (criança 0,5). Ex.: "Família Ana" peso 3,5. Na v1 não há agrupamento de pessoas em família.
+- **Acerto final:** mínimo exato até 15 pessoas com saldo (testa todas as combinações em milissegundos); acima disso, o guloso (às vezes 1 pagamento a mais). Ex.: saldos +4, +3, +3, −6, −4 → guloso faz 4 pagamentos, o exato faz 3. O Rolê continua com o guloso.
+- **Extras da v1 (escolhidos olhando Splitwise, Tricount, Splid e Settle Up):** "Quem paga a próxima?" (quem mais deve ao caixa; equilibra os saldos durante a viagem) e despesas agrupadas por dia ("caderneta"). A leitura do valor pela foto do comprovante fica para depois.
+- **Acerto parcial na v1:** "Registrar acerto" aceita valor menor que o da linha (ex.: reembolso de parcela). Parcelamento na v1 = despesa normal com o valor total + acertos parciais.
+- **Regras de dinheiro:** igual entre N (centavo extra gira pela ordem de criação da despesa, que não muda ao editar nem ao excluir outras); por peso com maior resto; valores exatos só salvam se a soma bater (mensagem com a diferença). As partes ficam guardadas em cada despesa. Excluir é só uma marca (dá para desfazer). Remover participante com despesas exige passar tudo para outra pessoa (os valores não mudam; se as duas estavam na mesma despesa, as partes somam). Se alguma conta não fechar ao centavo, o resumo vem marcado e o acerto não é mostrado.
+- **Código:** `src/core/money.ts` (`splitEven`, `splitWeighted`, usados também pelo Rolê), `src/core/settle.ts` (`settleUp`, `minTransfers`), `src/core/trip.ts` (modelo e cálculo da viagem). Testes com os números do briefing em `trip.test.ts` e `settle.test.ts`.
+- **Respostas combinadas para os próximos passos:** viagem compartilhada antes do Rolê compartilhado, com a mesma base (convite, membros, papéis); editor mexe só no que lançou, dono em tudo; expiração 90 dias após a última atividade, com aviso 15 e 3 dias antes e "Baixar planilha" (CSV); aviso de despesa parecida (mesmo valor no mesmo dia) e código único por despesa contra envio repetido; fila para lançar sem internet.
+
 ## Exceção "consumiu só isso" (Fase 1, passo 3)
 
 - Os itens escolhidos ficam **só para a pessoa** (ela paga o valor inteiro). Ela sai de todos os outros itens.

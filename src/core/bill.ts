@@ -1,8 +1,11 @@
 // Modelo da conta e regras de negócio. Sem nenhuma dependência de interface,
 // para poder ser testado sozinho e reaproveitado (ex.: app Capacitor depois).
 
-import { formatBRL } from './money';
+import { formatBRL, splitEven, splitWeighted } from './money';
 import { categoryEmoji } from './noteCategory';
+import { settleUp, type Transfer } from './settle';
+
+export { settleUp, type Transfer };
 
 export const SERVICE_OPTIONS = [0, 10, 12, 15] as const;
 export type ServicePct = (typeof SERVICE_OPTIONS)[number];
@@ -72,12 +75,6 @@ export interface Bill {
   settled?: Transfer[];
 }
 
-/** Dinheiro de uma pessoa para outra. */
-export interface Transfer {
-  from: string;
-  to: string;
-  cents: number;
-}
 
 /** Quanto a pessoa pagou de um item (para explicar por que alguém gastou mais). */
 export interface ItemPart {
@@ -230,12 +227,9 @@ function splitOne(bill: Bill): SplitResult {
       return;
     }
     const n = who.length;
-    const base = Math.floor(value / n);
-    const rem = value % n;
-    const start = idx % n;
+    const split = splitEven(value, n, idx % n);
     who.forEach((id, k) => {
-      const pos = (k - start + n) % n;
-      const cents = base + (pos < rem ? 1 : 0);
+      const cents = split[k];
       consumption.set(id, consumption.get(id)! + cents);
       parts.get(id)!.push({ item, cents, splitBy: n });
     });
@@ -245,22 +239,9 @@ function splitOne(bill: Bill): SplitResult {
   // Arredondamento "meio para cima" só com inteiros.
   const service = Math.floor((subtotal * bill.servicePct + 50) / 100);
 
-  const serviceBy = new Map<string, number>();
-  const remainders: { id: string; order: number; frac: number }[] = [];
-  let given = 0;
-  bill.people.forEach((p, order) => {
-    const num = service * consumption.get(p.id)!;
-    const q = subtotal > 0 ? Math.floor(num / subtotal) : 0;
-    serviceBy.set(p.id, q);
-    given += q;
-    remainders.push({ id: p.id, order, frac: subtotal > 0 ? num % subtotal : 0 });
-  });
   // Maior resto primeiro; empate decidido pela ordem na mesa.
-  remainders.sort((a, b) => b.frac - a.frac || a.order - b.order);
-  for (let i = 0; i < service - given; i++) {
-    const r = remainders[i];
-    serviceBy.set(r.id, serviceBy.get(r.id)! + 1);
-  }
+  const serviceSplit = splitWeighted(service, bill.people.map((p) => consumption.get(p.id)!)) ?? bill.people.map(() => 0);
+  const serviceBy = new Map(bill.people.map((p, k) => [p.id, serviceSplit[k]]));
 
   const shares = bill.people.map((person) => {
     const c = consumption.get(person.id)!;
@@ -394,30 +375,6 @@ export function groupSummary(bill: Bill): GroupSummary {
     transfers: settleUp(balance, bill.people.map((p) => p.id)),
     withoutPayer: notes.filter((n) => !n.payer && n.result.total > 0),
   };
-}
-
-/** Transforma os saldos em transferências: quem mais deve paga primeiro a quem mais tem a receber. */
-export function settleUp(balance: Record<string, number>, order: string[]): Transfer[] {
-  const rank = (id: string) => order.indexOf(id);
-  const side = (sign: 1 | -1) =>
-    order
-      .filter((id) => sign * (balance[id] ?? 0) > 0)
-      .map((id) => ({ id, left: Math.abs(balance[id]) }))
-      .sort((a, b) => b.left - a.left || rank(a.id) - rank(b.id));
-  const creditors = side(1);
-  const debtors = side(-1);
-  const out: Transfer[] = [];
-  let c = 0;
-  let d = 0;
-  while (c < creditors.length && d < debtors.length) {
-    const cents = Math.min(creditors[c].left, debtors[d].left);
-    out.push({ from: debtors[d].id, to: creditors[c].id, cents });
-    creditors[c].left -= cents;
-    debtors[d].left -= cents;
-    if (creditors[c].left === 0) c++;
-    if (debtors[d].left === 0) d++;
-  }
-  return out;
 }
 
 /** Remove a pessoa da mesa, de todos os itens e, se for o caso, do pagador (também em cada nota). */
