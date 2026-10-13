@@ -184,4 +184,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 ### Viagem — setinha, filtro "Ver de quem" e parcelas
 - Cada pagamento mostra quem paga → quem recebe (avatar pequeno, seta, avatar de quem recebe).
 - **Ver de quem:** escolhe uma pessoa e mostra "Quem deve para ela" (+ verde) e "Ela deve para" (− vermelho), com Pago e parcelas. Quem tem a parte paga por outro mostra a conta de quem paga.
-- **Parcelas** (`Trip.installments`, por dupla "de>para", 2 a 24x): o total é dividido ao centavo (centavo extra nas primeiras). As parcelas pagas são contadas pelo acumulado pago, então um valor quebrado também conta. O botão vira "Pagar 2/3" e já vem com o valor da parcela. No texto do WhatsApp aparece "(parcelado em 3x)".
+- ~~Parcelas por dupla no acerto~~: substituído por parcelas na despesa (abaixo).
+
+### Viagem — parcelas na despesa (substitui "Parcelar" no acerto)
+- **Por quê:** quem parcela é quem pagou no cartão (ex.: Airbnb em 6x). Definir na despesa faz cada parcela bater com a do cartão.
+- `Expense.installments` (2 a 24). No acerto, cada despesa parcelada vira um pagamento separado por pessoa (quem deve → quem pagou), **sem compensar** com o resto; o à vista continua compensado como antes. Os dois modos continuam fechando com os saldos (testado).
+- A parte de cada um é dividida ao centavo (o centavo extra vai nas primeiras parcelas). As parcelas pagas são contadas pelo acumulado pago. O pagamento registrado leva `expenseId` e abate só daquela despesa.
+- Tela: ícone + nome da despesa, "parcela 2 de 6 · faltam R$ X de R$ Y", botão "Pagar 2/6" com o valor da parcela. Na lista de despesas aparece "6x". Texto e imagem mostram a parcela da vez.

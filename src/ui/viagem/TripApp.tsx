@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import type { Transfer } from '../../core/settle';
 import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../core/trip';
 import { loadTrips, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
 import { AccountButton } from '../AccountButton';
@@ -13,7 +12,7 @@ import { useMediaQuery } from '../useMediaQuery';
 import { activeVisual } from '../visual';
 import { ExpenseSheet, type ExpenseMode } from './ExpenseSheet';
 import { PersonSheet } from './PersonSheet';
-import { SettleSheet } from './SettleSheet';
+import { SettleSheet, type SettleTarget } from './SettleSheet';
 import { TripBalances } from './TripBalances';
 import { TripCover, TripList } from './TripCover';
 import { TripExpenses } from './TripExpenses';
@@ -66,7 +65,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const [expenseMode, setExpenseMode] = useState<ExpenseMode | null>(null);
   const [tripMode, setTripMode] = useState<TripMode | null>(null);
   const [editing, setEditing] = useState<Traveler | null>(null);
-  const [settling, setSettling] = useState<Transfer | null>(null);
+  const [settling, setSettling] = useState<SettleTarget | null>(null);
 
   function openList() {
     dispatch({ type: 'openTrip', id: null });

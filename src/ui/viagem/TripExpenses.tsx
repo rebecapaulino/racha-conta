@@ -1,6 +1,6 @@
 import { useState, type Dispatch } from 'react';
 import { formatBRL } from '../../core/money';
-import { activeExpenses, categoryLabel, nextPayer, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
+import { activeExpenses, categoryLabel, installmentsOf, nextPayer, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, AvatarStack } from '../Avatar';
 import { IconBulb, IconFilter } from '../icons';
@@ -156,6 +156,7 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                           {' · '}
                           <span>{everyone ? 'todos' : who.length === 1 ? `só ${who[0].id === meId ? 'você' : who[0].name}` : `${who.length} pessoas`}</span>
                           {tag && <> · <span>{tag}</span></>}
+                          {installmentsOf(e) > 1 && <> · <span className="parts-tag">{installmentsOf(e)}x</span></>}
                         </small>
                       </span>
                       <span className="line-end">

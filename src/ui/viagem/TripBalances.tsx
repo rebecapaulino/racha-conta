@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch } from 'react';
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import type { Transfer } from '../../core/settle';
 import { activeExpenses, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
@@ -11,6 +10,7 @@ import { CategoryIcon } from './CategoryIcon';
 import { PersonAccount } from './PersonAccount';
 import { SettleList } from './SettleList';
 import { Sheet } from './Sheet';
+import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
 import { renderTripImage } from './tripImage';
 
@@ -24,7 +24,7 @@ interface Props {
   fluent: boolean;
   dispatch: Dispatch<TripAction>;
   toast: (msg: string, undo?: () => void) => void;
-  onSettle: (t: Transfer) => void;
+  onSettle: (t: SettleTarget) => void;
 }
 
 /** Saldos: quem paga quem para ficar quite, o saldo de cada um, os gastos por categoria e o resumo. */

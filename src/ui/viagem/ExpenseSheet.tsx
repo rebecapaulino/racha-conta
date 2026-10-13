@@ -3,7 +3,10 @@ import { formatBRL, parseBRL } from '../../core/money';
 import {
   categoryLabel,
   findDuplicate,
+  installmentInfo,
+  installmentsOf,
   MAX_DESCRIPTION,
+  MAX_INSTALLMENTS,
   nextPayer,
   splitExpense,
   TRIP_CATEGORIES,
@@ -17,7 +20,7 @@ import {
 import { newId } from '../../state/billState';
 import { todayISO, type TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
-import { IconAlert, IconBulb, IconCheck, IconTrash } from '../icons';
+import { IconAlert, IconBulb, IconCheck, IconMinus, IconPlus, IconTrash } from '../icons';
 import { CategoryIcon } from './CategoryIcon';
 import { Sheet } from './Sheet';
 import { dayBefore, dayLabel } from './tripDates';
@@ -74,6 +77,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
     editing?.split === 'exact' ? Object.fromEntries(Object.entries(editing.shares).map(([id, c]) => [id, typed(c)])) : {},
   );
   const [date, setDate] = useState(editing?.date ?? todayISO());
+  const [parts, setParts] = useState(editing ? installmentsOf(editing) : 1);
   const [dupOk, setDupOk] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -94,8 +98,18 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
     split,
     people: who,
     ...(split === 'exact' ? { exact: Object.fromEntries(who.map((id) => [id, exactCents(id) ?? -1])) } : {}),
+    ...(parts > 1 ? { installments: parts } : {}),
   };
+  // Exemplo de parcela: a parte de alguém que não pagou (de preferência quem usa o celular).
+  function sampleInstallment() {
+    if (parts < 2 || !preview?.ok) return null;
+    const ids = Object.keys(preview.shares).filter((id) => id !== payerId && preview.shares[id] > 0);
+    const id = ids.includes(meId ?? '') ? meId! : ids[0];
+    if (!id) return null;
+    return { id, share: preview.shares[id], first: installmentInfo(preview.shares[id], 0, parts).parts[0] };
+  }
   const preview = cents ? splitExpense(input, people, seq) : null;
+  const installment = sampleInstallment();
   const duplicate = cents ? findDuplicate(trip, { cents, date }, editing?.id) : null;
   const suggestion = mode.kind === 'new' ? nextPayer(tripSummary(trip)) : null;
   const today = todayISO();
@@ -352,6 +366,40 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
         </div>
         <small className="hint">{dayLabel(date)}</small>
       </fieldset>
+
+      <div className="note-field">
+        <h3 className="field-label" id="h-exp-parts">Como foi pago?</h3>
+        <div className="seg two" role="group" aria-labelledby="h-exp-parts">
+          <button type="button" aria-pressed={parts === 1} onClick={() => setParts(1)}>À vista</button>
+          <button type="button" aria-pressed={parts > 1} onClick={() => parts === 1 && setParts(3)}>Parcelado</button>
+        </div>
+        {parts > 1 && (
+          <>
+            <div className="weight-row">
+              <div className="stepper" role="group" aria-label="Número de parcelas">
+                <button type="button" onClick={() => setParts((n) => Math.max(2, n - 1))} disabled={parts <= 2} aria-label="Menos parcelas">
+                  <IconMinus size={18} />
+                </button>
+                <output aria-live="polite">{parts}x</output>
+                <button type="button" onClick={() => setParts((n) => Math.min(MAX_INSTALLMENTS, n + 1))} disabled={parts >= MAX_INSTALLMENTS} aria-label="Mais parcelas">
+                  <IconPlus size={18} />
+                </button>
+              </div>
+              <div className="chips weight-presets">
+                {[2, 3, 4, 6, 10, 12].map((n) => (
+                  <button key={n} type="button" className="chip" aria-pressed={parts === n} onClick={() => setParts(n)}>{n}x</button>
+                ))}
+              </div>
+            </div>
+            <p className="hint" aria-live="polite">
+              Cada um devolve a sua parte em {parts}x para {payerId === meId ? 'você' : people.find((p) => p.id === payerId)?.name ?? 'quem pagou'}.
+              {installment && (
+                <> Ex.: {installment.id === meId ? 'você' : people.find((p) => p.id === installment.id)?.name}, {formatBRL(installment.share)} = {parts}x de {formatBRL(installment.first)}.</>
+              )}
+            </p>
+          </>
+        )}
+      </div>
 
       {duplicate && (
         <p className="warn" ref={dupRef} tabIndex={-1} role="status">

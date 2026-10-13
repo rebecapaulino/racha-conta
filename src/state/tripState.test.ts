@@ -130,15 +130,6 @@ describe('viagens no aparelho', () => {
     expect(trip(s).people.find((p) => p.id === 'p2')?.coveredBy).toBeUndefined();
   });
 
-  it('parcelas: guarda por dupla, 1x apaga, valor inválido é ignorado', () => {
-    let s = run(base(), { type: 'setInstallments', from: 'a', to: 'b', count: 3 });
-    expect(trip(s).installments).toEqual({ 'a>b': 3 });
-    s = run(s, { type: 'setInstallments', from: 'a', to: 'b', count: 99 });
-    expect(trip(s).installments).toEqual({ 'a>b': 3 });
-    s = run(s, { type: 'setInstallments', from: 'a', to: 'b', count: 1 });
-    expect(trip(s).installments).toBeUndefined();
-  });
-
   it('apagar a viagem aberta volta para a lista', () => {
     const s = run(base(), { type: 'deleteTrip', id: 't1' });
     expect(s).toEqual({ trips: [], openId: null, me: {} });

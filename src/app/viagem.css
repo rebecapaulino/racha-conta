@@ -512,3 +512,12 @@ h3.field-label { margin: 0; }
 }
 .pay-actions .settle-btn { max-width: 100%; white-space: normal; text-align: left; }
 .pay-to { min-width: 0; }
+
+/* ---------- Despesa parcelada no acerto ---------- */
+.pay-expense { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pay-expense .cat-tile { flex: none; width: 32px; height: 32px; }
+.pay-expense > span:last-child { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.pay-expense b { font-size: .9rem; font-weight: 700; }
+.pay-expense small { color: var(--muted); font-size: .8rem; }
+.parts-tag { font-weight: 700; color: var(--info); }
+.settle-label { margin: -4px 0 0; text-align: center; color: var(--muted); font-weight: 600; }

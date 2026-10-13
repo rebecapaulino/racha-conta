@@ -54,6 +54,11 @@ export interface ExpenseInput {
   people: string[];
   /** Só na divisão por valores exatos: quanto cada um deve, em centavos. */
   exact?: Record<string, number>;
+  /**
+   * Quem pagou parcelou no cartão (2 a 24 vezes): cada um devolve a sua parte no mesmo
+   * número de parcelas. No acerto, vira um pagamento separado ("Airbnb · parcela 2 de 6").
+   */
+  installments?: number;
 }
 
 export interface Expense extends ExpenseInput {
@@ -74,6 +79,8 @@ export interface Expense extends ExpenseInput {
 /** Pagamento real entre duas pessoas para diminuir o saldo ("Caio pagou R$ 500,00 para Ana"). */
 export interface Settlement extends Transfer {
   id: string;
+  /** Pagamento de uma despesa parcelada (abate só dela, não do resto do acerto). */
+  expenseId?: string;
   /** Quando foi registrado (ISO). */
   at: string;
 }
@@ -94,14 +101,9 @@ export interface Trip {
   categoryNames?: Partial<Record<TripCategory, string>>;
   /** Como mostrar o acerto. Sem valor: 'direct'. */
   settleMode?: SettleMode;
-  /** Em quantas vezes cada pagamento do acerto vai ser pago, por dupla (pairKey). */
-  installments?: Record<string, number>;
 }
 
 export const MAX_INSTALLMENTS = 24;
-
-/** Chave de uma dupla do acerto ("quem paga>quem recebe"). */
-export const pairKey = (from: string, to: string) => `${from}>${to}`;
 
 export interface InstallmentInfo {
   count: number;
@@ -112,6 +114,10 @@ export interface InstallmentInfo {
   /** Quanto falta da próxima parcela (0 se já pagou tudo). */
   next: number;
 }
+
+/** Número de parcelas válido de uma despesa (1 = à vista). */
+export const installmentsOf = (e: Pick<ExpenseInput, 'installments'>) =>
+  Number.isInteger(e.installments) && e.installments! >= 2 && e.installments! <= MAX_INSTALLMENTS ? e.installments! : 1;
 
 /**
  * Parcelamento de um pagamento: divide o total em `count` parcelas e vê, pelo que já foi
@@ -244,12 +250,14 @@ export function setExpenseDeleted(trip: Trip, id: string, deleted: boolean, now:
 }
 
 /** Registra um pagamento real entre duas pessoas (pode ser parcial). */
-export function addSettlement(trip: Trip, t: Transfer, id: string, now: string): TripResult {
+export function addSettlement(trip: Trip, t: Transfer & { expenseId?: string }, id: string, now: string): TripResult {
   if (!Number.isSafeInteger(t.cents) || t.cents <= 0) return { ok: false, error: 'Digite o valor do pagamento.' };
   if (t.from === t.to) return { ok: false, error: 'Escolha duas pessoas diferentes.' };
   const known = (pid: string) => trip.people.some((p) => p.id === pid);
   if (!known(t.from) || !known(t.to)) return { ok: false, error: 'Escolha quem pagou e quem recebeu.' };
-  return { ok: true, trip: { ...trip, settlements: [...trip.settlements, { from: t.from, to: t.to, cents: t.cents, id, at: now }] } };
+  const s: Settlement = { from: t.from, to: t.to, cents: t.cents, id, at: now };
+  if (t.expenseId && trip.expenses.some((e) => e.id === t.expenseId)) s.expenseId = t.expenseId;
+  return { ok: true, trip: { ...trip, settlements: [...trip.settlements, s] } };
 }
 
 export const activeExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.deleted);
@@ -351,6 +359,9 @@ export interface SettleRow extends Transfer {
   paid: number;
   /** Quanto ainda falta (cents − paid). Zero: está pago. */
   remaining: number;
+  /** Só nas despesas parceladas: de qual despesa é e em quantas vezes. */
+  expenseId?: string;
+  installments?: number;
 }
 
 export interface TripSummary {
@@ -467,9 +478,11 @@ export function tripSummary(trip: Trip): TripSummary {
 
 /**
  * O acerto de cada modo, calculado só com as despesas (assim um pagamento feito não muda
- * a lista: a linha fica marcada como paga). Depois cada pagamento registrado abate da linha
- * da mesma dupla. Se sobrar diferença (pagou a mais, ou para outra pessoa), entram linhas
- * de ajuste, para o que falta pagar continuar fechando ao centavo com os saldos.
+ * a lista: a linha fica marcada como paga). Despesas parceladas viram pagamentos separados,
+ * um por despesa e dupla, sem compensar com o resto (cada parcela bate com a do cartão).
+ * Depois cada pagamento registrado abate da sua linha. Se sobrar diferença (pagou a mais,
+ * ou para outra pessoa), entram linhas de ajuste, para o que falta continuar fechando ao
+ * centavo com os saldos.
  */
 function settlePlans(trip: Trip, people: TravelerBalance[]): Record<SettleMode, SettleRow[]> {
   const acc = new Map(trip.people.map((p) => [p.id, accountOf(trip, p.id)]));
@@ -481,27 +494,68 @@ function settlePlans(trip: Trip, people: TravelerBalance[]): Record<SettleMode, 
     base[a] += r.paid - r.owes;
     now[a] += r.balance;
   }
+  const split = installmentRows(trip, acc);
+  for (const r of split) {
+    base[r.from] += r.cents;
+    base[r.to] -= r.cents;
+  }
   return {
-    min: reconcile(minTransfers(base, roots), trip, acc, roots, now),
-    direct: reconcile(directTransfers(trip, false), trip, acc, roots, now),
+    min: reconcile(minTransfers(base, roots), split, trip, acc, roots, now),
+    direct: reconcile(directTransfers(trip, false, true), split, trip, acc, roots, now),
   };
 }
 
-function reconcile(plan: Transfer[], trip: Trip, acc: Map<string, string>, roots: string[], now: Record<string, number>): SettleRow[] {
+/** Uma linha por despesa parcelada e dupla de contas (quem deve → quem pagou). */
+function installmentRows(trip: Trip, acc: Map<string, string>): SettleRow[] {
+  const rows: SettleRow[] = [];
+  for (const e of activeExpenses(trip)) {
+    const n = installmentsOf(e);
+    const payer = acc.get(e.payerId);
+    if (n === 1 || !payer) continue;
+    for (const p of trip.people) {
+      const c = Object.hasOwn(e.shares, p.id) ? e.shares[p.id] : 0;
+      const from = acc.get(p.id)!;
+      if (c <= 0 || from === payer) continue;
+      const row = rows.find((r) => r.expenseId === e.id && r.from === from);
+      if (row) row.cents += c;
+      else rows.push({ from, to: payer, cents: c, paid: 0, remaining: 0, expenseId: e.id, installments: n });
+    }
+  }
+  return rows;
+}
+
+function reconcile(
+  plan: Transfer[],
+  split: SettleRow[],
+  trip: Trip,
+  acc: Map<string, string>,
+  roots: string[],
+  now: Record<string, number>,
+): SettleRow[] {
   const key = (a: string, b: string) => `${a}\u0000${b}`;
   const paidPair = new Map<string, number>();
+  const paidSplit = new Map<string, number>();
   for (const s of trip.settlements) {
     const [f, t] = [acc.get(s.from), acc.get(s.to)];
     if (!f || !t || f === t) continue;
-    paidPair.set(key(f, t), (paidPair.get(key(f, t)) ?? 0) + s.cents);
+    const own = s.expenseId && split.find((r) => r.expenseId === s.expenseId && r.from === f && r.to === t);
+    if (own) paidSplit.set(key(own.expenseId!, f), (paidSplit.get(key(own.expenseId!, f)) ?? 0) + s.cents);
+    else paidPair.set(key(f, t), (paidPair.get(key(f, t)) ?? 0) + s.cents);
   }
+  const take = (m: Map<string, number>, k: string, cents: number) => {
+    const avail = m.get(k) ?? 0;
+    const paid = Math.min(cents, avail);
+    m.set(k, avail - paid);
+    return paid;
+  };
   const rows: SettleRow[] = plan.map((p) => {
-    const k = key(p.from, p.to);
-    const avail = paidPair.get(k) ?? 0;
-    const paid = Math.min(p.cents, avail);
-    paidPair.set(k, avail - paid);
+    const paid = take(paidPair, key(p.from, p.to), p.cents);
     return { from: p.from, to: p.to, cents: p.cents, paid, remaining: p.cents - paid };
   });
+  for (const r of split) {
+    const paid = take(paidSplit, key(r.expenseId!, r.from), r.cents);
+    rows.push({ ...r, paid, remaining: r.cents - paid });
+  }
   // O que falta pagar precisa bater com o saldo de agora de cada conta.
   const residual: Record<string, number> = { ...now };
   for (const r of rows) {
@@ -509,7 +563,7 @@ function reconcile(plan: Transfer[], trip: Trip, acc: Map<string, string>, roots
     residual[r.from] += r.remaining;
   }
   for (const t of minTransfers(residual, roots)) {
-    const same = rows.find((r) => r.from === t.from && r.to === t.to);
+    const same = rows.find((r) => r.from === t.from && r.to === t.to && !r.expenseId);
     if (same) {
       same.cents += t.cents;
       same.remaining += t.cents;
@@ -538,7 +592,7 @@ export const settleTransfers = (summary: TripSummary, mode: SettleMode = 'direct
  * entre os dois), e sobra um único Pix (ou nenhum). Ninguém recebe dinheiro que é de outra
  * pessoa. Quem tem a parte paga por outro entra na conta dele (accountOf).
  */
-export function directTransfers(trip: Trip, withSettlements = true): Transfer[] {
+export function directTransfers(trip: Trip, withSettlements = true, skipInstallments = false): Transfer[] {
   const acc = new Map(trip.people.map((p) => [p.id, accountOf(trip, p.id)]));
   const order = trip.people.map((p) => p.id).filter((id) => acc.get(id) === id);
   // debt[a][b]: quanto a deve para b (antes de compensar).
@@ -547,7 +601,7 @@ export function directTransfers(trip: Trip, withSettlements = true): Transfer[] 
   const addDebt = (a: string, b: string, c: number) => debt.set(key(a, b), (debt.get(key(a, b)) ?? 0) + c);
   for (const e of activeExpenses(trip)) {
     const payer = acc.get(e.payerId);
-    if (!payer) continue;
+    if (!payer || (skipInstallments && installmentsOf(e) > 1)) continue;
     for (const [pid, c] of Object.entries(e.shares)) {
       const who = acc.get(pid);
       if (who && who !== payer) addDebt(who, payer, c);
@@ -665,12 +719,16 @@ export function tripBalancesText(trip: Trip, summary: TripSummary): string {
 
 /** Texto para o WhatsApp com o acerto final (quem paga quem). */
 export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMode = 'min'): string {
-  const list = settleTransfers(summary, mode);
+  const list = summary.plan[mode].filter((r) => r.remaining > 0);
   if (list.length === 0) return [header(trip), 'Está tudo quite! ✅'].join('\n');
   const name = (id: string) => accountName(trip, id);
-  const split = (t: Transfer) => {
-    const n = trip.installments?.[pairKey(t.from, t.to)] ?? 1;
-    return n > 1 ? ` (parcelado em ${n}x)` : '';
+  /** "R$ 50,00 para Mauricio: parcela 2/6 de Airbnb (faltam R$ 250,00)". */
+  const pay = (r: SettleRow) => {
+    if (!r.expenseId) return `${formatBRL(r.remaining)} para ${name(r.to)}`;
+    const i = installmentInfo(r.cents, r.paid, r.installments ?? 1);
+    const what = trip.expenses.find((e) => e.id === r.expenseId)?.description ?? 'despesa';
+    const left = r.remaining > i.next ? ` (faltam ${formatBRL(r.remaining)})` : '';
+    return `${formatBRL(i.next)} para ${name(r.to)}: parcela ${i.paidCount + 1}/${i.count} de ${what}${left}`;
   };
   if (mode === 'direct') {
     return [
@@ -678,15 +736,10 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
       'Para ficar tudo quite (cada um paga para quem pagou):',
       ...groupByPayer(list, trip).flatMap((g) => [
         '',
-        g.items.length > 1 ? `*${name(g.from)}* paga ${formatBRL(g.cents)} no total:` : `*${name(g.from)}* paga:`,
-        ...g.items.map((t) => `- ${formatBRL(t.cents)} para ${name(t.to)}${split(t)}`),
+        g.items.length > 1 ? `*${name(g.from)}* paga ${formatBRL(g.items.reduce((a, r) => a + r.remaining, 0))} no total:` : `*${name(g.from)}* paga:`,
+        ...g.items.map((r) => `- ${pay(r)}`),
       ]),
     ].join('\n');
   }
-  return [
-    header(trip),
-    'Para ficar tudo quite:',
-    '',
-    ...summary.transfers.map((t) => `- ${name(t.from)} paga ${formatBRL(t.cents)} para ${name(t.to)}${split(t)}`),
-  ].join('\n');
+  return [header(trip), 'Para ficar tudo quite:', '', ...list.map((r) => `- ${name(r.from)} paga ${pay(r)}`)].join('\n');
 }

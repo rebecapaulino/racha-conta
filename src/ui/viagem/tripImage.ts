@@ -3,7 +3,7 @@
 // Desenhado no próprio aparelho (canvas), então funciona até sem internet.
 
 import { formatBRL } from '../../core/money';
-import { accountMembers, groupByPayer, settleTransfers, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
+import { accountMembers, groupByPayer, installmentInfo, type SettleMode, type SettleRow, type Trip, type TripSummary } from '../../core/trip';
 import { C, coin, dash, fitText, FONT, loadFonts, PERSON, roundRect, tint, wrap } from '../receiptImage';
 import { tripDates } from './tripDates';
 
@@ -156,7 +156,15 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
   ctx.fillText(mode === 'direct' ? 'Cada um paga para quem pagou as despesas.' : 'Com o menor número de Pix.', left, y);
   y += 56;
 
-  const groups = groupByPayer(settleTransfers(summary, mode), trip);
+  const groups = groupByPayer(summary.plan[mode].filter((r) => r.remaining > 0), trip);
+  /** Despesa parcelada: "Airbnb · parcela 2 de 6 de R$ 33,34". */
+  const splitLine = (r: SettleRow) => {
+    if (!r.expenseId || !r.installments) return '';
+    const i = installmentInfo(r.cents, r.paid, r.installments);
+    const what = trip.expenses.find((e) => e.id === r.expenseId)?.description ?? 'Despesa';
+    return `${what} · parcela ${i.paidCount + 1} de ${i.count} de ${formatBRL(i.next)}`;
+  };
+  const itemH = (r: SettleRow) => (splitLine(r) ? 108 : 72);
   if (groups.length === 0) {
     ctx.fillStyle = C.okSoft;
     roundRect(ctx, left, y, CW, 96, 24);
@@ -170,7 +178,7 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
   }
   for (const g of groups) {
     const from = person(g.from);
-    const boxH = 104 + g.items.length * 72 + 16;
+    const boxH = 104 + g.items.reduce((a, r) => a + itemH(r), 0) + 16;
     ctx.fillStyle = '#F6F2F0';
     roundRect(ctx, left, y, CW, boxH, 28);
     ctx.fill();
@@ -178,7 +186,7 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
     ctx.textAlign = 'right';
     ctx.font = f(800, 44);
     ctx.fillStyle = NEG;
-    const total = `− ${formatBRL(g.cents)}`;
+    const total = `− ${formatBRL(g.items.reduce((a, r) => a + r.remaining, 0))}`;
     ctx.fillText(total, right - 28, y + 32);
     const tw = ctx.measureText(total).width;
     ctx.textAlign = 'left';
@@ -203,14 +211,20 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
       ctx.textAlign = 'right';
       ctx.font = f(700, 34);
       ctx.fillStyle = NEG;
-      const amount = `− ${formatBRL(t.cents)}`;
+      const amount = `− ${formatBRL(t.remaining)}`;
       ctx.fillText(amount, right - 28, iy + 12);
       const aw = ctx.measureText(amount).width;
       ctx.textAlign = 'left';
       ctx.font = f(600, 32);
       ctx.fillStyle = C.ink;
       ctx.fillText(fitText(ctx, `para ${to.name}`, right - 28 - aw - 24 - (left + 104)), left + 104, iy + 12);
-      iy += 72;
+      const line = splitLine(t);
+      if (line) {
+        ctx.font = f(500, 26);
+        ctx.fillStyle = C.muted;
+        ctx.fillText(fitText(ctx, line, right - 28 - (left + 104)), left + 104, iy + 56);
+      }
+      iy += itemH(t);
     }
     y += boxH + 20;
   }

@@ -1,19 +1,18 @@
 import { useState, type Dispatch } from 'react';
 import { formatBRL } from '../../core/money';
-import type { Transfer } from '../../core/settle';
 import {
   accountMembers,
   accountOf,
   groupByPayer,
   installmentInfo,
-  pairKey,
   type SettleRow,
   type Trip,
 } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
 import { IconArrowRight, IconCheck } from '../icons';
-import { InstallSheet } from './InstallSheet';
+import { CategoryIcon } from './CategoryIcon';
+import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
 
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
@@ -25,7 +24,7 @@ interface Props {
   meId: string | null;
   dispatch: Dispatch<TripAction>;
   toast: (msg: string, undo?: () => void) => void;
-  onSettle: (t: Transfer) => void;
+  onSettle: (t: SettleTarget) => void;
   onExplain: (id: string) => void;
 }
 
@@ -35,7 +34,6 @@ interface Props {
  */
 export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExplain }: Props) {
   const [who, setWho] = useState('');
-  const [installing, setInstalling] = useState<SettleRow | null>(null);
   const person = (id: string) => trip.people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
   const valid = who && trip.people.some((p) => p.id === who) ? who : '';
@@ -43,7 +41,9 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
 
   /** Desmarca um pagamento feito (com Desfazer, caso tenha sido sem querer). */
   function unpay(r: SettleRow) {
-    const paid = trip.settlements.filter((x) => accountOf(trip, x.from) === r.from && accountOf(trip, x.to) === r.to);
+    const paid = trip.settlements.filter(
+      (x) => accountOf(trip, x.from) === r.from && accountOf(trip, x.to) === r.to && (x.expenseId ?? '') === (r.expenseId ?? ''),
+    );
     for (const x of paid) dispatch({ type: 'unsettle', id: x.id });
     toast(`Pagamento para ${called(r.to, true)} desmarcado`, () => {
       for (const x of paid) dispatch({ type: 'settle', id: x.id, from: x.from, to: x.to, cents: x.cents });
@@ -53,11 +53,12 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
   /** Uma linha: quem paga → quem recebe, o valor, as parcelas e o botão de pago. */
   function row(r: SettleRow, side: 'out' | 'in') {
     const done = r.remaining === 0;
-    const n = trip.installments?.[pairKey(r.from, r.to)] ?? 1;
-    const inst = n > 1 ? installmentInfo(r.cents, r.paid, n) : null;
+    const inst = r.installments && r.installments > 1 ? installmentInfo(r.cents, r.paid, r.installments) : null;
+    const expense = r.expenseId ? trip.expenses.find((e) => e.id === r.expenseId) : undefined;
     const payNow = inst && inst.next > 0 ? inst.next : r.remaining;
+    const label = expense && inst ? `${expense.description} · parcela ${inst.paidCount + 1} de ${inst.count}` : undefined;
     return (
-      <li key={`${r.from}-${r.to}`} className={`pay-item${done ? ' is-paid' : ''}`}>
+      <li key={`${r.from}-${r.to}-${r.expenseId ?? ''}`} className={`pay-item${done ? ' is-paid' : ''}${inst ? ' is-split' : ''}`}>
         {/* Seta vertical ligando ao avatar do alto do cartão: desce para quem recebe, sobe de quem paga. */}
         <span className={`pay-flow pay-flow-${side}`} aria-hidden="true">
           <IconArrowRight size={18} />
@@ -75,18 +76,23 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
             {done ? (
               <b className="num amt-pos pay-amount">{glued(r.cents)}</b>
             ) : (
-              <Signed cents={side === 'out' ? -r.remaining : r.remaining} className="pay-amount" />
+              <Signed cents={(side === 'out' ? -1 : 1) * payNow} className="pay-amount" />
             )}
           </span>
-          {inst && (
-            <small className="pay-partial">
-              {inst.count}x de {glued(inst.parts[inst.count - 1])}
-              {inst.parts[0] !== inst.parts[inst.count - 1] && ` (1ª de ${glued(inst.parts[0])})`}
-              {' · '}
-              <span className={inst.paidCount > 0 ? 'amt-pos' : undefined}>
-                {inst.paidCount} de {inst.count} {inst.paidCount === 1 ? 'paga' : 'pagas'}
+          {expense && inst && (
+            <span className="pay-expense">
+              <span className="cat-tile"><CategoryIcon category={expense.category} size={16} /></span>
+              <span>
+                <b>{expense.description}</b>
+                <small>
+                  {done ? (
+                    <span className="amt-pos">{inst.count} de {inst.count} parcelas pagas</span>
+                  ) : (
+                    <>parcela {inst.paidCount + 1} de {inst.count} · faltam {glued(r.remaining)} de {glued(r.cents)}</>
+                  )}
+                </small>
               </span>
-            </small>
+            </span>
           )}
           {!inst && r.paid > 0 && !done && (
             <small className="pay-partial">
@@ -108,16 +114,11 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
               <button
                 type="button"
                 className="btn secondary settle-btn"
-                onClick={() => onSettle({ from: r.from, to: r.to, cents: payNow })}
+                onClick={() => onSettle({ from: r.from, to: r.to, cents: payNow, ...(r.expenseId ? { expenseId: r.expenseId, label } : {}) })}
                 aria-label={`${inst ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
               >
                 <IconCheck size={16} />{' '}
                 {inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago'}
-              </button>
-            )}
-            {!done && (
-              <button type="button" className="link-btn pay-split" onClick={() => setInstalling(r)}>
-                {inst ? 'Mudar parcelas' : 'Parcelar'}
               </button>
             )}
           </span>
@@ -233,7 +234,6 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
         </ul>
       )}
 
-      <InstallSheet trip={trip} row={installing} meId={meId} dispatch={dispatch} toast={toast} onClose={() => setInstalling(null)} />
     </>
   );
 }

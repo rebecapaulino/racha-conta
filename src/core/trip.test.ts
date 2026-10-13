@@ -636,3 +636,69 @@ describe('parcelas de um pagamento do acerto', () => {
     }
   });
 });
+
+describe('despesa parcelada no cartão', () => {
+  /** Mauricio pagou o Airbnb de R$ 600 em 6x; Rebeca pagou o mercado à vista. */
+  function viagem(): Trip {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Natacha']);
+    t = add(t, { description: 'Airbnb', cents: 60000, payerId: 'mauricio', category: 'hospedagem', installments: 6 });
+    t = add(t, { description: 'Mercado', cents: 9000, payerId: 'rebeca' });
+    return t;
+  }
+  const settle = (t: Trip, x: { from: string; to: string; cents: number; expenseId?: string }) => {
+    const r = addSettlement(t, x, `s${t.settlements.length}`, NOW);
+    if (!r.ok) throw new Error(r.error);
+    return r.trip;
+  };
+  const airbnb = (t: Trip) => t.expenses.find((e) => e.description === 'Airbnb')!.id;
+
+  it('vira um pagamento separado por pessoa, sem compensar com o resto', () => {
+    const t = viagem();
+    const rows = tripSummary(t).plan.direct;
+    // À vista: Mauricio deve 30 do mercado à Rebeca; Natacha também.
+    expect(rows.filter((r) => !r.expenseId).map((r) => [r.from, r.to, r.cents])).toEqual([
+      ['mauricio', 'rebeca', 3000],
+      ['natacha', 'rebeca', 3000],
+    ]);
+    // Parcelado: Rebeca e Natacha devolvem 200 cada ao Mauricio, em 6x.
+    expect(rows.filter((r) => r.expenseId).map((r) => [r.from, r.to, r.cents, r.installments])).toEqual([
+      ['rebeca', 'mauricio', 20000, 6],
+      ['natacha', 'mauricio', 20000, 6],
+    ]);
+  });
+
+  it('pagar uma parcela abate só da despesa parcelada', () => {
+    let t = viagem();
+    t = settle(t, { from: 'rebeca', to: 'mauricio', cents: 3334, expenseId: airbnb(t) });
+    const s = tripSummary(t);
+    const row = s.plan.direct.find((r) => r.expenseId && r.from === 'rebeca')!;
+    expect([row.paid, row.remaining]).toEqual([3334, 16666]);
+    expect(installmentInfo(row.cents, row.paid, 6)).toMatchObject({ paidCount: 1, next: 3334 });
+    expect(s.plan.direct.find((r) => !r.expenseId && r.from === 'mauricio')!.remaining).toBe(3000);
+  });
+
+  it('os dois modos continuam fechando com o saldo de cada um', () => {
+    let t = viagem();
+    t = settle(t, { from: 'rebeca', to: 'mauricio', cents: 3334, expenseId: airbnb(t) });
+    t = settle(t, { from: 'natacha', to: 'rebeca', cents: 3000 });
+    const s = tripSummary(t);
+    for (const mode of ['direct', 'min'] as const) {
+      for (const p of s.people) {
+        const net = s.plan[mode].reduce((a, r) => a + (r.to === p.person.id ? r.remaining : 0) - (r.from === p.person.id ? r.remaining : 0), 0);
+        expect(net).toBe(p.balance);
+      }
+    }
+  });
+
+  it('o texto mostra a parcela da vez e quanto falta', () => {
+    let t = viagem();
+    t = settle(t, { from: 'rebeca', to: 'mauricio', cents: 3334, expenseId: airbnb(t) });
+    expect(tripSettleText(t, tripSummary(t), 'direct')).toContain('- R$ 33,34 para Mauricio: parcela 2/6 de Airbnb (faltam R$ 166,66)');
+  });
+
+  it('número de parcelas inválido vira à vista', () => {
+    let t = tripWith(['Ana', 'Bia']);
+    t = add(t, { cents: 1000, payerId: 'ana', installments: 99 });
+    expect(tripSummary(t).plan.direct.every((r) => !r.expenseId)).toBe(true);
+  });
+});

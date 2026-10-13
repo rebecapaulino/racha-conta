@@ -1,6 +1,9 @@
 import { useState, type Dispatch } from 'react';
 import { formatBRL, parseBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
+
+/** Um pagamento a registrar. De despesa parcelada: abate só dela. */
+export type SettleTarget = Transfer & { expenseId?: string; label?: string };
 import type { Trip } from '../../core/trip';
 import { newId } from '../../state/billState';
 import type { TripAction } from '../../state/tripState';
@@ -11,7 +14,7 @@ import { Sheet } from './Sheet';
 interface Props {
   trip: Trip;
   /** O pagamento sugerido pelo acerto (dá para registrar só uma parte). */
-  transfer: Transfer | null;
+  transfer: SettleTarget | null;
   dispatch: Dispatch<TripAction>;
   toast: (msg: string, undo?: () => void) => void;
   onClose: () => void;
@@ -21,12 +24,12 @@ interface Props {
 export function SettleSheet({ transfer, onClose, ...rest }: Props) {
   return (
     <Sheet open={!!transfer} onClose={onClose} labelledBy="h-settle" focus="#settle-amount">
-      {transfer && <SettleForm key={`${transfer.from}-${transfer.to}`} transfer={transfer} onClose={onClose} {...rest} />}
+      {transfer && <SettleForm key={`${transfer.from}-${transfer.to}-${transfer.expenseId ?? ''}`} transfer={transfer} onClose={onClose} {...rest} />}
     </Sheet>
   );
 }
 
-function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { transfer: Transfer }) {
+function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { transfer: SettleTarget }) {
   const [amount, setAmount] = useState(formatBRL(transfer.cents).replace(/^R\$\s?/, ''));
   const [error, setError] = useState('');
   const from = trip.people.find((p) => p.id === transfer.from)!;
@@ -40,7 +43,7 @@ function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { tran
       return;
     }
     const id = newId();
-    dispatch({ type: 'settle', id, from: from.id, to: to.id, cents });
+    dispatch({ type: 'settle', id, from: from.id, to: to.id, cents, ...(transfer.expenseId ? { expenseId: transfer.expenseId } : {}) });
     toast(`${from.name} pagou ${formatBRL(cents)} para ${to.name}`, () => dispatch({ type: 'unsettle', id }));
     onClose();
   }
@@ -48,7 +51,8 @@ function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { tran
   return (
     <form className="sheet-body" onSubmit={save}>
       <span className="sheet-grip" aria-hidden="true" />
-      <h2 id="h-settle" tabIndex={-1}>Registrar pagamento</h2>
+      <h2 id="h-settle" tabIndex={-1}>{transfer.label ? 'Pagar parcela' : 'Registrar pagamento'}</h2>
+      {transfer.label && <p className="settle-label">{transfer.label}</p>}
       <div className="settle-pair">
         <span className="settle-who"><Avatar person={from} size="lg" /><b>{from.name}</b></span>
         <span className="settle-arrow" aria-hidden="true"><IconArrowRight /></span>

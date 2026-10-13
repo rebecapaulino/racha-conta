@@ -11,8 +11,8 @@ import {
   MAX_INSTALLMENTS,
   MAX_WEIGHT,
   mergeTraveler,
+  installmentsOf,
   newTrip,
-  pairKey,
   removeTraveler,
   setExpenseDeleted,
   TRIP_CATEGORIES,
@@ -49,10 +49,8 @@ export type TripAction =
   | { type: 'addExpense'; id: string; input: ExpenseInput }
   | { type: 'editExpense'; id: string; input: ExpenseInput }
   | { type: 'deleteExpense'; id: string; deleted: boolean }
-  | { type: 'settle'; id: string; from: string; to: string; cents: number }
-  | { type: 'unsettle'; id: string }
-  /** Em quantas vezes um pagamento do acerto vai ser pago (1 = de uma vez). */
-  | { type: 'setInstallments'; from: string; to: string; count: number };
+  | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
+  | { type: 'unsettle'; id: string };
 
 export const blankTrips = (): TripsState => ({ trips: [], openId: null, me: {} });
 
@@ -182,21 +180,11 @@ export function tripsReducer(s: TripsState, a: TripAction): TripsState {
       return onOpen(s, (t) => setExpenseDeleted(t, a.id, a.deleted, now()));
     case 'settle':
       return onOpen(s, (t) => {
-        const r = addSettlement(t, { from: a.from, to: a.to, cents: a.cents }, a.id, now());
+        const r = addSettlement(t, { from: a.from, to: a.to, cents: a.cents, expenseId: a.expenseId }, a.id, now());
         return r.ok ? r.trip : null;
       });
     case 'unsettle':
       return onOpen(s, (t) => ({ ...t, settlements: t.settlements.filter((x) => x.id !== a.id) }));
-    case 'setInstallments':
-      return onOpen(s, (t) => {
-        if (!Number.isInteger(a.count) || a.count < 1 || a.count > MAX_INSTALLMENTS || a.from === a.to) return null;
-        const installments = { ...t.installments };
-        if (a.count === 1) delete installments[pairKey(a.from, a.to)];
-        else installments[pairKey(a.from, a.to)] = a.count;
-        const next: Trip = { ...t, installments };
-        if (Object.keys(installments).length === 0) delete next.installments;
-        return next;
-      });
   }
 }
 
@@ -207,6 +195,7 @@ function validWeight(w: number | undefined): boolean {
 function cleanInput(input: ExpenseInput): ExpenseInput {
   const out: ExpenseInput = { ...input, description: cleanName(input.description, MAX_DESCRIPTION) };
   if (input.split !== 'exact') delete out.exact;
+  if (installmentsOf(input) === 1) delete out.installments;
   return out;
 }
 
@@ -227,7 +216,8 @@ function isValidExpense(e: unknown): e is Expense {
     (e.exact === undefined || (isObj(e.exact) && Object.values(e.exact).every((c) => isInt(c)))) &&
     isObj(e.shares) && Object.values(e.shares).every((c) => isInt(c)) &&
     isInt(e.seq) && isStr(e.createdAt) && (e.updatedAt === undefined || isStr(e.updatedAt)) &&
-    (e.deleted === undefined || e.deleted === true)
+    (e.deleted === undefined || e.deleted === true) &&
+    (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS))
   );
 }
 
@@ -241,10 +231,8 @@ export function isValidTrip(t: unknown): t is Trip {
     t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy))) &&
     Array.isArray(t.expenses) && t.expenses.every(isValidExpense) &&
     Array.isArray(t.settlements) &&
-    t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at)) &&
+    t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId))) &&
     isInt(t.nextSeq) &&
-    (t.installments === undefined ||
-      (isObj(t.installments) && Object.values(t.installments).every((n) => isInt(n, 2) && (n as number) <= MAX_INSTALLMENTS))) &&
     (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr)))
   );
