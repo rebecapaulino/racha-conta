@@ -478,3 +478,13 @@ h3.field-label { margin: 0; }
 .amt-neg { color: var(--neg); }
 .amt-zero { color: var(--muted); }
 .acc-sum .acc-result dd .num { font-weight: 800; }
+
+/* ---------- Pagamento marcado (fica na lista, em verde) ---------- */
+.pay-item.is-paid .pay-name { color: var(--muted); }
+.settle-btn.is-paid, :root[data-visual="fluent"] .btn.settle-btn.is-paid { color: var(--pos); border-color: var(--pos); background: color-mix(in srgb, var(--pos) 10%, var(--surface)); }
+.pay-partial { font-size: .82rem; color: var(--muted); }
+.pay-with { color: var(--muted); font-size: .8rem; }
+.pay-group.is-done { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pos) 45%, transparent); }
+.acc-covered { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--fill); font-size: .88rem; line-height: 1.4; }
+.covered-tag { display: block; color: var(--info); font-size: .8rem; font-weight: 600; }
+.cover-chips .chip { min-height: 44px; }

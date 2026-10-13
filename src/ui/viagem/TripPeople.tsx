@@ -79,6 +79,12 @@ export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Pr
                       <span>peso {formatWeight(person.weight)}</span>
                       {(paid > 0 || owes > 0) && <> · <span>pagou {formatBRL(paid)}</span> · <span>consumiu {formatBRL(owes)}</span></>}
                     </small>
+                    {person.coveredBy && trip.people.some((p) => p.id === person.coveredBy) && (
+                      <small className="covered-tag">
+                        {person.coveredBy === meId ? 'Você paga' : `${trip.people.find((p) => p.id === person.coveredBy)!.name} paga`}{' '}
+                        {person.id === meId ? 'a sua parte' : `a parte de ${person.name}`}
+                      </small>
+                    )}
                   </span>
                   <span className="row-go" aria-hidden="true"><IconPencil size={16} /></span>
                 </button>
@@ -89,7 +95,8 @@ export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Pr
       </section>
 
       <p className="hint tip">
-        <b>Dica:</b> família que acerta junto pode entrar como uma pessoa só, com peso igual ao tamanho dela (2 adultos e 1 criança = 2,5).
+        <b>Dica:</b> alguém paga a parte de outra pessoa (o pai paga a da filha)? Toque no nome dela e escolha quem paga. As despesas
+        continuam no nome dela, e no acerto a conta junta com a de quem paga.
       </p>
     </div>
   );

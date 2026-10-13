@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   addExpense,
+  accountName,
+  accountOf,
   addSettlement,
+  canCover,
   canRemoveTraveler,
   directTransfers,
   groupByPayer,
@@ -490,5 +493,120 @@ describe('acerto direto para quem pagou', () => {
         '- R$ 70,00 para Mauricio',
       ].join('\n'),
     );
+  });
+});
+
+describe('pagamento registrado continua na lista, marcado', () => {
+  function chacara(): Trip {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Natacha']);
+    t = add(t, { description: 'Mercado', cents: 30000, payerId: 'mauricio' });
+    t = add(t, { description: 'Alimentação', cents: 12000, payerId: 'natacha', people: ['rebeca', 'natacha'] });
+    t = add(t, { description: 'Gasolina', cents: 9000, payerId: 'rebeca' });
+    return t;
+  }
+  const settle = (t: Trip, from: string, to: string, cents: number) => {
+    const r = addSettlement(t, { from, to, cents }, `s${t.settlements.length}`, NOW);
+    if (!r.ok) throw new Error(r.error);
+    return r.trip;
+  };
+  const rowsOf = (t: Trip, mode: 'direct' | 'min') =>
+    tripSummary(t).plan[mode].map((r) => [r.from, r.to, r.cents, r.paid, r.remaining]);
+
+  it('pago inteiro: a linha fica com falta zero; parcial: abate', () => {
+    let t = settle(chacara(), 'rebeca', 'mauricio', 7000);
+    t = settle(t, 'natacha', 'mauricio', 4000);
+    expect(rowsOf(t, 'direct')).toEqual([
+      ['rebeca', 'mauricio', 7000, 7000, 0],
+      ['rebeca', 'natacha', 3000, 0, 3000],
+      ['natacha', 'mauricio', 10000, 4000, 6000],
+    ]);
+    expect(tripSummary(t).direct).toEqual([
+      { from: 'rebeca', to: 'natacha', cents: 3000 },
+      { from: 'natacha', to: 'mauricio', cents: 6000 },
+    ]);
+  });
+
+  it('pagou a mais ou para outra pessoa: entra um ajuste e tudo continua fechando', () => {
+    for (const mode of ['direct', 'min'] as const) {
+      let t = settle(chacara(), 'rebeca', 'mauricio', 9000); // 20 a mais
+      t = settle(t, 'natacha', 'rebeca', 1500); // fora do plano
+      const s = tripSummary(t);
+      const open = mode === 'min' ? s.transfers : s.direct;
+      for (const row of s.people) {
+        const net = open.reduce((a, x) => a + (x.to === row.person.id ? x.cents : 0) - (x.from === row.person.id ? x.cents : 0), 0);
+        expect(net).toBe(row.balance);
+      }
+      expect(s.plan[mode].every((r) => r.paid <= r.cents && r.remaining === r.cents - r.paid)).toBe(true);
+    }
+  });
+
+  it('pagando tudo, todas as linhas ficam pagas e nada some', () => {
+    let t = chacara();
+    for (const x of tripSummary(t).direct) t = settle(t, x.from, x.to, x.cents);
+    const s = tripSummary(t);
+    expect(s.plan.direct.length).toBe(3);
+    expect(s.plan.direct.every((r) => r.remaining === 0 && r.paid === r.cents)).toBe(true);
+    expect(s.direct).toEqual([]);
+  });
+});
+
+describe('quem paga a parte de outra pessoa', () => {
+  /** Mauricio paga a parte da filha Lara. Robin paga a da Rebeca. */
+  function familia(): Trip {
+    let t = tripWith(['Rebeca', 'Robin', 'Mauricio', 'Lara', 'Natacha']);
+    t = add(t, { description: 'Casa', cents: 100000, payerId: 'natacha' });
+    t = add(t, { description: 'Mercado', cents: 25000, payerId: 'rebeca' });
+    t = {
+      ...t,
+      people: t.people.map((p) => (p.id === 'lara' ? { ...p, coveredBy: 'mauricio' } : p.id === 'rebeca' ? { ...p, coveredBy: 'robin' } : p)),
+    };
+    return t;
+  }
+  const net = (list: { from: string; to: string; cents: number }[], id: string) =>
+    list.reduce((a, x) => a + (x.to === id ? x.cents : 0) - (x.from === id ? x.cents : 0), 0);
+
+  it('a conta da pessoa entra na de quem paga por ela', () => {
+    const t = familia();
+    expect(accountOf(t, 'lara')).toBe('mauricio');
+    expect(accountOf(t, 'rebeca')).toBe('robin');
+    expect(accountOf(t, 'natacha')).toBe('natacha');
+    expect(accountName(t, 'mauricio')).toBe('Mauricio (com Lara)');
+  });
+
+  it('Lara e Rebeca não aparecem no acerto; o total da conta é a soma dos saldos', () => {
+    const t = familia();
+    const s = tripSummary(t);
+    const bal = (id: string) => s.people.find((r) => r.person.id === id)!.balance;
+    for (const list of [s.direct, s.transfers]) {
+      expect(list.some((x) => ['lara', 'rebeca'].includes(x.from) || ['lara', 'rebeca'].includes(x.to))).toBe(false);
+      expect(net(list, 'mauricio')).toBe(bal('mauricio') + bal('lara'));
+      expect(net(list, 'robin')).toBe(bal('robin') + bal('rebeca'));
+      expect(net(list, 'natacha')).toBe(bal('natacha'));
+    }
+    // Casa: 200 cada. Mercado da Rebeca: 50 cada. Robin (com Rebeca) deve 400 da casa e a
+    // Natacha deve 50 do mercado a eles: 350. Mauricio paga 2×250 = 500 (com Lara).
+    expect(s.direct).toEqual([
+      { from: 'robin', to: 'natacha', cents: 35000 },
+      { from: 'mauricio', to: 'natacha', cents: 40000 },
+      { from: 'mauricio', to: 'robin', cents: 10000 },
+    ]);
+    expect(tripSettleText(t, s, 'direct')).toContain('*Mauricio (com Lara)* paga R$ 500,00 no total:');
+  });
+
+  it('não deixa fechar um círculo (Robin paga Rebeca e Rebeca paga Robin)', () => {
+    const t = familia();
+    expect(canCover(t, 'robin', 'rebeca')).toBe(false);
+    expect(canCover(t, 'robin', 'robin')).toBe(false);
+    expect(canCover(t, 'natacha', 'rebeca')).toBe(true);
+  });
+
+  it('remover ou juntar quem pagava por alguém não deixa a conta presa', () => {
+    const t = familia();
+    const merged = mergeTraveler(t, 'robin', 'rebeca');
+    if (!merged.ok) throw new Error(merged.error);
+    expect(merged.trip.people.find((p) => p.id === 'rebeca')?.coveredBy).toBeUndefined();
+    const merged2 = mergeTraveler(t, 'mauricio', 'natacha');
+    if (!merged2.ok) throw new Error(merged2.error);
+    expect(merged2.trip.people.find((p) => p.id === 'lara')?.coveredBy).toBe('natacha');
   });
 });

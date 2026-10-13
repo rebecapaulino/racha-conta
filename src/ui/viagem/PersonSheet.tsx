@@ -1,6 +1,6 @@
 import { useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
-import { formatWeight, MAX_WEIGHT, travelerUsage, type Traveler, type Trip } from '../../core/trip';
+import { accountMembers, canCover, formatWeight, MAX_WEIGHT, travelerUsage, type Traveler, type Trip } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
 import { IconMinus, IconPlus, IconTrash } from '../icons';
@@ -34,6 +34,9 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
   const [name, setName] = useState(person.name);
   const [weight, setWeight] = useState(person.weight);
   const [isMe, setIsMe] = useState(person.id === meId);
+  const [coveredBy, setCoveredBy] = useState(person.coveredBy ?? '');
+  const sponsors = trip.people.filter((p) => canCover(trip, person.id, p.id));
+  const covers = accountMembers(trip, person.id);
   const [removing, setRemoving] = useState(false);
   const others = trip.people.filter((p) => p.id !== person.id);
   const [to, setTo] = useState(others[0]?.id ?? '');
@@ -43,7 +46,7 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
   const step = (d: number) => setWeight((w) => Math.min(MAX_WEIGHT, Math.max(0, Math.round((w + d) * 2) / 2)));
 
   function save() {
-    dispatch({ type: 'editTraveler', id: person.id, name, weight });
+    dispatch({ type: 'editTraveler', id: person.id, name, weight, coveredBy: coveredBy || null });
     if (isMe !== (person.id === meId)) dispatch({ type: 'setMe', id: isMe ? person.id : null });
     toast('Pessoa salva');
     onClose();
@@ -101,6 +104,36 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
         <p className="hint">
           Vale quando a despesa é dividida <b>por peso</b>. Família inteira numa pessoa só? Some: 2 adultos e 1 criança = 2,5.
         </p>
+      </div>
+
+      <div className="note-field">
+        <h3 className="field-label" id="h-covered">Quem paga a parte de {name.trim() || person.name}?</h3>
+        <div className="chips cover-chips" role="group" aria-labelledby="h-covered">
+          <button type="button" className="chip chip-self" aria-pressed={!coveredBy} onClick={() => setCoveredBy('')}>
+            A própria pessoa
+          </button>
+          {sponsors.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="chip"
+              style={personStyle(p)}
+              aria-pressed={coveredBy === p.id}
+              onClick={() => setCoveredBy(p.id)}
+            >
+              <Avatar person={p} size="xs" />
+              {p.id === meId ? 'Você' : p.name}
+            </button>
+          ))}
+        </div>
+        <p className="hint">
+          {coveredBy
+            ? `As despesas continuam no nome de ${name.trim() || person.name}, mas no acerto a conta entra na de ${trip.people.find((p) => p.id === coveredBy)?.name}: é quem paga ou recebe.`
+            : 'Ex.: o pai que paga a parte da filha, ou um casal em que um paga pelos dois. No acerto, a conta junta com a de quem paga.'}
+        </p>
+        {covers.length > 0 && (
+          <p className="hint">{person.name} já paga a parte de {covers.map((p) => p.name).join(', ')}.</p>
+        )}
       </div>
 
       <label className="scan-option">

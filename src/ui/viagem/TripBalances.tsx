@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type Dispatch } from '
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
-import { activeExpenses, categoryLabel, groupByPayer, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
+import { accountMembers, accountOf, activeExpenses, categoryLabel, groupByPayer, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type SettleRow, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
@@ -34,7 +34,17 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
   const hasExpenses = activeExpenses(trip).length > 0;
   const mode: SettleMode = trip.settleMode ?? 'direct';
   const transfers = settleTransfers(summary, mode);
-  const groups = groupByPayer(transfers, trip);
+  const rows = summary.plan[mode];
+  const groups = groupByPayer(rows, trip);
+
+  /** Desmarca um pagamento feito (com Desfazer, caso tenha sido sem querer). */
+  function unpay(r: SettleRow) {
+    const paid = trip.settlements.filter((x) => accountOf(trip, x.from) === r.from && accountOf(trip, x.to) === r.to);
+    for (const x of paid) dispatch({ type: 'unsettle', id: x.id });
+    toast(`Pagamento para ${called(r.to, true)} desmarcado`, () => {
+      for (const x of paid) dispatch({ type: 'settle', id: x.id, from: x.from, to: x.to, cents: x.cents });
+    });
+  }
   const text = kind === 'acerto' ? tripSettleText(trip, summary, mode) : tripBalancesText(trip, summary);
 
   // Resumo em imagem: fica pronto antes do toque, porque o celular só abre o menu de
@@ -180,56 +190,96 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
             ? 'Cada um paga para quem pagou as despesas dele. Entre duas pessoas, só a diferença.'
             : 'O app junta tudo e faz o menor número de Pix. O dinheiro pode ir para outra pessoa, mas o total de cada um é o mesmo.'}
         </p>
-        {groups.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="all-square"><IconCheck size={16} /> Está tudo quite!</p>
         ) : (
-          <ul className="pay-groups">
-            {groups.map((g) => (
-              <li key={g.from} className="pay-group">
-                <div className="pay-head">
-                  <Avatar person={person(g.from)} size="md" />
-                  <span className="pay-who">
-                    <b>{called(g.from)} paga</b>
-                    <small>
-                      {g.items.length === 1 ? 'para 1 pessoa' : `${glued(g.cents)} no total, para ${g.items.length} pessoas`}
-                    </small>
-                  </span>
-                </div>
-                <ul className="pay-items">
-                  {g.items.map((t) => (
-                    <li key={t.to} className="pay-item">
-                      <Avatar person={person(t.to)} size="md" />
-                      <span className="pay-to">
-                        <span className="pay-line">
-                          <span className="pay-name">
-                            <span className="sr">{called(g.from)} paga </span>
-                            para <b>{called(t.to, true)}</b>
-                          </span>
-                          <Signed cents={-t.cents} className="pay-amount" />
-                        </span>
-                        <button
-                          type="button"
-                          className="btn secondary settle-btn"
-                          onClick={() => onSettle(t)}
-                          aria-label={`Registrar: ${called(t.from)} pagou ${formatBRL(t.cents)} para ${called(t.to, true)}`}
-                        >
-                          <IconCheck size={16} /> Pago
-                        </button>
+          <>
+            {transfers.length === 0 && (
+              <p className="all-square" role="status"><IconCheck size={16} /> Tudo pago! Está todo mundo quite.</p>
+            )}
+            <ul className="pay-groups">
+              {groups.map((g) => {
+                const left = g.items.reduce((a, r) => a + r.remaining, 0);
+                const members = accountMembers(trip, g.from);
+                return (
+                  <li key={g.from} className={`pay-group${left === 0 ? ' is-done' : ''}`}>
+                    <div className="pay-head">
+                      <Avatar person={person(g.from)} size="md" />
+                      <span className="pay-who">
+                        <b>{called(g.from)} paga</b>
+                        {members.length > 0 && (
+                          <small className="pay-with">com a parte de {members.map((m) => called(m.id, true)).join(', ')}</small>
+                        )}
+                        <small className={left === 0 ? 'amt-pos' : undefined}>
+                          {left === 0
+                            ? '✓ Tudo pago'
+                            : g.items.length === 1
+                              ? 'para 1 pessoa'
+                              : `${glued(left)} ${left === g.cents ? 'no total' : 'faltando'}, para ${g.items.length} pessoas`}
+                        </small>
                       </span>
-                    </li>
-                  ))}
-                </ul>
-                <button type="button" className="link-btn pay-why" onClick={() => explain(g.from)}>
-                  Por que {called(g.from, true)} paga isso? Ver a conta
-                </button>
-              </li>
-            ))}
-          </ul>
+                    </div>
+                    <ul className="pay-items">
+                      {g.items.map((r) => {
+                        const done = r.remaining === 0;
+                        return (
+                          <li key={r.to} className={`pay-item${done ? ' is-paid' : ''}`}>
+                            <Avatar person={person(r.to)} size="md" />
+                            <span className="pay-to">
+                              <span className="pay-line">
+                                <span className="pay-name">
+                                  <span className="sr">{called(g.from)} paga </span>
+                                  para <b>{called(r.to, true)}</b>
+                                </span>
+                                {done ? (
+                                  <b className="num amt-pos pay-amount">{glued(r.cents)}</b>
+                                ) : (
+                                  <Signed cents={-r.remaining} className="pay-amount" />
+                                )}
+                              </span>
+                              {r.paid > 0 && !done && (
+                                <small className="pay-partial">
+                                  <span className="amt-pos">já pagou {glued(r.paid)}</span> de {glued(r.cents)}
+                                </small>
+                              )}
+                              {done ? (
+                                <button
+                                  type="button"
+                                  className="btn secondary settle-btn is-paid"
+                                  aria-pressed="true"
+                                  onClick={() => unpay(r)}
+                                  aria-label={`Pago: ${called(r.from)} pagou ${formatBRL(r.cents)} para ${called(r.to, true)}. Toque para desmarcar`}
+                                >
+                                  <IconCheck size={16} /> Pago
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn secondary settle-btn"
+                                  onClick={() => onSettle({ from: r.from, to: r.to, cents: r.remaining })}
+                                  aria-label={`Registrar: ${called(r.from)} pagou ${formatBRL(r.remaining)} para ${called(r.to, true)}`}
+                                >
+                                  <IconCheck size={16} /> {r.paid > 0 ? 'Pagar o resto' : 'Pago'}
+                                </button>
+                              )}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button type="button" className="link-btn pay-why" onClick={() => explain(g.from)}>
+                      Por que {called(g.from, true)} paga isso? Ver a conta
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
 
         {trip.settlements.length > 0 && (
           <div className="settled">
-            <h3 className="field-label">Já pago</h3>
+            <h3 className="field-label">Histórico de pagamentos</h3>
             <ul className="list">
               {[...trip.settlements].reverse().map((s) => (
                 <li key={s.id} className="settled-row">

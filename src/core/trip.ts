@@ -19,6 +19,11 @@ export interface Traveler {
   color: number;
   /** Quanto assume na divisão por peso: 1 = uma pessoa, criança 0,5, família = soma. */
   weight: number;
+  /**
+   * Quem acerta a parte desta pessoa (o pai que paga a da filha, o Robin que paga a da
+   * Rebeca). As despesas continuam no nome dela; só no acerto a conta entra na de quem paga.
+   */
+  coveredBy?: string;
 }
 
 export const TRIP_CATEGORIES = [
@@ -230,7 +235,25 @@ export function canRemoveTraveler(trip: Trip, id: string): boolean {
 /** Remove quem não aparece em nada. Quem aparece precisa ser passado para outra pessoa antes. */
 export function removeTraveler(trip: Trip, id: string): TripResult {
   if (!canRemoveTraveler(trip, id)) return { ok: false, error: 'Essa pessoa tem despesas. Escolha para quem passar as despesas dela.' };
-  return { ok: true, trip: { ...trip, people: trip.people.filter((p) => p.id !== id) } };
+  return { ok: true, trip: { ...trip, people: cleanCoverage(trip.people.filter((p) => p.id !== id)) } };
+}
+
+/** Tira "quem paga por ela" que aponta para quem saiu ou que fecharia um círculo. */
+function cleanCoverage(people: Traveler[]): Traveler[] {
+  let out = people;
+  for (const p of people) {
+    if (p.coveredBy === undefined) continue;
+    const others = out.map((x) => (x.id === p.id ? { ...x, coveredBy: undefined } : x));
+    if (!canCover({ people: others } as Trip, p.id, p.coveredBy)) {
+      out = out.map((x) => {
+        if (x.id !== p.id) return x;
+        const next = { ...x };
+        delete next.coveredBy;
+        return next;
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -259,7 +282,10 @@ export function mergeTraveler(trip: Trip, fromId: string, toId: string): TripRes
   const settlements = trip.settlements
     .map((s) => ({ ...s, from: swap(s.from), to: swap(s.to) }))
     .filter((s) => s.from !== s.to);
-  return { ok: true, trip: { ...trip, people: trip.people.filter((p) => p.id !== fromId), expenses, settlements } };
+  const people = cleanCoverage(
+    trip.people.filter((p) => p.id !== fromId).map((p) => (p.coveredBy === fromId ? { ...p, coveredBy: toId } : p)),
+  );
+  return { ok: true, trip: { ...trip, people, expenses, settlements } };
 }
 
 /**
@@ -283,6 +309,14 @@ export interface TravelerBalance {
   balance: number;
 }
 
+/** Um pagamento do acerto, com quanto já foi pago dele. Pago não some: fica marcado. */
+export interface SettleRow extends Transfer {
+  /** Quanto já foi registrado como pago deste pagamento. */
+  paid: number;
+  /** Quanto ainda falta (cents − paid). Zero: está pago. */
+  remaining: number;
+}
+
 export interface TripSummary {
   /** Gasto total da viagem (despesas não excluídas). */
   total: number;
@@ -291,10 +325,12 @@ export interface TripSummary {
   byCategory: { category: TripCategory; cents: number }[];
   /** Gasto por dia, em ordem de data. */
   byDay: { date: string; cents: number }[];
-  /** Menor número de pagamentos para todos ficarem quites. */
+  /** O que ainda falta pagar, com o menor número de Pix. */
   transfers: Transfer[];
-  /** Cada um paga direto para quem pagou as despesas dele, compensando só entre as duas pessoas. */
+  /** O que ainda falta pagar, cada um direto para quem pagou as despesas dele. */
   direct: Transfer[];
+  /** Os pagamentos de cada modo, inclusive os já pagos (para a tela marcar em verde). */
+  plan: Record<SettleMode, SettleRow[]>;
   /**
    * false se alguma conta não fechar ao centavo (nunca deveria acontecer). A tela mostra um
    * aviso em vez de números errados, e `transfers` vem vazio.
@@ -302,7 +338,47 @@ export interface TripSummary {
   ok: boolean;
 }
 
-/** Saldos, totais e acerto mínimo da viagem. */
+/**
+ * De quem é a conta no acerto: segue "quem paga por ela" até chegar em alguém que paga a
+ * própria parte (Rebeca → Robin). Sem ninguém, a conta é da própria pessoa.
+ */
+export function accountOf(trip: Trip, id: string): string {
+  const byId = new Map(trip.people.map((p) => [p.id, p]));
+  const seen = new Set([id]);
+  let cur = id;
+  for (;;) {
+    const next = byId.get(cur)?.coveredBy;
+    if (!next || !byId.has(next) || seen.has(next)) return cur;
+    seen.add(next);
+    cur = next;
+  }
+}
+
+/** Quem tem a conta junto com `id` no acerto (a filha na conta do pai), sem contar a própria. */
+export function accountMembers(trip: Trip, id: string): Traveler[] {
+  return trip.people.filter((p) => p.id !== id && accountOf(trip, p.id) === id);
+}
+
+/** Dá para `by` pagar a parte de `id`? Não pode ser a mesma pessoa nem fechar um círculo. */
+export function canCover(trip: Trip, id: string, by: string): boolean {
+  if (id === by || !trip.people.some((p) => p.id === by)) return false;
+  const byId = new Map(trip.people.map((p) => [p.id, p]));
+  const seen = new Set<string>();
+  for (let cur: string | undefined = by; cur && byId.has(cur) && !seen.has(cur); cur = byId.get(cur)?.coveredBy) {
+    if (cur === id) return false;
+    seen.add(cur);
+  }
+  return true;
+}
+
+/** Nome da conta no acerto: "Robin (com Rebeca)". */
+export function accountName(trip: Trip, id: string): string {
+  const name = trip.people.find((p) => p.id === id)?.name ?? '?';
+  const with_ = accountMembers(trip, id).map((p) => p.name);
+  return with_.length ? `${name} (com ${with_.join(', ')})` : name;
+}
+
+/** Saldos, totais e acerto da viagem. */
 export function tripSummary(trip: Trip): TripSummary {
   const ids = new Set(trip.people.map((p) => p.id));
   const row = new Map(trip.people.map((p) => [p.id, { person: p, paid: 0, owes: 0, sent: 0, received: 0, balance: 0 }]));
@@ -339,16 +415,71 @@ export function tripSummary(trip: Trip): TripSummary {
   // A soma dos saldos é sempre zero: o que entrou no caixa é o que saiu.
   if (people.reduce((a, r) => a + r.balance, 0) !== 0) ok = false;
 
-  const balance = Object.fromEntries(people.map((r) => [r.person.id, r.balance]));
+  const plan: Record<SettleMode, SettleRow[]> = ok ? settlePlans(trip, people) : { direct: [], min: [] };
+  const open = (rows: SettleRow[]) => rows.filter((r) => r.remaining > 0).map((r) => ({ from: r.from, to: r.to, cents: r.remaining }));
   return {
     total,
     people,
     byCategory: [...byCategory].map(([category, cents]) => ({ category, cents })).sort((a, b) => b.cents - a.cents),
     byDay: [...byDay].map(([date, cents]) => ({ date, cents })).sort((a, b) => a.date.localeCompare(b.date)),
-    transfers: ok ? minTransfers(balance, trip.people.map((p) => p.id)) : [],
-    direct: ok ? directTransfers(trip) : [],
+    transfers: open(plan.min),
+    direct: open(plan.direct),
+    plan,
     ok,
   };
+}
+
+/**
+ * O acerto de cada modo, calculado só com as despesas (assim um pagamento feito não muda
+ * a lista: a linha fica marcada como paga). Depois cada pagamento registrado abate da linha
+ * da mesma dupla. Se sobrar diferença (pagou a mais, ou para outra pessoa), entram linhas
+ * de ajuste, para o que falta pagar continuar fechando ao centavo com os saldos.
+ */
+function settlePlans(trip: Trip, people: TravelerBalance[]): Record<SettleMode, SettleRow[]> {
+  const acc = new Map(trip.people.map((p) => [p.id, accountOf(trip, p.id)]));
+  const roots = trip.people.map((p) => p.id).filter((id) => acc.get(id) === id);
+  const base: Record<string, number> = Object.fromEntries(roots.map((id) => [id, 0]));
+  const now: Record<string, number> = { ...base };
+  for (const r of people) {
+    const a = acc.get(r.person.id)!;
+    base[a] += r.paid - r.owes;
+    now[a] += r.balance;
+  }
+  return {
+    min: reconcile(minTransfers(base, roots), trip, acc, roots, now),
+    direct: reconcile(directTransfers(trip, false), trip, acc, roots, now),
+  };
+}
+
+function reconcile(plan: Transfer[], trip: Trip, acc: Map<string, string>, roots: string[], now: Record<string, number>): SettleRow[] {
+  const key = (a: string, b: string) => `${a}\u0000${b}`;
+  const paidPair = new Map<string, number>();
+  for (const s of trip.settlements) {
+    const [f, t] = [acc.get(s.from), acc.get(s.to)];
+    if (!f || !t || f === t) continue;
+    paidPair.set(key(f, t), (paidPair.get(key(f, t)) ?? 0) + s.cents);
+  }
+  const rows: SettleRow[] = plan.map((p) => {
+    const k = key(p.from, p.to);
+    const avail = paidPair.get(k) ?? 0;
+    const paid = Math.min(p.cents, avail);
+    paidPair.set(k, avail - paid);
+    return { from: p.from, to: p.to, cents: p.cents, paid, remaining: p.cents - paid };
+  });
+  // O que falta pagar precisa bater com o saldo de agora de cada conta.
+  const residual: Record<string, number> = { ...now };
+  for (const r of rows) {
+    residual[r.to] -= r.remaining;
+    residual[r.from] += r.remaining;
+  }
+  for (const t of minTransfers(residual, roots)) {
+    const same = rows.find((r) => r.from === t.from && r.to === t.to);
+    if (same) {
+      same.cents += t.cents;
+      same.remaining += t.cents;
+    } else rows.push({ ...t, paid: 0, remaining: t.cents });
+  }
+  return rows;
 }
 
 /**
@@ -361,28 +492,38 @@ export function nextPayer(summary: TripSummary): TravelerBalance | null {
   return best;
 }
 
-/** Os pagamentos do modo escolhido. */
+/** O que ainda falta pagar no modo escolhido. */
 export const settleTransfers = (summary: TripSummary, mode: SettleMode = 'direct') =>
   mode === 'min' ? summary.transfers : summary.direct;
 
 /**
  * Acerto direto: para cada dupla, soma o que um deve ao outro pelas despesas que o outro
- * pagou, desconta o caminho contrário e os pagamentos já feitos entre os dois, e sobra
- * um único Pix (ou nenhum). Ninguém recebe dinheiro que é de outra pessoa.
+ * pagou, desconta o caminho contrário (e, com `withSettlements`, os pagamentos já feitos
+ * entre os dois), e sobra um único Pix (ou nenhum). Ninguém recebe dinheiro que é de outra
+ * pessoa. Quem tem a parte paga por outro entra na conta dele (accountOf).
  */
-export function directTransfers(trip: Trip): Transfer[] {
-  const order = trip.people.map((p) => p.id);
-  const ids = new Set(order);
+export function directTransfers(trip: Trip, withSettlements = true): Transfer[] {
+  const acc = new Map(trip.people.map((p) => [p.id, accountOf(trip, p.id)]));
+  const order = trip.people.map((p) => p.id).filter((id) => acc.get(id) === id);
   // debt[a][b]: quanto a deve para b (antes de compensar).
   const debt = new Map<string, number>();
   const key = (a: string, b: string) => `${a}\u0000${b}`;
   const addDebt = (a: string, b: string, c: number) => debt.set(key(a, b), (debt.get(key(a, b)) ?? 0) + c);
   for (const e of activeExpenses(trip)) {
-    if (!ids.has(e.payerId)) continue;
-    for (const [pid, c] of Object.entries(e.shares)) if (pid !== e.payerId && ids.has(pid)) addDebt(pid, e.payerId, c);
+    const payer = acc.get(e.payerId);
+    if (!payer) continue;
+    for (const [pid, c] of Object.entries(e.shares)) {
+      const who = acc.get(pid);
+      if (who && who !== payer) addDebt(who, payer, c);
+    }
   }
   // Um pagamento de a para b diminui o que a deve para b (ou faz b passar a dever para a).
-  for (const s of trip.settlements) if (ids.has(s.from) && ids.has(s.to)) addDebt(s.to, s.from, s.cents);
+  if (withSettlements) {
+    for (const s of trip.settlements) {
+      const [f, t] = [acc.get(s.from), acc.get(s.to)];
+      if (f && t && f !== t) addDebt(t, f, s.cents);
+    }
+  }
   const out: Transfer[] = [];
   for (let i = 0; i < order.length; i++) {
     for (let j = i + 1; j < order.length; j++) {
@@ -397,7 +538,7 @@ export function directTransfers(trip: Trip): Transfer[] {
 }
 
 /** Pagamentos agrupados por quem paga, na ordem da viagem: "Rebeca paga R$ 160: 100 para…, 60 para…". */
-export function groupByPayer(transfers: Transfer[], trip: Trip): { from: string; cents: number; items: Transfer[] }[] {
+export function groupByPayer<T extends Transfer>(transfers: T[], trip: Trip): { from: string; cents: number; items: T[] }[] {
   return trip.people
     .map((p) => {
       const items = transfers.filter((t) => t.from === p.id);
@@ -490,7 +631,7 @@ export function tripBalancesText(trip: Trip, summary: TripSummary): string {
 export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMode = 'min'): string {
   const list = settleTransfers(summary, mode);
   if (list.length === 0) return [header(trip), 'Está tudo quite! ✅'].join('\n');
-  const name = (id: string) => trip.people.find((p) => p.id === id)?.name ?? '?';
+  const name = (id: string) => accountName(trip, id);
   if (mode === 'direct') {
     return [
       header(trip),

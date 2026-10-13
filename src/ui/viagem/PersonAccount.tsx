@@ -1,7 +1,7 @@
 import { forwardRef, type ReactNode } from 'react';
 import { formatBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
-import { personStatement, type PairDebt, type SettleMode, type Trip } from '../../core/trip';
+import { accountMembers, accountOf, personStatement, type PairDebt, type SettleMode, type Trip } from '../../core/trip';
 import { Avatar, personStyle } from '../Avatar';
 import { Signed } from './Signed';
 import { shortDay } from './tripDates';
@@ -26,12 +26,16 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
   const st = personStatement(trip, person.id);
   const name = (id: string) => (id === meId ? 'você' : trip.people.find((p) => p.id === id)?.name ?? '?');
   const subject = me ? 'Você' : person.name;
-  const mine = transfers.filter((t) => t.from === person.id || t.to === person.id);
+  // Quem tem a parte paga por outro acerta pela conta dele (Rebeca → Robin).
+  const account = accountOf(trip, person.id);
+  const sponsor = account !== person.id ? trip.people.find((p) => p.id === account) : undefined;
+  const members = accountMembers(trip, person.id);
+  const mine = transfers.filter((t) => t.from === account || t.to === account);
   // O Pix final só bate com a soma das dívidas quando não há nada para compensar.
   const compensated = st.owesTo.length > 0 && st.owedBy.length > 0;
-  const rerouted = mine.some((t) => {
-    const other = t.from === person.id ? t.to : t.from;
-    const pair = (t.from === person.id ? st.owesTo : st.owedBy).find((d) => d.other === other);
+  const rerouted = !sponsor && mine.some((t) => {
+    const other = t.from === account ? t.to : t.from;
+    const pair = (t.from === account ? st.owesTo : st.owedBy).find((d) => d.other === other);
     return pair?.cents !== t.cents;
   });
 
@@ -115,16 +119,28 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
               </div>
             </dl>
 
+            {sponsor && (
+              <p className="acc-covered">
+                <b>{sponsor.id === meId ? 'Você paga' : `${sponsor.name} paga`} {me ? 'a sua parte' : `a parte de ${person.name}`}.</b>{' '}
+                No acerto, esse valor entra na conta {sponsor.id === meId ? 'sua' : `de ${sponsor.name}`}, junto com o resto.
+              </p>
+            )}
+            {members.length > 0 && (
+              <p className="acc-covered">
+                <b>{me ? 'Você também paga' : `${person.name} também paga`} a parte de {members.map((m) => (m.id === meId ? 'você' : m.name)).join(', ')}.</b>{' '}
+                O acerto abaixo já inclui {members.length === 1 ? 'essa parte' : 'essas partes'}.
+              </p>
+            )}
             {mine.length > 0 && (
               <div className="acc-final">
-                <h3 className="field-label">No acerto</h3>
+                <h3 className="field-label">{sponsor ? `No acerto (pela conta ${sponsor.id === meId ? 'sua' : `de ${sponsor.name}`})` : 'No acerto'}</h3>
                 <ul>
                   {mine.map((t) => (
                     <li key={`${t.from}-${t.to}`}>
-                      {t.from === person.id ? (
-                        <>{subject} paga <Signed cents={-t.cents} /> para {name(t.to)}</>
+                      {t.from === account ? (
+                        <>{sponsor ? name(account).replace(/^v/, 'V') : subject} paga <Signed cents={-t.cents} /> para {name(t.to)}</>
                       ) : (
-                        <>{me ? 'Você' : person.name} recebe <Signed cents={t.cents} /> de {name(t.from)}</>
+                        <>{sponsor ? name(account).replace(/^v/, 'V') : subject} recebe <Signed cents={t.cents} /> de {name(t.from)}</>
                       )}
                     </li>
                   ))}
@@ -136,7 +152,7 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
                     para alguém e essa pessoa {me ? 'te deve' : 'deve'} R$ 60, o Pix é só de R$ 40.
                   </p>
                 )}
-                {(compensated || rerouted) && mode === 'min' && (
+                {!sponsor && (compensated || rerouted) && mode === 'min' && (
                   <p className="acc-why">
                     <b>Por que não é a soma de cada dívida?</b> No modo Menos Pix, o app junta todas as contas da viagem: o que{' '}
                     {me ? 'te devem' : 'devem'} desconta do que {me ? 'você deve' : 'deve'}, e às vezes o Pix vai para outra pessoa.

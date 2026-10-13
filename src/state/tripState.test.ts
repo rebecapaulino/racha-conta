@@ -119,6 +119,17 @@ describe('viagens no aparelho', () => {
     expect(trip(s).settleMode).toBeUndefined();
   });
 
+  it('quem paga a parte de outra pessoa: guarda, tira e não deixa fechar círculo', () => {
+    let s = run(base(), { type: 'addTraveler', id: 'p1', name: 'Mauricio' });
+    s = run(s, { type: 'addTraveler', id: 'p2', name: 'Lara' });
+    s = run(s, { type: 'editTraveler', id: 'p2', coveredBy: 'p1' });
+    expect(trip(s).people.find((p) => p.id === 'p2')?.coveredBy).toBe('p1');
+    s = run(s, { type: 'editTraveler', id: 'p1', coveredBy: 'p2' });
+    expect(trip(s).people.find((p) => p.id === 'p1')?.coveredBy).toBeUndefined();
+    s = run(s, { type: 'editTraveler', id: 'p2', coveredBy: null });
+    expect(trip(s).people.find((p) => p.id === 'p2')?.coveredBy).toBeUndefined();
+  });
+
   it('apagar a viagem aberta volta para a lista', () => {
     const s = run(base(), { type: 'deleteTrip', id: 't1' });
     expect(s).toEqual({ trips: [], openId: null, me: {} });

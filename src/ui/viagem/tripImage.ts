@@ -3,7 +3,7 @@
 // Desenhado no próprio aparelho (canvas), então funciona até sem internet.
 
 import { formatBRL } from '../../core/money';
-import { groupByPayer, settleTransfers, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
+import { accountMembers, groupByPayer, settleTransfers, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import { C, coin, dash, fitText, FONT, loadFonts, PERSON, roundRect, tint, wrap } from '../receiptImage';
 import { tripDates } from './tripDates';
 
@@ -187,7 +187,9 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
     ctx.fillText(fitText(ctx, `${from.name} paga`, right - 28 - tw - 24 - (left + 112)), left + 112, y + 22);
     ctx.font = f(500, 26);
     ctx.fillStyle = C.muted;
-    ctx.fillText(g.items.length > 1 ? `para ${g.items.length} pessoas` : 'para 1 pessoa', left + 112, y + 66);
+    const members = accountMembers(trip, g.from).map((m) => m.name);
+    const sub = `${members.length ? `com a parte de ${members.join(', ')} · ` : ''}${g.items.length > 1 ? `para ${g.items.length} pessoas` : 'para 1 pessoa'}`;
+    ctx.fillText(fitText(ctx, sub, right - 28 - (left + 112)), left + 112, y + 66);
     let iy = y + 112;
     for (const t of g.items) {
       const to = person(t.to);

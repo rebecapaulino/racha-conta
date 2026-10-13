@@ -5,6 +5,7 @@ import { MAX_NAME, PERSON_COLORS } from '../core/bill';
 import {
   addExpense,
   addSettlement,
+  canCover,
   MAX_DESCRIPTION,
   MAX_TRIP_NAME,
   MAX_WEIGHT,
@@ -17,6 +18,7 @@ import {
   type Expense,
   type ExpenseInput,
   type SettleMode,
+  type Traveler,
   type Trip,
   type TripCategory,
 } from '../core/trip';
@@ -37,7 +39,8 @@ export type TripAction =
   | { type: 'editTrip'; name?: string; start?: string | null; end?: string | null; categoryNames?: Partial<Record<TripCategory, string>>; settleMode?: SettleMode }
   | { type: 'deleteTrip'; id: string }
   | { type: 'addTraveler'; id: string; name: string; weight?: number }
-  | { type: 'editTraveler'; id: string; name?: string; weight?: number }
+  /** coveredBy: quem paga a parte dela (null: ela mesma). */
+  | { type: 'editTraveler'; id: string; name?: string; weight?: number; coveredBy?: string | null }
   /** Remove a pessoa. Se ela tem despesas, `to` diz para quem elas passam. */
   | { type: 'removeTraveler'; id: string; to?: string }
   | { type: 'setMe'; id: string | null }
@@ -134,7 +137,10 @@ export function tripsReducer(s: TripsState, a: TripAction): TripsState {
           if (p.id !== a.id) return p;
           const name = a.name === undefined ? p.name : cleanName(a.name) || p.name;
           const weight = validWeight(a.weight) ? a.weight! : p.weight;
-          return { ...p, name, weight };
+          const next: Traveler = { ...p, name, weight };
+          if (a.coveredBy === null) delete next.coveredBy;
+          else if (a.coveredBy !== undefined && canCover(t, p.id, a.coveredBy)) next.coveredBy = a.coveredBy;
+          return next;
         }),
       }));
     case 'removeTraveler': {
@@ -218,7 +224,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.start === undefined || (isStr(t.start) && DATE.test(t.start))) &&
     (t.end === undefined || (isStr(t.end) && DATE.test(t.end))) &&
     Array.isArray(t.people) &&
-    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number)) &&
+    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy))) &&
     Array.isArray(t.expenses) && t.expenses.every(isValidExpense) &&
     Array.isArray(t.settlements) &&
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at)) &&
