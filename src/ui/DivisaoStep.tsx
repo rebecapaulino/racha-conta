@@ -177,7 +177,7 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dis
                     <span className="meter-knob">{pct}%</span>
                   </div>
                   <span className="sr">{pct}% do total</span>
-                  <PayRow payment={p} dispatch={dispatch} />
+                  <PayRow payment={p} dispatch={dispatch} nameOf={(id) => bill.people.find((x) => x.id === id)?.name ?? '?'} />
                   <ShareDetail share={s} servicePct={bill.servicePct} />
                 </li>
               );
@@ -481,8 +481,8 @@ function ShareDetail({ share, servicePct }: { share: PersonShare; servicePct: nu
 }
 
 /** "Já pagou?": marca quem acertou a parte. Guarda o valor, então mostra se a conta mudou depois. */
-function PayRow({ payment, dispatch }: { payment: Payment; dispatch: Dispatch<Action> }) {
-  const { share, state, paid, owed } = payment;
+function PayRow({ payment, dispatch, nameOf }: { payment: Payment; dispatch: Dispatch<Action>; nameOf: (id: string) => string }) {
+  const { share, state, paid, owed, due, covers, coversCents, by } = payment;
   const id = share.person.id;
   const name = share.person.name;
   if (state === 'payer') {
@@ -492,10 +492,24 @@ function PayRow({ payment, dispatch }: { payment: Payment; dispatch: Dispatch<Ac
       </div>
     );
   }
+  if (state === 'covered') {
+    return (
+      <div className="pay-row">
+        <span className="pay-note ok"><IconCheck size={14} /> {nameOf(by!)} paga a parte de {name}</span>
+      </div>
+    );
+  }
   const set = (v: boolean) => dispatch({ type: 'markPaid', personId: id, paid: v });
+  // Quem paga a parte de outras pessoas vê o total que paga.
+  const with_ = covers.length > 0 && (
+    <span className="pay-note">
+      Paga também a parte de {covers.map(nameOf).join(', ')} (<span className="num">{formatBRL(coversCents)}</span>): <b className="num">{formatBRL(due)}</b> no total
+    </span>
+  );
   if (state === 'partial') {
     return (
       <div className="pay-row">
+        {with_}
         <span className="pay-note warn-text">Pagou {formatBRL(paid)} · falta {formatBRL(owed)}</span>
         <button type="button" className="pay-btn" onClick={() => set(true)}>
           Pagou o resto
@@ -506,12 +520,13 @@ function PayRow({ payment, dispatch }: { payment: Payment; dispatch: Dispatch<Ac
   const on = state === 'paid' || state === 'over';
   return (
     <div className="pay-row">
+      {with_}
       {state === 'over' && <span className="pay-note warn-text">Pagou {formatBRL(-owed)} a mais</span>}
       <button
         type="button"
         className="pay-btn"
         aria-pressed={on}
-        aria-label={on ? `${name} já pagou. Toque para desmarcar` : `Marcar que ${name} já pagou`}
+        aria-label={on ? `${name} já pagou ${formatBRL(due)}. Toque para desmarcar` : `Marcar que ${name} já pagou ${formatBRL(due)}`}
         onClick={() => set(!on)}
       >
         {on ? (<><IconCheck size={16} /> Pago</>) : 'Marcar como pago'}

@@ -7,18 +7,20 @@ import {
   MAX_ITEM_NAME,
   MAX_NAME,
   MAX_QTY,
-  computeSplit,
   itemTotal,
   PERSON_COLORS,
   SERVICE_OPTIONS,
   noteBill,
   noteLabel,
+  payments,
   removePerson,
   withNotes,
   type Bill,
   type Note,
   type ServicePct,
+  type SettleMode,
 } from '../core/bill';
+import { accountIn, canCoverIn } from '../core/settle';
 import { formatBRL } from '../core/money';
 
 /** Uma linha do registro de alterações da conta. */
@@ -81,6 +83,11 @@ export type Action =
   | { type: 'settle'; from: string; to: string; cents: number }
   /** Desfaz um acerto do resumo (posição na lista). */
   | { type: 'unsettle'; index: number }
+  /** Desmarca todos os acertos de uma conta para outra (a linha "Pago" volta a ficar em aberto). */
+  | { type: 'unsettlePair'; from: string; to: string }
+  /** Quem paga a parte da pessoa (null: ela mesma). */
+  | { type: 'cover'; id: string; by: string | null }
+  | { type: 'settleMode'; mode: SettleMode }
   | { type: 'reset' }
   | { type: 'open'; state: AppState };
 
@@ -275,10 +282,11 @@ function apply(state: AppState, action: Action): AppState {
 
     case 'markPaid': {
       const own = activeBill(state);
-      const share = computeSplit(own).shares.find((s) => s.person.id === action.personId);
-      if (!share) return state;
+      // Quem paga a parte de outras pessoas paga tudo de uma vez (a parte dele e a delas).
+      const row = payments(own).rows.find((r) => r.share.person.id === action.personId);
+      if (!row || (action.paid && (row.state === 'payer' || row.state === 'covered'))) return state;
       const paid = { ...own.paid };
-      if (action.paid) paid[action.personId] = share.total;
+      if (action.paid) paid[action.personId] = row.due;
       else if (action.personId in paid) delete paid[action.personId];
       else return state;
       return setOwn({ paid });
@@ -358,6 +366,31 @@ function apply(state: AppState, action: Action): AppState {
       const list = bill.settled ?? [];
       if (!list[action.index]) return state;
       return next({ settled: list.filter((_, i) => i !== action.index) });
+    }
+
+    case 'unsettlePair': {
+      const list = bill.settled ?? [];
+      const acc = (id: string) => accountIn(bill.people, id);
+      const kept = list.filter((t) => !(acc(t.from) === action.from && acc(t.to) === action.to));
+      return kept.length === list.length ? state : next({ settled: kept });
+    }
+
+    case 'cover': {
+      const person = bill.people.find((p) => p.id === action.id);
+      if (!person || (action.by && !canCoverIn(bill.people, action.id, action.by))) return state;
+      if ((person.coveredBy ?? null) === action.by) return state;
+      const rest = { ...person };
+      delete rest.coveredBy;
+      const changed = action.by ? { ...rest, coveredBy: action.by } : rest;
+      return next({ people: bill.people.map((p) => (p.id === action.id ? changed : p)) });
+    }
+
+    case 'settleMode': {
+      const mode = action.mode === 'min' ? 'min' : undefined;
+      if (bill.settleMode === mode) return state;
+      const rest = { ...bill };
+      delete rest.settleMode;
+      return { ...state, bill: mode ? { ...rest, settleMode: mode } : rest };
     }
 
     case 'photo':
@@ -461,6 +494,10 @@ function describe(before: AppState, after: AppState, action: Action): string | n
       const t = (bill.settled ?? [])[action.index];
       return `Desfez: ${person(t.from)} pagou ${formatBRL(t.cents)} a ${person(t.to)}`;
     }
+    case 'unsettlePair':
+      return `Desmarcou o pagamento de ${person(action.from)} para ${person(action.to)}`;
+    case 'cover':
+      return action.by ? `${person(action.by)} paga a parte de ${person(action.id)}` : `${person(action.id)} volta a pagar a própria parte`;
     case 'removeNote':
       return `Apagou a nota ${(() => {
         const list = bill.notes ?? [];
@@ -499,7 +536,8 @@ export function isValidBill(b: unknown): b is Bill {
     Array.isArray(x.people) &&
     Array.isArray(x.items) &&
     (SERVICE_OPTIONS as readonly number[]).includes(x.servicePct) &&
-    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string') &&
+    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string')) &&
+    (x.settleMode === undefined || x.settleMode === 'direct' || x.settleMode === 'min') &&
     x.items.every(
       (i) =>
         typeof i.id === 'string' &&

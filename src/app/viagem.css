@@ -525,3 +525,11 @@ h3.field-label { margin: 0; }
 /* Valor sempre embaixo do nome, no mesmo lugar em todas as linhas; seta com respiro do ícone */
 .pay-line { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; min-height: 0; }
 .pay-flow { gap: 8px; padding-top: 2px; }
+
+/* ---------- Rolê: quem paga a parte de quem (tocar no nome na Mesa) ---------- */
+.mesa-who {
+  flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 12px;
+  padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.mesa-who:hover b { color: var(--primary); }
+.history .new-bill { width: 100%; }

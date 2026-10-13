@@ -1,16 +1,18 @@
 import type { Dispatch } from 'react';
-import { groupSummary, groupSummaryText, whatsappUrl, type Bill } from '../core/bill';
+import { groupSummary, groupSummaryText, whatsappUrl, type Bill, type SettleMode } from '../core/bill';
 import { formatBRL } from '../core/money';
+import { accountIn } from '../core/settle';
 import type { Action } from '../state/billState';
 import { Avatar } from './Avatar';
 import { IconArrowRight, IconCheck, IconCopy, IconShare } from './icons';
 import { categoryEmoji } from '../core/noteCategory';
+import { SettleList, type ListRow } from './viagem/SettleList';
 
 interface Props {
   /** A conta inteira, com todas as notas. */
   bill: Bill;
   dispatch: Dispatch<Action>;
-  toast: (msg: string) => void;
+  toast: (msg: string, undo?: () => void) => void;
   /** Abre a nota na visão "Por nota" (para escolher quem pagou, por exemplo). */
   onOpenNote: (noteId: string) => void;
 }
@@ -22,6 +24,24 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
   const settled = bill.settled ?? [];
   const anyPayer = g.notes.some((n) => n.payer);
   const text = groupSummaryText(bill, g);
+  const mode: SettleMode = bill.settleMode ?? 'direct';
+  const rows = g.plan[mode];
+
+  function pay(t: { from: string; to: string; cents: number }) {
+    const index = settled.length;
+    dispatch({ type: 'settle', from: t.from, to: t.to, cents: t.cents });
+    toast(`${name(t.from).name} pagou ${formatBRL(t.cents)} a ${name(t.to).name}`, () => dispatch({ type: 'unsettle', index }));
+  }
+
+  /** Desmarca a linha "Pago" (com Desfazer, caso tenha sido sem querer). */
+  function unpay(r: ListRow) {
+    const acc = (id: string) => accountIn(bill.people, id);
+    const gone = settled.filter((t) => acc(t.from) === r.from && acc(t.to) === r.to);
+    dispatch({ type: 'unsettlePair', from: r.from, to: r.to });
+    toast(`Pagamento para ${name(r.to).name} desmarcado`, () => {
+      for (const t of gone) dispatch({ type: 'settle', from: t.from, to: t.to, cents: t.cents });
+    });
+  }
 
   function copy() {
     if (!navigator.clipboard?.writeText) {
@@ -54,34 +74,26 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
           <h2 id="h-transfers">Quem paga para quem</h2>
         </div>
 
-        {g.transfers.length > 0 ? (
-          <ul className="list transfers">
-            {g.transfers.map((t) => {
-              const from = name(t.from);
-              const to = name(t.to);
-              return (
-                <li key={`${t.from}-${t.to}`} className="transfer">
-                  <span className="transfer-who">
-                    <Avatar person={from} size="sm" />
-                    <span className="transfer-text">
-                      <b>{from.name}</b> paga para <b>{to.name}</b>
-                    </span>
-                    <b className="transfer-amount num">{formatBRL(t.cents)}</b>
-                  </span>
-                  <button
-                    type="button"
-                    className="btn secondary transfer-btn"
-                    onClick={() => {
-                      dispatch({ type: 'settle', from: t.from, to: t.to, cents: t.cents });
-                      toast(`${from.name} pagou ${formatBRL(t.cents)} a ${to.name}`);
-                    }}
-                  >
-                    <IconCheck size={16} /> Marcar como pago
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+        {rows.length > 0 && (
+          <>
+            <div className="seg two" role="group" aria-label="Como acertar">
+              <button type="button" aria-pressed={mode === 'direct'} onClick={() => dispatch({ type: 'settleMode', mode: 'direct' })}>Direto para quem pagou</button>
+              <button type="button" aria-pressed={mode === 'min'} onClick={() => dispatch({ type: 'settleMode', mode: 'min' })}>Menos Pix</button>
+            </div>
+            <p className="hint" aria-live="polite">
+              {mode === 'direct'
+                ? 'Cada um paga para quem pagou a nota. Entre duas pessoas, só a diferença.'
+                : 'O app junta tudo e faz o menor número de Pix. O dinheiro pode ir para outra pessoa, mas o total de cada um é o mesmo.'}
+            </p>
+          </>
+        )}
+        {rows.length > 0 ? (
+          <>
+            {g.transfers.length === 0 && (
+              <p className="all-square" role="status"><IconCheck size={16} /> Tudo pago! Está todo mundo quite.</p>
+            )}
+            <SettleList people={bill.people} rows={rows} meId={null} onSettle={pay} onUnpay={unpay} />
+          </>
         ) : anyPayer ? (
           <p className="scan-check ok"><IconCheck size={16} /> Tudo acertado entre o grupo.</p>
         ) : (

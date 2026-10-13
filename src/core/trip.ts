@@ -5,7 +5,7 @@
 // tira. No fim, quem pôs mais do que tirou recebe; quem tirou mais do que pôs paga.
 
 import { formatBRL, splitEven, splitWeighted } from './money';
-import { minTransfers, type Transfer } from './settle';
+import { accountIn, canCoverIn, minTransfers, type Transfer } from './settle';
 
 export const MAX_TRIP_NAME = 40;
 export const MAX_DESCRIPTION = 60;
@@ -390,15 +390,7 @@ export interface TripSummary {
  * própria parte (Rebeca → Robin). Sem ninguém, a conta é da própria pessoa.
  */
 export function accountOf(trip: Trip, id: string): string {
-  const byId = new Map(trip.people.map((p) => [p.id, p]));
-  const seen = new Set([id]);
-  let cur = id;
-  for (;;) {
-    const next = byId.get(cur)?.coveredBy;
-    if (!next || !byId.has(next) || seen.has(next)) return cur;
-    seen.add(next);
-    cur = next;
-  }
+  return accountIn(trip.people, id);
 }
 
 /** Quem tem a conta junto com `id` no acerto (a filha na conta do pai), sem contar a própria. */
@@ -408,14 +400,7 @@ export function accountMembers(trip: Trip, id: string): Traveler[] {
 
 /** Dá para `by` pagar a parte de `id`? Não pode ser a mesma pessoa nem fechar um círculo. */
 export function canCover(trip: Trip, id: string, by: string): boolean {
-  if (id === by || !trip.people.some((p) => p.id === by)) return false;
-  const byId = new Map(trip.people.map((p) => [p.id, p]));
-  const seen = new Set<string>();
-  for (let cur: string | undefined = by; cur && byId.has(cur) && !seen.has(cur); cur = byId.get(cur)?.coveredBy) {
-    if (cur === id) return false;
-    seen.add(cur);
-  }
-  return true;
+  return canCoverIn(trip.people, id, by);
 }
 
 /** Nome da conta no acerto: "Robin (com Rebeca)". */

@@ -12,7 +12,7 @@ import { DivisaoStep } from './DivisaoStep';
 import { GroupSummary } from './GroupSummary';
 import { HeroCard } from './HeroCard';
 import { HistoryScreen } from './HistoryScreen';
-import { IconArrowRight, IconHistory, IconPie, IconPlus, IconReceipt, IconSparkle, IconUsers, Logo } from './icons';
+import { IconArrowRight, IconHistory, IconPie, IconReceipt, IconSparkle, IconUsers, Logo } from './icons';
 import { Art } from './illustrations';
 import { MesaStep } from './MesaStep';
 import { NotesBar } from './NotesBar';
@@ -71,17 +71,34 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   }
 
   // Toast
-  const [toastMsg, setToastMsg] = useState('');
+  const [toastMsg, setToastMsg] = useState<{ text: string; undo?: () => void } | null>(null);
   const [toastOn, setToastOn] = useState(false);
   const toastTimer = useRef<number | undefined>(undefined);
-  function toast(msg: string) {
-    setToastMsg(msg);
+  function toast(text: string, undo?: () => void) {
+    setToastMsg({ text, undo });
     setToastOn(true);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToastOn(false), 2400);
+    toastTimer.current = window.setTimeout(() => setToastOn(false), undo ? 6000 : 2400);
   }
+  const toastBox = (
+    <div className={`toast${toastOn ? ' show' : ''}${toastMsg?.undo ? ' has-undo' : ''}`} role="status" aria-live="polite">
+      <span>{toastMsg?.text}</span>
+      {toastMsg?.undo && toastOn && (
+        <button
+          type="button"
+          className="toast-undo"
+          onClick={() => {
+            toastMsg.undo?.();
+            setToastOn(false);
+          }}
+        >
+          Desfazer
+        </button>
+      )}
+    </div>
+  );
 
-  // "Nova conta": a atual vai para os Rolês (nada se perde), então não precisa confirmar.
+  // "Nova conta" (na tela Rolês): a atual vai para os Rolês (nada se perde), então não precisa confirmar.
   function focusTop(then?: () => void) {
     window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
     if (then) requestAnimationFrame(then);
@@ -162,11 +179,12 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
             entries={history}
             fluent={fluent}
             onBack={() => setScreen('conta')}
+            onNew={startFresh}
             onReopen={reopen}
             onDelete={forget}
           />
         </div>
-        <div className={`toast${toastOn ? ' show' : ''}`} role="status" aria-live="polite">{toastMsg}</div>
+        {toastBox}
       </>
     );
   }
@@ -186,9 +204,6 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
                 {history.length > 0 && <span className="tab-count">{history.length}</span>}
               </button>
               <AccountButton toast={toast} />
-              <button type="button" className="round-btn" onClick={startFresh} aria-label="Nova conta" title="Nova conta">
-                <IconPlus />
-              </button>
             </div>
           </header>
 
@@ -281,7 +296,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         )}
       </div>
 
-      <div className={`toast${toastOn ? ' show' : ''}`} role="status" aria-live="polite">{toastMsg}</div>
+      {toastBox}
 
     </>
   );

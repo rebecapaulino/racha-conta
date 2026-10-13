@@ -3,9 +3,12 @@
 
 import { formatBRL, splitEven, splitWeighted } from './money';
 import { categoryEmoji } from './noteCategory';
-import { settleUp, type Transfer } from './settle';
+import { accountIn, dropCoverage, minTransfers, netPairs, reconcilePlan, settleUp, type Balances, type PlanRow, type Transfer } from './settle';
 
-export { settleUp, type Transfer };
+export { settleUp, type PlanRow, type Transfer };
+
+/** Acerto direto para quem pagou cada nota, ou com o menor número de Pix. */
+export type SettleMode = 'direct' | 'min';
 
 export const SERVICE_OPTIONS = [0, 10, 12, 15] as const;
 export type ServicePct = (typeof SERVICE_OPTIONS)[number];
@@ -21,6 +24,8 @@ export interface Person {
   name: string;
   /** Índice da cor (0 a 5). */
   color: number;
+  /** Quem paga a parte desta pessoa (o pai paga a da filha). Sem o campo, paga a própria. */
+  coveredBy?: string;
 }
 
 export interface Item {
@@ -73,6 +78,8 @@ export interface Bill {
   notes?: Note[];
   /** Acertos feitos no resumo do grupo ("Ana pagou R$ 20 à Rebeca"), em centavos. */
   settled?: Transfer[];
+  /** Como mostrar o acerto do resumo do grupo. Sem o campo, vale 'direct'. */
+  settleMode?: SettleMode;
 }
 
 
@@ -253,7 +260,7 @@ function splitOne(bill: Bill): SplitResult {
 }
 
 /** Situação do pagamento de cada pessoa ("quem já pagou"). */
-export type PayState = 'payer' | 'paid' | 'partial' | 'open' | 'over';
+export type PayState = 'payer' | 'paid' | 'partial' | 'open' | 'over' | 'covered';
 
 export interface Payment {
   share: PersonShare;
@@ -262,6 +269,13 @@ export interface Payment {
   paid: number;
   /** Quanto ainda falta (negativo = pagou a mais). */
   owed: number;
+  /** Quanto a pessoa paga no total: a parte dela mais a de quem ela cobre. */
+  due: number;
+  /** De quem a pessoa paga a parte (ids), e quanto isso dá. */
+  covers: string[];
+  coversCents: number;
+  /** 'covered': quem paga a parte desta pessoa (ou quem pagou a conta, se é da mesma conta). */
+  by?: string;
 }
 
 export interface PaymentSummary {
@@ -277,12 +291,24 @@ export interface PaymentSummary {
  * aparece quanto falta ou quanto foi pago a mais. Quem pagou no caixa já está quite.
  */
 export function payments(bill: Bill, result: SplitResult = computeSplit(bill)): PaymentSummary {
+  // Quem paga a parte de quem vale entre as pessoas desta conta (ou desta nota).
+  const acc = (id: string) => accountIn(bill.people, id);
+  const payerAcc = bill.payerId ? acc(bill.payerId) : null;
+  const totalOf = (id: string) => result.shares.find((s) => s.person.id === id)?.total ?? 0;
   const rows = result.shares.map((share): Payment => {
-    const paid = bill.paid?.[share.person.id] ?? 0;
-    if (share.person.id === bill.payerId) return { share, state: 'payer', paid: share.total, owed: 0 };
-    const owed = share.total - paid;
-    const state: PayState = owed === 0 || share.total === 0 ? 'paid' : owed < 0 ? 'over' : paid > 0 ? 'partial' : 'open';
-    return { share, state, paid, owed };
+    const id = share.person.id;
+    const paid = bill.paid?.[id] ?? 0;
+    const none = { covers: [] as string[], coversCents: 0 };
+    if (id === bill.payerId) return { share, state: 'payer', paid: share.total, owed: 0, due: share.total, ...none };
+    // Na conta de outra pessoa (ou na de quem pagou): não deve nada sozinha.
+    if (acc(id) !== id) return { share, state: 'covered', paid, owed: 0, due: 0, ...none, by: acc(id) };
+    if (acc(id) === payerAcc) return { share, state: 'covered', paid, owed: 0, due: 0, ...none, by: bill.payerId! };
+    const covers = bill.people.filter((p) => p.id !== id && p.id !== bill.payerId && acc(p.id) === id).map((p) => p.id);
+    const coversCents = covers.reduce((a, c) => a + totalOf(c) - (bill.paid?.[c] ?? 0), 0);
+    const due = share.total + coversCents;
+    const owed = due - paid;
+    const state: PayState = owed === 0 || due === 0 ? 'paid' : owed < 0 ? 'over' : paid > 0 ? 'partial' : 'open';
+    return { share, state, paid, owed, due, covers, coversCents };
   });
   return {
     rows,
@@ -321,8 +347,13 @@ export interface GroupSummary {
   total: number;
   /** Saldo de cada pessoa: positivo recebe, negativo paga. Já desconta os acertos. */
   balance: Record<string, number>;
-  /** Quem paga para quem, com o menor número de transferências. */
+  /** O que ainda falta pagar, no modo escolhido na conta. */
   transfers: Transfer[];
+  /**
+   * Os pagamentos de cada modo, inclusive os já pagos (ficam na lista, marcados). Quem tem a
+   * parte paga por outra pessoa entra na conta dela: as linhas são entre contas.
+   */
+  plan: Record<SettleMode, PlanRow[]>;
   /** Notas com valor e sem ninguém marcado como pagador (cada um paga a sua parte no caixa). */
   withoutPayer: NoteSummary[];
 }
@@ -350,8 +381,12 @@ export function groupSummary(bill: Bill): GroupSummary {
     return { person, byNote, total: byNote.reduce((a, b) => a + b, 0) };
   });
 
-  const balance: Record<string, number> = {};
-  bill.people.forEach((p) => (balance[p.id] = 0));
+  const ids = bill.people.map((p) => p.id);
+  const acc = new Map(ids.map((id) => [id, accountIn(bill.people, id)]));
+  const roots = ids.filter((id) => acc.get(id) === id);
+  const balance: Balances = Object.fromEntries(ids.map((id) => [id, 0]));
+  // Dívidas entre contas, só das notas (sem os acertos), para montar o plano.
+  const debts: Transfer[] = [];
   const move = (from: string, to: string, cents: number) => {
     if (!(from in balance) || !(to in balance) || from === to) return;
     balance[from] -= cents;
@@ -362,17 +397,37 @@ export function groupSummary(bill: Bill): GroupSummary {
     for (const s of n.result.shares) {
       if (s.person.id === n.payer.id) continue;
       // Deve a parte dele ao pagador, menos o que já pagou (negativo: pagou a mais, recebe de volta).
-      move(s.person.id, n.payer.id, s.total - (n.note.paid?.[s.person.id] ?? 0));
+      const cents = s.total - (n.note.paid?.[s.person.id] ?? 0);
+      move(s.person.id, n.payer.id, cents);
+      const [f, t] = [acc.get(s.person.id), acc.get(n.payer.id)];
+      if (f && t && f !== t && cents !== 0) debts.push(cents > 0 ? { from: f, to: t, cents } : { from: t, to: f, cents: -cents });
     }
   }
-  for (const t of bill.settled ?? []) move(t.to, t.from, t.cents);
+  const base: Balances = Object.fromEntries(roots.map((id) => [id, 0]));
+  for (const d of debts) {
+    base[d.from] -= d.cents;
+    base[d.to] += d.cents;
+  }
+  const paidAcc: Transfer[] = [];
+  for (const t of bill.settled ?? []) {
+    move(t.to, t.from, t.cents);
+    const [f, to] = [acc.get(t.from), acc.get(t.to)];
+    if (f && to && f !== to) paidAcc.push({ from: f, to, cents: t.cents });
+  }
+  const now: Balances = Object.fromEntries(roots.map((id) => [id, 0]));
+  for (const id of ids) now[acc.get(id)!] += balance[id];
 
+  const plan: Record<SettleMode, PlanRow[]> = {
+    direct: reconcilePlan(netPairs(debts, roots), paidAcc, now, roots),
+    min: reconcilePlan(minTransfers(base, roots), paidAcc, now, roots),
+  };
   return {
     notes,
     people,
     total: notes.reduce((a, n) => a + n.result.total, 0),
     balance,
-    transfers: settleUp(balance, bill.people.map((p) => p.id)),
+    transfers: plan[bill.settleMode ?? 'direct'].filter((r) => r.remaining > 0).map((r) => ({ from: r.from, to: r.to, cents: r.remaining })),
+    plan,
     withoutPayer: notes.filter((n) => !n.payer && n.result.total > 0),
   };
 }
@@ -396,7 +451,7 @@ export function removePerson(bill: Bill, personId: string): Bill {
     ...(notes ? { notes } : {}),
     ...(bill.settled ? { settled: bill.settled.filter((t) => t.from !== personId && t.to !== personId) } : {}),
     paid,
-    people: bill.people.filter((p) => p.id !== personId),
+    people: dropCoverage(bill.people.filter((p) => p.id !== personId)),
     items: bill.items.map((it) => ({ ...it, who: it.who.filter((id) => id !== personId) })),
     payerId: bill.payerId === personId ? null : bill.payerId,
   };
@@ -418,19 +473,24 @@ export function summaryText(bill: Bill, result: SplitResult = computeSplit(bill)
   // Marcas de "já pagou" só aparecem quando alguém já foi marcado.
   const tracking = Object.keys(bill.paid ?? {}).length > 0;
   const pay = payments(bill, result);
-  for (const { share: s, state, paid, owed } of pay.rows) {
+  const nameOf = (id: string) => bill.people.find((p) => p.id === id)?.name ?? 'alguém';
+  for (const { share: s, state, paid, owed, due, covers, by } of pay.rows) {
     if (payer && s.person.id === payer.id) continue;
     const name = s.person.name;
-    if (tracking && state === 'paid') {
-      lines.push(`- ${name}: ${formatBRL(s.total)} ✅ pago`);
+    // "Mauricio deve R$ 50,00 (com a parte de Lara)"; "Lara: R$ 20,00, Mauricio paga".
+    const name2 = covers.length ? `${name} (com a parte de ${covers.map(nameOf).join(', ')})` : name;
+    if (state === 'covered') {
+      lines.push(`- ${name}: ${formatBRL(s.total)}, ${by === bill.payerId ? `na conta de ${nameOf(by!)}` : `${nameOf(by!)} paga`}`);
+    } else if (tracking && state === 'paid') {
+      lines.push(`- ${name2}: ${formatBRL(due)} ✅ pago`);
     } else if (tracking && state === 'over') {
-      lines.push(`- ${name}: ${formatBRL(s.total)} ✅ pago (pagou ${formatBRL(-owed)} a mais, receber de volta)`);
+      lines.push(`- ${name2}: ${formatBRL(due)} ✅ pago (pagou ${formatBRL(-owed)} a mais, receber de volta)`);
     } else if (tracking && state === 'partial') {
-      lines.push(`- ${name} ${payer ? 'deve' : 'falta'} ${formatBRL(owed)} (já pagou ${formatBRL(paid)})`);
+      lines.push(`- ${name2} ${payer ? 'deve' : 'falta'} ${formatBRL(owed)} (já pagou ${formatBRL(paid)})`);
     } else if (payer) {
-      lines.push(`- ${name} deve ${formatBRL(s.total)}`);
+      lines.push(`- ${name2} deve ${formatBRL(due)}`);
     } else {
-      lines.push(`- ${name}: ${formatBRL(s.total)}`);
+      lines.push(`- ${name2}: ${formatBRL(due)}`);
     }
   }
   if (payer) {
@@ -469,12 +529,20 @@ export function groupSummaryText(bill: Bill, g: GroupSummary = groupSummary(bill
     lines.push(`- ${p.person.name}: ${formatBRL(p.total)}` + (parts.length > 1 ? ` (${parts.join(' · ')})` : ''));
   }
 
-  const settled = bill.settled ?? [];
-  if (g.transfers.length || settled.length || g.notes.some((n) => n.payer)) {
+  const rows = g.plan[bill.settleMode ?? 'direct'];
+  // A conta de quem paga por outras pessoas: "Mauricio (com Lara)".
+  const account = (id: string) => {
+    const with_ = bill.people.filter((p) => p.id !== id && accountIn(bill.people, p.id) === id).map((p) => p.name);
+    return with_.length ? `${name(id)} (com ${with_.join(', ')})` : name(id);
+  };
+  if (rows.length || g.notes.some((n) => n.payer)) {
     lines.push('');
     lines.push('*Quem paga para quem*');
-    for (const t of g.transfers) lines.push(`- ${name(t.from)} paga ${formatBRL(t.cents)} para ${name(t.to)}`);
-    for (const t of settled) lines.push(`- ${name(t.from)} pagou ${formatBRL(t.cents)} a ${name(t.to)} ✅`);
+    for (const r of rows) {
+      if (r.remaining === 0) lines.push(`- ${account(r.from)} pagou ${formatBRL(r.cents)} a ${name(r.to)} ✅`);
+      else if (r.paid > 0) lines.push(`- ${account(r.from)} paga ${formatBRL(r.remaining)} para ${name(r.to)} (já pagou ${formatBRL(r.paid)})`);
+      else lines.push(`- ${account(r.from)} paga ${formatBRL(r.cents)} para ${name(r.to)}`);
+    }
     if (!g.transfers.length) lines.push('Tudo acertado ✅');
   }
   for (const n of g.withoutPayer) {

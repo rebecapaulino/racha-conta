@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch } from 'react';
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import { activeExpenses, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
+import { accountOf, activeExpenses, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { PersonAccount } from './PersonAccount';
-import { SettleList } from './SettleList';
+import { SettleList, type ListRow } from './SettleList';
 import { Sheet } from './Sheet';
 import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
@@ -121,6 +121,18 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
     el.focus({ preventScroll: true });
   }
 
+  /** Desmarca um pagamento feito (com Desfazer, caso tenha sido sem querer). */
+  function unpay(r: ListRow) {
+    const paid = trip.settlements.filter(
+      (x) => accountOf(trip, x.from) === r.from && accountOf(trip, x.to) === r.to && (x.expenseId ?? '') === (r.expenseId ?? ''),
+    );
+    const to = r.to === meId ? 'você' : trip.people.find((p) => p.id === r.to)?.name;
+    for (const x of paid) dispatch({ type: 'unsettle', id: x.id });
+    toast(`Pagamento para ${to} desmarcado`, () => {
+      for (const x of paid) dispatch({ type: 'settle', id: x.id, from: x.from, to: x.to, cents: x.cents });
+    });
+  }
+
   function copy() {
     if (!navigator.clipboard?.writeText) {
       toast('Não deu para copiar neste navegador. Use Enviar.');
@@ -188,7 +200,15 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
             {transfers.length === 0 && (
               <p className="all-square" role="status"><IconCheck size={16} /> Tudo pago! Está todo mundo quite.</p>
             )}
-            <SettleList trip={trip} rows={rows} meId={meId} dispatch={dispatch} toast={toast} onSettle={onSettle} onExplain={explain} />
+            <SettleList
+              people={trip.people}
+              rows={rows}
+              meId={meId}
+              onSettle={onSettle}
+              onUnpay={unpay}
+              onExplain={explain}
+              expenseOf={(id) => trip.expenses.find((e) => e.id === id)}
+            />
           </>
         )}
 

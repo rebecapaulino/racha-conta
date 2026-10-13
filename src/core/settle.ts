@@ -87,3 +87,111 @@ export function minTransfers(balance: Balances, order: string[]): Transfer[] {
   const rank = (id: string) => order.indexOf(id);
   return out.sort((a, b) => b.cents - a.cents || rank(a.from) - rank(b.from) || rank(a.to) - rank(b.to));
 }
+
+/** Alguém que pode ter a parte paga por outra pessoa (Rolê e Viagem). */
+export interface Member {
+  id: string;
+  /** Quem paga a parte desta pessoa no acerto. */
+  coveredBy?: string;
+}
+
+/**
+ * De quem é a conta no acerto: segue "quem paga por ela" até chegar em alguém que paga a
+ * própria parte (Rebeca → Robin). Sem ninguém, a conta é da própria pessoa.
+ */
+export function accountIn(people: Member[], id: string): string {
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const seen = new Set([id]);
+  let cur = id;
+  for (;;) {
+    const next = byId.get(cur)?.coveredBy;
+    if (!next || !byId.has(next) || seen.has(next)) return cur;
+    seen.add(next);
+    cur = next;
+  }
+}
+
+/** Dá para `by` pagar a parte de `id`? Não pode ser a mesma pessoa nem fechar um círculo. */
+export function canCoverIn(people: Member[], id: string, by: string): boolean {
+  if (id === by || !people.some((p) => p.id === by)) return false;
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const seen = new Set<string>();
+  for (let cur: string | undefined = by; cur && byId.has(cur) && !seen.has(cur); cur = byId.get(cur)?.coveredBy) {
+    if (cur === id) return false;
+    seen.add(cur);
+  }
+  return true;
+}
+
+/** Tira "quem paga" que aponta para quem saiu (a pessoa volta a pagar a própria parte). */
+export function dropCoverage<T extends Member>(people: T[]): T[] {
+  const ids = new Set(people.map((p) => p.id));
+  return people.map((p) => {
+    if (!p.coveredBy || ids.has(p.coveredBy)) return p;
+    const rest = { ...p };
+    delete rest.coveredBy;
+    return rest;
+  });
+}
+
+/** Um pagamento do acerto, com quanto já foi pago dele. */
+export interface PlanRow extends Transfer {
+  paid: number;
+  remaining: number;
+}
+
+/**
+ * Acerto direto: para cada dupla, soma o que um deve ao outro, desconta o caminho contrário
+ * e sobra um único Pix (ou nenhum). Ninguém recebe dinheiro que é de outra pessoa.
+ */
+export function netPairs(debts: Transfer[], order: string[]): Transfer[] {
+  const key = (a: string, b: string) => `${a}\u0000${b}`;
+  const debt = new Map<string, number>();
+  for (const d of debts) {
+    if (d.from === d.to) continue;
+    debt.set(key(d.from, d.to), (debt.get(key(d.from, d.to)) ?? 0) + d.cents);
+  }
+  const out: Transfer[] = [];
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 1; j < order.length; j++) {
+      const [a, b] = [order[i], order[j]];
+      const net = (debt.get(key(a, b)) ?? 0) - (debt.get(key(b, a)) ?? 0);
+      if (net > 0) out.push({ from: a, to: b, cents: net });
+      else if (net < 0) out.push({ from: b, to: a, cents: -net });
+    }
+  }
+  const pos = (id: string) => order.indexOf(id);
+  return out.sort((x, y) => pos(x.from) - pos(y.from) || y.cents - x.cents || pos(x.to) - pos(y.to));
+}
+
+/**
+ * Abate os pagamentos feitos de cada linha do plano (a linha fica, marcada como paga).
+ * Se sobrar diferença (pagou a mais, ou para outra pessoa), entram linhas de ajuste para o
+ * que falta fechar ao centavo com os saldos de agora (`now`).
+ */
+export function reconcilePlan(plan: Transfer[], payments: Transfer[], now: Balances, order: string[]): PlanRow[] {
+  const key = (a: string, b: string) => `${a}\u0000${b}`;
+  const paidPair = new Map<string, number>();
+  for (const s of payments) {
+    if (s.from !== s.to) paidPair.set(key(s.from, s.to), (paidPair.get(key(s.from, s.to)) ?? 0) + s.cents);
+  }
+  const rows: PlanRow[] = plan.map((p) => {
+    const avail = paidPair.get(key(p.from, p.to)) ?? 0;
+    const paid = Math.min(p.cents, avail);
+    paidPair.set(key(p.from, p.to), avail - paid);
+    return { from: p.from, to: p.to, cents: p.cents, paid, remaining: p.cents - paid };
+  });
+  const residual: Balances = Object.fromEntries(order.map((id) => [id, now[id] ?? 0]));
+  for (const r of rows) {
+    residual[r.to] -= r.remaining;
+    residual[r.from] += r.remaining;
+  }
+  for (const t of minTransfers(residual, order)) {
+    const same = rows.find((r) => r.from === t.from && r.to === t.to);
+    if (same) {
+      same.cents += t.cents;
+      same.remaining += t.cents;
+    } else rows.push({ ...t, paid: 0, remaining: t.cents });
+  }
+  return rows;
+}

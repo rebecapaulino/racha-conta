@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSplit, groupSummary, groupSummaryText, settleUp } from '../core/bill';
+import { computeSplit, groupSummary, groupSummaryText, payments, settleUp, summaryText, type GroupSummary } from '../core/bill';
 import { activeBill, activeNote, blankState, isValidBill, reducer, type Action, type AppState } from './billState';
 
 const run = (s: AppState, ...actions: Action[]) => actions.reduce(reducer, s);
@@ -185,16 +185,25 @@ describe('resumo do grupo: quem paga para quem', () => {
     const g = groupSummary(s.bill);
     // Ana: recebe 22 do bar, deve 20 dos doces = +2. Bruno: deve 11 + 20 = -31. Carla: deve 11, recebe 40 = +29.
     expect(g.balance).toEqual({ [ana]: 200, [bruno]: -3100, [carla]: 2900 });
+    // Direto (padrão): cada um paga para quem pagou a nota; Ana e Carla se compensam.
     expect(g.transfers).toEqual([
+      { from: ana, to: carla, cents: 900 },
+      { from: bruno, to: carla, cents: 2000 },
+      { from: bruno, to: ana, cents: 1100 },
+    ]);
+    // Menos Pix: o mínimo de pagamentos.
+    expect(groupSummary(run(s, { type: 'settleMode', mode: 'min' }).bill).transfers).toEqual([
       { from: bruno, to: carla, cents: 2900 },
       { from: bruno, to: ana, cents: 200 },
     ]);
   });
 
-  it('acerto marcado sai da lista; desfazer volta', () => {
-    const { s, ana, bruno, carla } = festa();
+  it('acerto marcado sai do que falta, mas fica no plano marcado; desfazer volta', () => {
+    const { s: s0, ana, bruno, carla } = festa();
+    const s = run(s0, { type: 'settleMode', mode: 'min' });
     const paid = run(s, { type: 'settle', from: bruno, to: carla, cents: 2900 });
     expect(groupSummary(paid.bill).transfers).toEqual([{ from: bruno, to: ana, cents: 200 }]);
+    expect(groupSummary(paid.bill).plan.min[0]).toEqual({ from: bruno, to: carla, cents: 2900, paid: 2900, remaining: 0 });
     expect(paid.log.at(-1)!.text).toBe('Bruno pagou R$ 29,00 a Carla');
     const undone = run(paid, { type: 'unsettle', index: 0 });
     expect(groupSummary(undone.bill).transfers.length).toBe(2);
@@ -238,7 +247,7 @@ describe('texto do resumo do grupo', () => {
     const s0 = run(bar(), { type: 'title', title: 'Festa' });
     const [ana, bruno, carla] = ids(s0);
     let s = run(s0, { type: 'addNote', category: 'Doces', payerId: carla, people: [ana, bruno], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 });
-    s = run(s, { type: 'settle', from: bruno, to: ana, cents: 200 });
+    s = run(s, { type: 'settleMode', mode: 'min' }, { type: 'settle', from: bruno, to: ana, cents: 200 });
     expect(groupSummaryText(s.bill)).toBe(
       [
         '*Racha Conta* - Festa',
@@ -271,5 +280,102 @@ describe('ler nota em nota nova', () => {
     expect(s.bill.items.map((i) => i.name)).toEqual(['Chopp', 'Pimenta']);
     expect(s.bill.notes![0].photoId).toBeNull();
     expect(s.log.at(-1)!.text).toContain('em nota nova');
+  });
+});
+
+/** O que falta pagar fecha ao centavo com o saldo de agora de cada conta. */
+function closes(g: GroupSummary, mode: 'direct' | 'min', accounts: Record<string, string>) {
+  const left: Record<string, number> = {};
+  for (const [id, b] of Object.entries(g.balance)) left[accounts[id] ?? id] = (left[accounts[id] ?? id] ?? 0) + b;
+  for (const r of g.plan[mode]) {
+    left[r.to] -= r.remaining;
+    left[r.from] += r.remaining;
+  }
+  return Object.values(left).every((v) => v === 0);
+}
+
+describe('Rolê: quem paga a parte de quem', () => {
+  it('numa nota só: a parte da Carla entra na do Bruno, que paga tudo de uma vez', () => {
+    const s0 = bar();
+    const [, bruno, carla] = ids(s0);
+    const s = run(s0, { type: 'cover', id: carla, by: bruno });
+    expect(s.log.at(-1)!.text).toBe('Bruno paga a parte de Carla');
+    const rows = payments(s.bill).rows;
+    expect(rows[2]).toMatchObject({ state: 'covered', by: bruno, owed: 0 });
+    expect(rows[1]).toMatchObject({ state: 'open', due: 2200, owed: 2200, covers: [carla], coversCents: 1100 });
+    expect(payments(s.bill).remaining).toBe(2200);
+    expect(summaryText(s.bill)).toContain('- Bruno (com a parte de Carla) deve R$ 22,00');
+    expect(summaryText(s.bill)).toContain('- Carla: R$ 11,00, Bruno paga');
+
+    const paid = run(s, { type: 'markPaid', personId: bruno, paid: true });
+    expect(paid.bill.paid).toEqual({ [bruno]: 2200 });
+    expect(payments(paid.bill)).toMatchObject({ remaining: 0, paidCount: 3 });
+    // A parte coberta não se marca sozinha.
+    expect(run(s, { type: 'markPaid', personId: carla, paid: true })).toBe(s);
+  });
+
+  it('quem tem a parte paga por quem pagou a conta não deve nada', () => {
+    const s0 = bar();
+    const [ana, , carla] = ids(s0);
+    const s = run(s0, { type: 'cover', id: carla, by: ana });
+    expect(payments(s.bill).rows[2]).toMatchObject({ state: 'covered', by: ana });
+    expect(payments(s.bill).remaining).toBe(1100);
+  });
+
+  it('várias notas: a conta do Bruno leva a da Carla, nos dois modos', () => {
+    const s0 = bar();
+    const [ana, bruno, carla] = ids(s0);
+    let s = run(s0, { type: 'addNote', category: 'Doces', payerId: carla, people: [ana, bruno], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 });
+    s = run(s, { type: 'cover', id: carla, by: bruno });
+    const acc = { [carla]: bruno };
+    const g = groupSummary(s.bill);
+    // Bruno e Carla devem 22 à Ana pelo bar; Ana deve 20 à Carla (conta do Bruno) pelos doces.
+    expect(g.plan.direct).toEqual([{ from: bruno, to: ana, cents: 200, paid: 0, remaining: 200 }]);
+    expect(g.plan.min).toEqual([{ from: bruno, to: ana, cents: 200, paid: 0, remaining: 200 }]);
+    expect(closes(g, 'direct', acc) && closes(g, 'min', acc)).toBe(true);
+    expect(groupSummaryText(s.bill)).toContain('- Bruno (com Carla) paga R$ 2,00 para Ana');
+  });
+
+  it('pagamento fica na lista marcado; desmarcar volta; pagar a mais vira ajuste que fecha', () => {
+    const { ana, bruno, carla, s } = (() => {
+      const s0 = bar();
+      const [a, b, c] = ids(s0);
+      return { ana: a, bruno: b, carla: c, s: run(s0, { type: 'addNote', category: 'Doces', payerId: c, people: [a, b], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 }) };
+    })();
+    const paid = run(s, { type: 'settle', from: bruno, to: carla, cents: 2000 });
+    const g = groupSummary(paid.bill);
+    expect(g.plan.direct.find((r) => r.from === bruno && r.to === carla)).toEqual({ from: bruno, to: carla, cents: 2000, paid: 2000, remaining: 0 });
+    expect(g.transfers.some((t) => t.from === bruno && t.to === carla)).toBe(false);
+
+    const undone = run(paid, { type: 'unsettlePair', from: bruno, to: carla });
+    expect(undone.bill.settled).toEqual([]);
+    expect(undone.log.at(-1)!.text).toBe('Desmarcou o pagamento de Bruno para Carla');
+
+    const over = run(s, { type: 'settle', from: bruno, to: ana, cents: 5000 });
+    for (const mode of ['direct', 'min'] as const) expect(closes(groupSummary(over.bill), mode, {})).toBe(true);
+  });
+
+  it('não deixa fechar círculo; quem sai leva junto quem ela cobria; dados válidos', () => {
+    const s0 = bar();
+    const [ana, bruno, carla] = ids(s0);
+    let s = run(s0, { type: 'cover', id: carla, by: bruno });
+    expect(run(s, { type: 'cover', id: bruno, by: carla })).toBe(s);
+    expect(run(s, { type: 'cover', id: ana, by: ana })).toBe(s);
+    expect(isValidBill(s.bill)).toBe(true);
+    s = run(s, { type: 'cover', id: carla, by: null });
+    expect(s.bill.people[2].coveredBy).toBeUndefined();
+    expect(s.log.at(-1)!.text).toBe('Carla volta a pagar a própria parte');
+    s = run(s, { type: 'cover', id: carla, by: bruno }, { type: 'removePerson', id: bruno });
+    expect(s.bill.people.map((p) => p.coveredBy)).toEqual([undefined, undefined]);
+    expect(isValidBill({ ...s.bill, people: [{ id: 'x', name: 'X', color: 0, coveredBy: 3 }] })).toBe(false);
+  });
+
+  it('modo do acerto: guarda "menos Pix"; o direto é o padrão e não é guardado', () => {
+    let s = run(bar(), { type: 'settleMode', mode: 'min' });
+    expect(s.bill.settleMode).toBe('min');
+    expect(isValidBill(s.bill)).toBe(true);
+    s = run(s, { type: 'settleMode', mode: 'direct' });
+    expect(s.bill.settleMode).toBeUndefined();
+    expect(isValidBill({ ...s.bill, settleMode: 'x' })).toBe(false);
   });
 });

@@ -5,7 +5,7 @@ import type { HistoryEntry } from '../state/history';
 import { ActivityLog } from './ActivityLog';
 import { Avatar, AvatarStack } from './Avatar';
 import { longDate } from './dates';
-import { IconArrowLeft, IconTrash } from './icons';
+import { IconArrowLeft, IconPlus, IconTrash } from './icons';
 import { Art } from './illustrations';
 import { usePhotoUrl } from './usePhotoUrl';
 
@@ -13,12 +13,14 @@ interface Props {
   entries: HistoryEntry[];
   fluent: boolean;
   onBack: () => void;
+  /** Guarda a conta atual aqui e começa outra do zero. */
+  onNew: () => void;
   onReopen: (e: HistoryEntry) => void;
   onDelete: (e: HistoryEntry) => void;
 }
 
 /** Rolês: as contas anteriores em cartões com a foto, para lembrar e tirar dúvida de quem estava. */
-export function HistoryScreen({ entries, fluent, onBack, onReopen, onDelete }: Props) {
+export function HistoryScreen({ entries, fluent, onBack, onNew, onReopen, onDelete }: Props) {
   const [open, setOpen] = useState<HistoryEntry | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -41,13 +43,18 @@ export function HistoryScreen({ entries, fluent, onBack, onReopen, onDelete }: P
         <span className="muted">{entries.length > 0 && `${entries.length} ${entries.length === 1 ? 'conta' : 'contas'}`}</span>
       </header>
 
+      <button type="button" className="btn primary big new-bill" onClick={onNew}>
+        <IconPlus /> Nova conta
+      </button>
+      <p className="hint">A conta aberta agora fica guardada aqui, com a foto. Nada se perde.</p>
+
       {entries.length === 0 ? (
         <div className="card empty">
           <span className="empty-icon" aria-hidden="true">{fluent ? <Art kind="receipt" size={36} /> : '📸'}</span>
           <p>
             <b>Nenhum rolê guardado ainda.</b>
             <br />
-            Quando você tocar em &quot;Nova conta&quot;, a conta atual vem para cá, com a foto.
+            Ao tocar em &quot;Nova conta&quot;, a conta atual vem para cá, com a foto.
           </p>
         </div>
       ) : (

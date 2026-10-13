@@ -1,60 +1,52 @@
-import { useState, type Dispatch } from 'react';
+import { useState } from 'react';
+import type { Person } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import {
-  accountMembers,
-  accountOf,
-  groupByPayer,
-  installmentInfo,
-  type SettleRow,
-  type Trip,
-} from '../../core/trip';
-import type { TripAction } from '../../state/tripState';
+import { accountIn, type PlanRow } from '../../core/settle';
+import { installmentInfo, type TripCategory } from '../../core/trip';
 import { Avatar } from '../Avatar';
 import { IconArrowRight, IconCheck } from '../icons';
 import { CategoryIcon } from './CategoryIcon';
 import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
 
+/** Uma linha do acerto (Viagem: pode ser a parcela de uma despesa). */
+export type ListRow = PlanRow & { expenseId?: string; installments?: number };
+
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
 const glued = (cents: number) => formatBRL(cents).replace(' ', ' ');
 
 interface Props {
-  trip: Trip;
-  rows: SettleRow[];
+  /** Pessoas da viagem ou da mesa (com quem paga a parte de quem). */
+  people: Person[];
+  rows: ListRow[];
   meId: string | null;
-  dispatch: Dispatch<TripAction>;
-  toast: (msg: string, undo?: () => void) => void;
   onSettle: (t: SettleTarget) => void;
-  onExplain: (id: string) => void;
+  /** Desmarca um pagamento feito (a linha volta a ficar em aberto). */
+  onUnpay: (r: ListRow) => void;
+  /** Abre a conta detalhada da pessoa (só na Viagem). */
+  onExplain?: (id: string) => void;
+  /** A despesa parcelada da linha (só na Viagem). */
+  expenseOf?: (id: string) => { description: string; category: TripCategory } | undefined;
 }
 
 /**
  * Quem paga quem, com o que já foi pago marcado em verde. Dá para ver todo mundo (agrupado
  * por quem paga) ou escolher uma pessoa e ver quem deve para ela e para quem ela deve.
+ * Usado na Viagem e no resumo do grupo do Rolê.
  */
-export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExplain }: Props) {
+export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf }: Props) {
   const [who, setWho] = useState('');
-  const person = (id: string) => trip.people.find((p) => p.id === id)!;
+  const person = (id: string) => people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
-  const valid = who && trip.people.some((p) => p.id === who) ? who : '';
-  const account = valid ? accountOf(trip, valid) : '';
-
-  /** Desmarca um pagamento feito (com Desfazer, caso tenha sido sem querer). */
-  function unpay(r: SettleRow) {
-    const paid = trip.settlements.filter(
-      (x) => accountOf(trip, x.from) === r.from && accountOf(trip, x.to) === r.to && (x.expenseId ?? '') === (r.expenseId ?? ''),
-    );
-    for (const x of paid) dispatch({ type: 'unsettle', id: x.id });
-    toast(`Pagamento para ${called(r.to, true)} desmarcado`, () => {
-      for (const x of paid) dispatch({ type: 'settle', id: x.id, from: x.from, to: x.to, cents: x.cents });
-    });
-  }
+  const valid = who && people.some((p) => p.id === who) ? who : '';
+  const account = valid ? accountIn(people, valid) : '';
+  const membersOf = (id: string) => people.filter((p) => p.id !== id && accountIn(people, p.id) === id);
 
   /** Uma linha: quem paga → quem recebe, o valor, as parcelas e o botão de pago. */
-  function row(r: SettleRow, side: 'out' | 'in') {
+  function row(r: ListRow, side: 'out' | 'in') {
     const done = r.remaining === 0;
     const inst = r.installments && r.installments > 1 ? installmentInfo(r.cents, r.paid, r.installments) : null;
-    const expense = r.expenseId ? trip.expenses.find((e) => e.id === r.expenseId) : undefined;
+    const expense = r.expenseId ? expenseOf?.(r.expenseId) : undefined;
     const payNow = inst && inst.next > 0 ? inst.next : r.remaining;
     const label = expense && inst ? `${expense.description} · parcela ${inst.paidCount + 1} de ${inst.count}` : undefined;
     return (
@@ -105,7 +97,7 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
                 type="button"
                 className="btn secondary settle-btn is-paid"
                 aria-pressed="true"
-                onClick={() => unpay(r)}
+                onClick={() => onUnpay(r)}
                 aria-label={`Pago: ${called(r.from)} pagou ${formatBRL(r.cents)} para ${called(r.to, true)}. Toque para desmarcar`}
               >
                 <IconCheck size={16} /> Pago
@@ -127,10 +119,16 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
     );
   }
 
-  const groups = groupByPayer(rows, trip);
+  // Agrupado por quem paga, na ordem das pessoas.
+  const groups = people
+    .map((p) => {
+      const items = rows.filter((r) => r.from === p.id);
+      return { from: p.id, cents: items.reduce((a, r) => a + r.cents, 0), items };
+    })
+    .filter((g) => g.items.length > 0);
   const incoming = rows.filter((r) => r.to === account);
   const outgoing = rows.filter((r) => r.from === account);
-  const leftOf = (list: SettleRow[]) => list.reduce((a, r) => a + r.remaining, 0);
+  const leftOf = (list: ListRow[]) => list.reduce((a, r) => a + r.remaining, 0);
   const viewed = valid ? person(valid) : null;
   const sponsor = viewed && account !== viewed.id ? person(account) : null;
 
@@ -140,7 +138,7 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
         <span className="field-label">Ver de quem</span>
         <select value={valid} onChange={(e) => setWho(e.target.value)}>
           <option value="">Todo mundo</option>
-          {trip.people.map((p) => (
+          {people.map((p) => (
             <option key={p.id} value={p.id}>
               {p.id === meId ? `${p.name} (você)` : p.name}
             </option>
@@ -195,15 +193,17 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
               </ul>
             )}
           </section>
-          <button type="button" className="link-btn pay-why" onClick={() => onExplain(viewed.id)}>
-            Ver a conta de {called(viewed.id, true)}, despesa por despesa
-          </button>
+          {onExplain && (
+            <button type="button" className="link-btn pay-why" onClick={() => onExplain(viewed.id)}>
+              Ver a conta de {called(viewed.id, true)}, despesa por despesa
+            </button>
+          )}
         </div>
       ) : (
         <ul className="pay-groups">
           {groups.map((g) => {
             const left = leftOf(g.items);
-            const members = accountMembers(trip, g.from);
+            const members = membersOf(g.from);
             return (
               <li key={g.from} className={`pay-group${left === 0 ? ' is-done' : ''}`}>
                 <div className="pay-head">
@@ -225,9 +225,11 @@ export function SettleList({ trip, rows, meId, dispatch, toast, onSettle, onExpl
                 <ul className="pay-items">
                   {g.items.map((r) => row(r, 'out'))}
                 </ul>
-                <button type="button" className="link-btn pay-why" onClick={() => onExplain(g.from)}>
-                  Por que {called(g.from, true)} paga isso? Ver a conta
-                </button>
+                {onExplain && (
+                  <button type="button" className="link-btn pay-why" onClick={() => onExplain(g.from)}>
+                    Por que {called(g.from, true)} paga isso? Ver a conta
+                  </button>
+                )}
               </li>
             );
           })}
