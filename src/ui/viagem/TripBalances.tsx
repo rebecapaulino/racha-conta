@@ -5,11 +5,12 @@ import type { Transfer } from '../../core/settle';
 import { activeExpenses, categoryLabel, groupByPayer, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
-import { IconAlert, IconArrowRight, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
+import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { PersonAccount } from './PersonAccount';
 import { Sheet } from './Sheet';
+import { Signed } from './Signed';
 import { renderTripImage } from './tripImage';
 
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
@@ -191,21 +192,20 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
                     <b>{called(g.from)} paga</b>
                     <small>para {g.items.length} {g.items.length === 1 ? 'pessoa' : 'pessoas'}</small>
                   </span>
-                  <b className="pay-total num">{glued(g.cents)}</b>
+                  <Signed cents={-g.cents} className="pay-total" />
                 </div>
                 <ul className="pay-items">
                   {g.items.map((t) => (
                     <li key={t.to} className="pay-item">
-                      <span className="pay-arrow" aria-hidden="true"><IconArrowRight size={16} /></span>
                       <Avatar person={person(t.to)} size="sm" />
                       <span className="pay-to">
                         <span className="sr">{called(g.from)} paga </span>
-                        <b className="num">{glued(t.cents)}</b>
+                        <Signed cents={-t.cents} />
                         <span> para {called(t.to, true)}</span>
                       </span>
                       <button
                         type="button"
-                        className="btn secondary pay-btn"
+                        className="btn secondary settle-btn"
                         onClick={() => onSettle(t)}
                         aria-label={`Registrar: ${called(t.from)} pagou ${formatBRL(t.cents)} para ${called(t.to, true)}`}
                       >
@@ -281,7 +281,7 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
                   </span>
                   <span className="balance-tag">
                     {state === 'in' ? 'recebe' : state === 'out' ? 'paga' : 'quite'}
-                    {state !== 'zero' && <b className="num">{formatBRL(Math.abs(balance))}</b>}
+                    {state !== 'zero' && <Signed cents={balance} />}
                   </span>
                 </div>
                 <span className="balance-bar" style={style} aria-hidden="true"><i /></span>

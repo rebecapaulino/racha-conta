@@ -13,6 +13,9 @@ const P = 64;
 const PW = W - 2 * M;
 const CW = PW - 2 * P;
 const TEETH = 18;
+// Deve: vermelho com "−". Recebe: verde com "+" (C.ok). Igual ao app.
+const NEG = '#C42B1C';
+const NEG_SOFT = '#FDE7E5';
 
 interface Input {
   trip: Trip;
@@ -174,8 +177,8 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
     avatar(ctx, from.name, from.color, left + 60, y + 56, 34);
     ctx.textAlign = 'right';
     ctx.font = f(800, 44);
-    ctx.fillStyle = C.primary;
-    const total = formatBRL(g.cents);
+    ctx.fillStyle = NEG;
+    const total = `− ${formatBRL(g.cents)}`;
     ctx.fillText(total, right - 28, y + 32);
     const tw = ctx.measureText(total).width;
     ctx.textAlign = 'left';
@@ -194,19 +197,17 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
       ctx.moveTo(left + 28, iy - 6);
       ctx.lineTo(right - 28, iy - 6);
       ctx.stroke();
-      ctx.fillStyle = C.muted;
-      ctx.font = f(700, 30);
-      ctx.fillText('→', left + 46, iy + 14);
-      avatar(ctx, to.name, to.color, left + 116, iy + 30, 24);
+      avatar(ctx, to.name, to.color, left + 64, iy + 30, 24);
       ctx.textAlign = 'right';
       ctx.font = f(700, 34);
-      ctx.fillStyle = C.ink;
-      const amount = formatBRL(t.cents);
+      ctx.fillStyle = NEG;
+      const amount = `− ${formatBRL(t.cents)}`;
       ctx.fillText(amount, right - 28, iy + 12);
       const aw = ctx.measureText(amount).width;
       ctx.textAlign = 'left';
       ctx.font = f(600, 32);
-      ctx.fillText(fitText(ctx, to.name, right - 28 - aw - 24 - (left + 156)), left + 156, iy + 12);
+      ctx.fillStyle = C.ink;
+      ctx.fillText(fitText(ctx, `para ${to.name}`, right - 28 - aw - 24 - (left + 104)), left + 104, iy + 12);
       iy += 72;
     }
     y += boxH + 20;
@@ -227,13 +228,13 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
   for (const r of summary.people) {
     avatar(ctx, r.person.name, r.person.color, left + 32, y + 36, 32);
     const state = r.balance > 0 ? 'in' : r.balance < 0 ? 'out' : 'zero';
-    const tag = state === 'in' ? `recebe ${formatBRL(r.balance)}` : state === 'out' ? `paga ${formatBRL(-r.balance)}` : 'quite';
+    const tag = state === 'in' ? `recebe + ${formatBRL(r.balance)}` : state === 'out' ? `paga − ${formatBRL(-r.balance)}` : 'quite';
     ctx.font = f(800, 26);
     const tagW = ctx.measureText(tag).width + 36;
-    ctx.fillStyle = state === 'in' ? C.okSoft : state === 'out' ? C.soft : '#F1EEEC';
+    ctx.fillStyle = state === 'in' ? C.okSoft : state === 'out' ? NEG_SOFT : '#F1EEEC';
     roundRect(ctx, right - tagW, y - 2, tagW, 44, 22);
     ctx.fill();
-    ctx.fillStyle = state === 'in' ? C.ok : state === 'out' ? C.primary : C.muted;
+    ctx.fillStyle = state === 'in' ? C.ok : state === 'out' ? NEG : C.muted;
     ctx.textAlign = 'center';
     ctx.fillText(tag, right - tagW / 2, y + 8);
     ctx.textAlign = 'left';

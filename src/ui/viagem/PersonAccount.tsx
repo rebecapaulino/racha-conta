@@ -3,6 +3,7 @@ import { formatBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
 import { personStatement, type PairDebt, type SettleMode, type Trip } from '../../core/trip';
 import { Avatar, personStyle } from '../Avatar';
+import { Signed } from './Signed';
 import { shortDay } from './tripDates';
 
 interface Props {
@@ -34,7 +35,7 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
     return pair?.cents !== t.cents;
   });
 
-  const block = (title: string, debts: PairDebt[], total: number, verb: (other: string) => ReactNode) =>
+  const block = (title: string, debts: PairDebt[], total: number, verb: (other: string) => ReactNode, sign: 1 | -1) =>
     debts.length > 0 && (
       <div className="acc-block">
         <h3 className="field-label">{title}</h3>
@@ -50,7 +51,7 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
                       <span>{verb(d.other)}</span>
                       <small>{d.lines.length} {d.lines.length === 1 ? 'despesa' : 'despesas'} · ver</small>
                     </span>
-                    <b className="num">{formatBRL(d.cents)}</b>
+                    <Signed cents={sign * d.cents} />
                   </summary>
                   <ul className="acc-lines">
                     {d.lines.map((l) => (
@@ -70,7 +71,7 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
         </ul>
         <p className="acc-total">
           <span>Total</span>
-          <b className="num">{formatBRL(total)}</b>
+          <Signed cents={sign * total} />
         </p>
       </div>
     );
@@ -95,8 +96,8 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
           <p className="muted">{subject} ainda não entrou em nenhuma despesa.</p>
         ) : (
           <>
-            {block(`${subject} deve para quem pagou`, st.owesTo, st.owesTotal, (o) => <>Para <b>{name(o)}</b></>)}
-            {block(`${me ? 'Você tem' : `${person.name} tem`} a receber`, st.owedBy, st.owedTotal, (o) => <>De <b>{name(o)}</b></>)}
+            {block(`${subject} deve para quem pagou`, st.owesTo, st.owesTotal, (o) => <>Para <b>{name(o)}</b></>, -1)}
+            {block(`${me ? 'Você tem' : `${person.name} tem`} a receber`, st.owedBy, st.owedTotal, (o) => <>De <b>{name(o)}</b></>, 1)}
             {st.ownShare > 0 && (
               <p className="acc-note">
                 {me ? 'Sua parte nas despesas que você pagou' : `Parte de ${person.name} nas despesas que pagou`}: {formatBRL(st.ownShare)}. Já está paga, não entra no acerto.
@@ -104,13 +105,13 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
             )}
 
             <dl className="acc-sum">
-              <div><dt>A receber</dt><dd className="num">{formatBRL(st.owedTotal)}</dd></div>
-              <div><dt>Deve</dt><dd className="num">− {formatBRL(st.owesTotal)}</dd></div>
-              {st.sent > 0 && <div><dt>Já mandou</dt><dd className="num">+ {formatBRL(st.sent)}</dd></div>}
-              {st.received > 0 && <div><dt>Já recebeu</dt><dd className="num">− {formatBRL(st.received)}</dd></div>}
+              <div><dt>A receber</dt><dd><Signed cents={st.owedTotal} /></dd></div>
+              <div><dt>Deve</dt><dd><Signed cents={-st.owesTotal} /></dd></div>
+              {st.sent > 0 && <div><dt>Já mandou</dt><dd><Signed cents={st.sent} /></dd></div>}
+              {st.received > 0 && <div><dt>Já recebeu</dt><dd><Signed cents={-st.received} /></dd></div>}
               <div className="acc-result">
                 <dt>{st.balance > 0 ? 'Recebe' : st.balance < 0 ? 'Paga' : 'Está quite'}</dt>
-                <dd className="num">{st.balance !== 0 && formatBRL(Math.abs(st.balance))}</dd>
+                <dd>{st.balance !== 0 && <Signed cents={st.balance} />}</dd>
               </div>
             </dl>
 
@@ -121,9 +122,9 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
                   {mine.map((t) => (
                     <li key={`${t.from}-${t.to}`}>
                       {t.from === person.id ? (
-                        <>{subject} paga <b className="num">{formatBRL(t.cents)}</b> para {name(t.to)}</>
+                        <>{subject} paga <Signed cents={-t.cents} /> para {name(t.to)}</>
                       ) : (
-                        <>{name(t.from).replace(/^v/, 'V')} paga <b className="num">{formatBRL(t.cents)}</b> para {me ? 'você' : person.name}</>
+                        <>{me ? 'Você' : person.name} recebe <Signed cents={t.cents} /> de {name(t.from)}</>
                       )}
                     </li>
                   ))}
