@@ -108,7 +108,7 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 ## Aba Viagem — 13/10/2026 (passo 1 de 4: cálculo)
 
-- **Pedido:** uma segunda área para despesas de viagem em grupo (vários dias, várias pessoas pagando), com saldo e acerto no fim. Briefing em `BRIEFING-VIAGEM` (colado na conversa). Prazo: viagem do fim do ano.
+- **Pedido:** uma segunda área para despesas de viagem em grupo (vários dias, várias pessoas pagando), com saldo e acerto no fim. Briefing em `BRIEFING-VIAGEM.md`. Prazo: viagem do fim do ano.
 - **Nomes:** as áreas se chamam **Rolê** (bar/restaurante, o que já existe) e **Viagem**. "Mesa" continua sendo só a 1ª etapa do Rolê.
 - **Famílias:** o participante pode ser a família inteira, com peso = número de pessoas (criança 0,5). Ex.: "Família Ana" peso 3,5. Na v1 não há agrupamento de pessoas em família.
 - **Acerto final:** mínimo exato até 15 pessoas com saldo (testa todas as combinações em milissegundos); acima disso, o guloso (às vezes 1 pagamento a mais). Ex.: saldos +4, +3, +3, −6, −4 → guloso faz 4 pagamentos, o exato faz 3. O Rolê continua com o guloso.
