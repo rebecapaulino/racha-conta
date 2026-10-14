@@ -1392,3 +1392,9 @@ input, textarea, select { font-size: max(16px, 1em); }
 }
 .topbar .brand > * { height: 48px; display: flex; align-items: center; }
 .topbar .brand .logo { height: 48px; }
+
+/* Abas: cada aba cresce a partir do próprio conteúdo (e não 1/3 fixo), então o espaço entre
+   "Pessoas 4", "Despesas 1" e "Saldos" fica igual; e o ícone desgruda do texto. */
+.tabs button { flex: 1 1 auto; gap: 8px; padding-inline: 8px; }
+.tabs button .tab-count { margin-left: -1px; }
+@media (max-width: 374px) { .tabs button { gap: 5px; padding-inline: 4px; } }

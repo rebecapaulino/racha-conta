@@ -345,3 +345,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - A foto do cartão do Rolê agora vai junto com o rolê compartilhado (campo `photoId` no que vai para o grupo) e para a pasta do grupo no Storage, como na Viagem. Todo mundo vê a mesma foto; trocar ou tirar vale para todos e entra no registro.
 - Grupo criado antes desta mudança (sem o campo): a foto que já estava no aparelho continua, não é apagada pela versão do grupo.
 - O nome da foto vindo do grupo é conferido (só letras e números); se vier estranho, a versão é recusada.
+
+## Abas com espaço igual (14/10/2026)
+
+- As abas (Pessoas · Despesas · Saldos, e Mesa · Pedidos · Divisão) tinham 1/3 da largura cada, com o conteúdo no meio: como os textos têm tamanhos diferentes, o espaço entre uma aba e outra ficava desigual. Agora cada aba cresce a partir do próprio conteúdo, e o espaço entre elas fica igual (medido em 320, 360, 412 e 430px).
+- Ícone da aba mais afastado do texto (8px; 5px em tela pequena).
+- Lembrete: o app instalado só troca de versão depois de tocar em "Atualizar" no aviso do topo.
