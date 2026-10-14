@@ -8,6 +8,7 @@ import { activeBill, activeNote, loadState, reducer, saveState, worthKeeping } f
 import { addEntry, fromEntry, loadHistory, removeEntry, saveHistory, toEntry, type HistoryEntry } from '../state/history';
 import { deletePhoto } from '../state/photos';
 import { AccountButton } from './AccountButton';
+import { ThemeButton } from './ThemeButton';
 import { DivisaoStep } from './DivisaoStep';
 import { GroupSummary } from './GroupSummary';
 import { HeroCard } from './HeroCard';
@@ -203,6 +204,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
                 <IconHistory size={18} /> Rolês
                 {history.length > 0 && <span className="tab-count">{history.length}</span>}
               </button>
+              <ThemeButton />
               <AccountButton toast={toast} />
             </div>
           </header>

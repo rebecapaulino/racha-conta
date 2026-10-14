@@ -17,7 +17,7 @@
   --info: #0F6CBD;          /* links de explicação: azul, para não brigar com o vermelho */
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --owe: #FB923C;
     --tip-ink: #FFB173;
     --tip-soft: color-mix(in srgb, #FFB173 10%, var(--surface));
@@ -27,6 +27,17 @@
     --info: #79B8FF;
   }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+:root[data-theme="dark"] {
+    --owe: #FB923C;
+    --tip-ink: #FFB173;
+    --tip-soft: color-mix(in srgb, #FFB173 10%, var(--surface));
+    --tip-line: color-mix(in srgb, #FFB173 30%, transparent);
+    --neg: #FF8A80;
+    --pos: #6EE7A0;
+    --info: #79B8FF;
+  }
+
 :root[data-visual="fluent"] { --r-pill: 4px; }
 
 /* títulos dos campos em h3 não têm a margem padrão do navegador */

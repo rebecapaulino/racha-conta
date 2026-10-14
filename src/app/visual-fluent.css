@@ -44,7 +44,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root[data-visual="fluent"] {
+  :root:not([data-theme="light"])[data-visual="fluent"] {
     --bg: #1F1F1F;
     --surface: #292929;
     --fill: #333333;
@@ -76,6 +76,39 @@
     --warn-icon: #F87528;
   }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+:root[data-theme="dark"][data-visual="fluent"] {
+    --bg: #1F1F1F;
+    --surface: #292929;
+    --fill: #333333;
+    --fill-2: #3D3D3D;
+    --hover: #3D3D3D;
+    --pressed: #1F1F1F;
+    --ink: #FFFFFF;
+    --muted: #ADADAD;
+    --line: #3D3D3D;
+    --stroke: #666666;
+    --stroke-access: #ADADAD;
+    --focus: #FFFFFF;
+    --shadow: 0 0 2px rgba(0, 0, 0, 0.24), 0 2px 4px rgba(0, 0, 0, 0.28);
+    --shadow-16: 0 0 2px rgba(0, 0, 0, 0.24), 0 8px 16px rgba(0, 0, 0, 0.28);
+    --shadow-64: 0 0 8px rgba(0, 0, 0, 0.24), 0 32px 64px rgba(0, 0, 0, 0.28);
+
+    --primary: #FF6766;
+    --primary-hover: #FF7F7E;
+    --primary-soft: #3B2226;
+    --on-primary: #FFFFFF;
+    --brand-bg: #CA2851;
+    --brand-bg-hover: #D63A62;
+    --brand-bg-pressed: #A81D43;
+
+    --danger: #DC626D;
+    --warn-ink: #FFFFFF;
+    --warn-soft: #411200;
+    --warn-line: #8A3707;
+    --warn-icon: #F87528;
+  }
+
 
 :root[data-visual="fluent"] {
   /* ---------- base ---------- */
@@ -334,7 +367,7 @@
   --tile: #F5F5F5;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-visual="fluent"] {
+  :root:not([data-theme="light"])[data-visual="fluent"] {
     --berry-a: #5C1428; --berry-b: #E0446B; --berry-c: #F9C0CD;
     --coral-a: #6B2424; --coral-b: #FF6766; --coral-c: #FFC9C8;
     --amber-a: #6E3A12; --amber-b: #FFB173; --amber-c: #FFE7C2;
@@ -342,6 +375,15 @@
     --tile: #1F1F1F;
   }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+:root[data-theme="dark"][data-visual="fluent"] {
+    --berry-a: #5C1428; --berry-b: #E0446B; --berry-c: #F9C0CD;
+    --coral-a: #6B2424; --coral-b: #FF6766; --coral-c: #FFC9C8;
+    --amber-a: #6E3A12; --amber-b: #FFB173; --amber-c: #FFE7C2;
+    --teal-a:  #134E48; --teal-b:  #34B3A3; --teal-c:  #BFF0E6;
+    --tile: #1F1F1F;
+  }
+
 
 :root[data-visual="fluent"] {
   & .art { flex: none; display: block; }

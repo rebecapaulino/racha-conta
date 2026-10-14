@@ -5,6 +5,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../core/trip';
 import { loadTrips, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
 import { AccountButton } from '../AccountButton';
+import { ThemeButton } from '../ThemeButton';
 import { IconBook, IconPlus, IconScale, IconSuitcase, IconUsers, Logo } from '../icons';
 import { Art } from '../illustrations';
 import { PwaBars } from '../PwaBars';
@@ -103,6 +104,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
             <header className="topbar">
               <div className="brand"><Logo size={28} /><span>Racha Conta</span></div>
               <div className="top-actions">
+                <ThemeButton />
                 <AccountButton toast={toast} />
               </div>
             </header>
@@ -140,6 +142,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
                 <IconSuitcase size={18} /> Viagens
                 {state.trips.length > 1 && <span className="tab-count">{state.trips.length}</span>}
               </button>
+              <ThemeButton />
               <AccountButton toast={toast} />
             </div>
           </header>

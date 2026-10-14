@@ -254,3 +254,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Resumo do grupo** (várias notas): o acerto também é um card por vez, igual à Viagem.
 - "Quem pagou no caixa?" continua igual.
 - **Seta de voltar** (Viagem e Rolê): à esquerda do card; o card volta deslizando da esquerda. No primeiro, voltar leva ao último.
+
+## Modo claro / escuro escolhido no app
+
+- **Botão no topo** (lua/sol, ao lado de Rolês/Viagens): troca entre claro e escuro e guarda a escolha neste aparelho (`racha-conta-tema`). Sem escolha, segue o aparelho.
+- **Como:** o tema escolhido vai em `data-theme` no `<html>` antes da página aparecer (sem piscar). Cada bloco de estilo do escuro vale quando o aparelho está escuro e não foi escolhido o claro, ou quando foi escolhido o escuro.
+- **"Total da mesa"** no claro: cinza claro com sombra (antes, preto). No escuro continua preto.

@@ -17,6 +17,12 @@ export const THEME_COLOR: Record<Visual, { light: string; dark: string }> = {
 /** Roda antes da página aparecer: aplica ?visual= do endereço, se houver. */
 export const VISUAL_OVERRIDE_SCRIPT = `try{var v=new URLSearchParams(location.search).get('visual');if(v==='fluent'||v==='suave')document.documentElement.dataset.visual=v}catch(e){}`;
 
+/** Onde fica o tema escolhido no botão do topo ('light' ou 'dark'; sem nada, segue o aparelho). */
+export const THEME_KEY = 'racha-conta-tema';
+
+/** Roda antes da página aparecer: aplica o tema escolhido, para não piscar o outro. */
+export const THEME_SCRIPT = `try{var t=localStorage.getItem('${THEME_KEY}');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`;
+
 /** Visual em uso na página (só no aparelho, depois do script acima). */
 export function activeVisual(): Visual {
   const v = typeof document !== 'undefined' ? document.documentElement.dataset.visual : undefined;

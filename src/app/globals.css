@@ -44,7 +44,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #171515;
     --surface: #221F1F;
     --fill: #2B2727;
@@ -75,6 +75,38 @@
     color-scheme: dark;
   }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+:root[data-theme="dark"] {
+    --bg: #171515;
+    --surface: #221F1F;
+    --fill: #2B2727;
+    --ink: #F6F1ED;
+    --muted: #A9A09C;
+    --line: #332E2D;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px -16px rgba(0, 0, 0, 0.7);
+    --shadow-lift: 0 14px 30px -14px rgba(255, 103, 102, 0.45);
+
+    --primary: #FF6766;
+    --primary-hover: #FF7F7E;
+    --on-primary: #1D1A1B;
+    --primary-soft: #3B2226;
+
+    --warn-ink: #FFC58A;
+    --warn-soft: #36271A;
+    --danger: #FF7A7A;
+    --ok: #6EE7A0;
+    --ok-soft: #12301F;
+
+    --hero-1: #B8234A;
+    --hero-2: #861635;
+    --knob: #F6F1ED;
+    --on-knob: #1D1A1B;
+
+    --p1: #FF7A93; --p2: #FDBA74; --p3: #5EEAD4; --p4: #A5B4FC; --p5: #D8B4FE; --p6: #FCD34D;
+
+    color-scheme: dark;
+  }
+
 
 /* ---------- base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -93,11 +125,18 @@ body {
 }
 @media (prefers-color-scheme: dark) {
   /* brilho quente discreto, como no print da paleta */
-  body::before {
+  :root:not([data-theme="light"]) body::before {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background: radial-gradient(60% 35% at 50% 0%, rgba(202, 40, 81, 0.16), transparent 70%);
   }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+/* brilho quente discreto, como no print da paleta */
+  :root[data-theme="dark"] body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(60% 35% at 50% 0%, rgba(202, 40, 81, 0.16), transparent 70%);
+  }
+
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 h1, h2, p { margin: 0; }
@@ -479,7 +518,7 @@ h1, h2, p { margin: 0; }
 .pay-note.ok { color: var(--ok); }
 .warn-text { color: var(--warn-ink); }
 .share.is-paid { box-shadow: inset 0 0 0 1.5px var(--ok), var(--shadow); }
-.printer-sub { margin-top: 2px; color: rgba(255, 255, 255, 0.62); font-size: .82rem; }
+.printer-sub { margin-top: 2px; color: var(--muted); font-size: .82rem; }
 
 /* "por que gastou mais": itens de cada pessoa */
 .share-detail { margin-top: -4px; }
@@ -640,20 +679,30 @@ h1, h2, p { margin: 0; }
   margin-top: -24px;
   padding: 36px 20px 22px;
   border-radius: 26px;
-  background: #141414; color: #FFFFFF;
+  /* Claro: cinza claro com sombra (a "impressora" da notinha). No escuro, preta. */
+  background: #EDEAE7; color: var(--ink);
   display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center;
-  box-shadow: 0 18px 32px -18px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 20px 34px -16px rgba(60, 40, 30, 0.35);
 }
 .printer-slot {
   position: absolute; top: 12px; left: 16px; right: 16px; height: 9px;
-  border-radius: 999px; background: #000000;
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-radius: 999px; background: #CFCAC5;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.25), 0 1px 0 rgba(255, 255, 255, 0.7);
 }
-.printer-label { color: rgba(255, 255, 255, 0.72); font-size: .9rem; font-weight: 500; }
+.printer-label { color: var(--muted); font-size: .9rem; font-weight: 500; }
 .printer-amount { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
 @media (prefers-color-scheme: dark) {
-  .printer { background: #0B0B0B; box-shadow: 0 0 0 1px #2C2A2A, 0 18px 32px -18px rgba(0, 0, 0, 0.8); }
+  :root:not([data-theme="light"]) .printer { background: #0B0B0B; color: #FFFFFF; box-shadow: 0 0 0 1px #2C2A2A, 0 18px 32px -18px rgba(0, 0, 0, 0.8); }
+  :root:not([data-theme="light"]) .printer-slot { background: #000000; box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.1); }
+  :root:not([data-theme="light"]) .printer-label { color: rgba(255, 255, 255, 0.72); }
+  :root:not([data-theme="light"]) .printer-sub { color: rgba(255, 255, 255, 0.62); }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+:root[data-theme="dark"] .printer { background: #0B0B0B; color: #FFFFFF; box-shadow: 0 0 0 1px #2C2A2A, 0 18px 32px -18px rgba(0, 0, 0, 0.8); }
+  :root[data-theme="dark"] .printer-slot { background: #000000; box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.1); }
+  :root[data-theme="dark"] .printer-label { color: rgba(255, 255, 255, 0.72); }
+  :root[data-theme="dark"] .printer-sub { color: rgba(255, 255, 255, 0.62); }
+
 
 /* ---------- botões da base (celular) ---------- */
 .cta, .share-actions {
@@ -1016,10 +1065,15 @@ input, textarea, select { font-size: max(16px, 1em); }
 .perk-icon.p2 { background: color-mix(in srgb, #FF6766 16%, transparent); color: #E5484D; }
 .perk-icon.p3 { background: color-mix(in srgb, #14B8A6 15%, transparent); color: #0F9488; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .perk-icon.p1 { color: #FF7A9A; }
-  :root:not([data-theme="light"]) .perk-icon.p2 { color: #FF8A80; }
-  :root:not([data-theme="light"]) .perk-icon.p3 { color: #4FD1C5; }
+  :root:not([data-theme="light"]):not([data-theme="light"]) .perk-icon.p1 { color: #FF7A9A; }
+  :root:not([data-theme="light"]):not([data-theme="light"]) .perk-icon.p2 { color: #FF8A80; }
+  :root:not([data-theme="light"]):not([data-theme="light"]) .perk-icon.p3 { color: #4FD1C5; }
 }
+/* Escolhido no botão de tema: escuro mesmo com o aparelho no claro. */
+:root[data-theme="dark"]:not([data-theme="light"]) .perk-icon.p1 { color: #FF7A9A; }
+  :root[data-theme="dark"]:not([data-theme="light"]) .perk-icon.p2 { color: #FF8A80; }
+  :root[data-theme="dark"]:not([data-theme="light"]) .perk-icon.p3 { color: #4FD1C5; }
+
 
 /* rodapé em duas linhas pensadas: o link nunca se parte no meio */
 .login-legal { margin-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
@@ -1299,3 +1353,6 @@ input, textarea, select { font-size: max(16px, 1em); }
 .note-row:first-child { padding-top: 8px; }
 .note-row svg { flex: none; color: var(--muted); }
 .group-summary .spent-row { border-top: 0; }
+
+/* Botão de tema (claro/escuro) no topo: redondo, só o ícone. */
+.top-btn.theme-btn { width: 46px; padding: 0; justify-content: center; }

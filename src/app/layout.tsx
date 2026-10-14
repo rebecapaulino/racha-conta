@@ -10,7 +10,7 @@ import "@fontsource/plus-jakarta-sans/latin-800.css";
 import "./globals.css";
 import "./visual-fluent.css";
 import "./viagem.css";
-import { THEME_COLOR, VISUAL, VISUAL_OVERRIDE_SCRIPT } from "@/ui/visual";
+import { THEME_COLOR, THEME_SCRIPT, VISUAL, VISUAL_OVERRIDE_SCRIPT } from "@/ui/visual";
 
 export const metadata: Metadata = {
   title: "Racha Conta",
@@ -47,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     // suppressHydrationWarning: o script abaixo pode trocar data-visual antes do React assumir.
     <html lang="pt-BR" data-visual={VISUAL} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: VISUAL_OVERRIDE_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: VISUAL_OVERRIDE_SCRIPT + THEME_SCRIPT }} />
       </head>
       <body>{children}</body>
     </html>
