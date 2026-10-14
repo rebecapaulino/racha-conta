@@ -630,3 +630,22 @@ h3.field-label { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .pay-slide, .pay-slide.from-left { animation: none; } }
 
 .chip-note { color: var(--muted); font-weight: 500; }
+
+/* ---------- viagem compartilhada ---------- */
+.hero-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+:root .hero-actions .hero-photo-btn { margin: 0; }
+:root[data-visual="fluent"] .hero-actions { margin: -10px -12px -10px 0; }
+/* Bolinhas de quem está no grupo (iniciais), sobrepostas como no Excel. */
+.member-dots { display: inline-flex; align-items: center; }
+.member-dot {
+  width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+  border-radius: 50%; font-size: .74rem; font-weight: 800; letter-spacing: -0.02em;
+  background: color-mix(in srgb, var(--pc, var(--muted)) 22%, var(--surface)); color: var(--ink);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.member-dots .member-dot + .member-dot { margin-left: -8px; }
+.member-more { --pc: var(--muted); }
+.member-dot-lg { width: 44px; height: 44px; font-size: .95rem; box-shadow: none; }
+.member-dots-btn { min-height: 44px; padding: 0 4px; border: 0; background: none; cursor: pointer; display: inline-flex; align-items: center; }
+.share-sheet .share-link { font-size: .9rem; }
+.member-list .row { gap: 12px; }

@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../core/trip';
-import { loadTrips, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
+import { loginEnabled, useAccount } from '../../auth/account';
+import { isValidTrip, loadTrips, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
+import { createTripGroup, fetchTripGroup, joinGroup, previewInvite, type InvitePreview } from '../../sync/groups';
 import { AccountButton } from '../AccountButton';
 import { ThemeButton } from '../ThemeButton';
 import { IconBook, IconPlus, IconScale, IconSuitcase, IconUsers, Logo } from '../icons';
@@ -13,12 +15,15 @@ import { useMediaQuery } from '../useMediaQuery';
 import { activeVisual } from '../visual';
 import { ExpenseSheet, type ExpenseMode } from './ExpenseSheet';
 import { PersonSheet } from './PersonSheet';
+import { Sheet } from './Sheet';
+import { ShareSheet } from './ShareSheet';
 import { SettleSheet, type SettleTarget } from './SettleSheet';
 import { TripBalances } from './TripBalances';
 import { TripCover, TripList } from './TripCover';
 import { TripExpenses } from './TripExpenses';
 import { TripPeople } from './TripPeople';
 import { TripSheet, type TripMode } from './TripSheet';
+import { useTripSync } from './useTripSync';
 
 type Tab = 'pessoas' | 'despesas' | 'saldos';
 
@@ -32,6 +37,55 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const meId = trip ? state.me[trip.id] ?? null : null;
   const summary = useMemo(() => (trip ? tripSummary(trip) : null), [trip]);
   const fluent = activeVisual() === 'fluent';
+  const { account } = useAccount();
+  const { members } = useTripSync(state, dispatch, account);
+  const entry = trip ? state.sync?.[trip.id] : undefined;
+  const [sharing, setSharing] = useState(false);
+
+  async function share() {
+    if (!trip || !account || entry) return;
+    const g = await createTripGroup(trip, account.name, account.photo);
+    dispatch({ type: 'syncLink', tripId: trip.id, groupId: g.groupId, code: g.code, version: g.version });
+  }
+
+  // Convite (?convite=código): mostra de quem é e entra no grupo.
+  type Invite = { code: string; preview: InvitePreview | null; status: 'loading' | 'ready' | 'invalid' | 'joining' | 'error' };
+  const [invite, setInvite] = useState<Invite | null>(() => {
+    const code = new URLSearchParams(window.location.search).get('convite');
+    return code ? { code, preview: null, status: 'loading' } : null;
+  });
+  const inviteCode = invite?.status === 'loading' ? invite.code : null;
+  const signedIn = !!account;
+  useEffect(() => {
+    if (!inviteCode || !signedIn) return;
+    previewInvite(inviteCode).then(
+      (preview) => setInvite({ code: inviteCode, preview, status: preview ? 'ready' : 'invalid' }),
+      () => setInvite({ code: inviteCode, preview: null, status: 'error' }),
+    );
+  }, [inviteCode, signedIn]);
+  function closeInvite() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('convite');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    setInvite(null);
+  }
+  async function join() {
+    if (!invite || !account) return;
+    setInvite({ ...invite, status: 'joining' });
+    try {
+      const groupId = await joinGroup(invite.code, account.name, account.photo);
+      const remote = await fetchTripGroup(groupId);
+      if (!remote || !isValidTrip(remote.trip)) throw new Error('viagem inválida');
+      // "Sou eu": a pessoa da viagem com o mesmo primeiro nome da conta.
+      const first = (n: string) => n.trim().split(/\s+/)[0].toLocaleLowerCase('pt-BR');
+      const meId = remote.trip.people.find((p) => first(p.name) === first(account.name))?.id;
+      dispatch({ type: 'syncJoin', groupId, code: remote.code, version: remote.version, trip: remote.trip, meId });
+      closeInvite();
+      toast(`Você entrou na viagem ${remote.trip.name}`);
+    } catch {
+      setInvite({ ...invite, status: 'error' });
+    }
+  }
 
   // No computador os saldos ficam sempre à direita; as abas viram só Pessoas e Despesas.
   const wide = useMediaQuery('(min-width: 1000px)');
@@ -95,6 +149,32 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     </div>
   );
   const tripSheet = <TripSheet mode={tripMode} dispatch={dispatch} toast={toast} onClose={() => setTripMode(null)} />;
+  const inviteSheet = (
+    <Sheet open={!!invite && invite.status !== 'loading'} onClose={closeInvite} labelledBy="h-invite">
+      <div className="sheet-body">
+        <span className="sheet-grip" aria-hidden="true" />
+        <h2 id="h-invite" tabIndex={-1}>Convite para viagem</h2>
+        {invite?.status === 'invalid' ? (
+          <p>Esse convite não vale mais. Peça um link novo para quem te chamou.</p>
+        ) : invite?.status === 'error' ? (
+          <p className="field-error" role="alert">Não deu para abrir o convite. Confira a internet e tente de novo.</p>
+        ) : invite?.preview ? (
+          <p>
+            <b>{invite.preview.ownerName || 'Alguém'}</b> te chamou para a viagem <b>{invite.preview.title || 'sem nome'}</b>
+            {' '}({invite.preview.members} {invite.preview.members === 1 ? 'pessoa' : 'pessoas'} no grupo). Entrando, você vê e edita a viagem junto.
+          </p>
+        ) : null}
+        <div className="sheet-actions">
+          <button type="button" className="btn secondary" onClick={closeInvite}>Agora não</button>
+          {(invite?.status === 'ready' || invite?.status === 'joining' || invite?.status === 'error') && invite.preview && (
+            <button type="button" className="btn primary" onClick={join} disabled={invite.status === 'joining'}>
+              {invite.status === 'joining' ? 'Entrando…' : 'Entrar no grupo'}
+            </button>
+          )}
+        </div>
+      </div>
+    </Sheet>
+  );
 
   if (!trip || !summary) {
     return (
@@ -115,6 +195,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
           </div>
         </div>
         {tripSheet}
+        {inviteSheet}
         {toastEl}
       </>
     );
@@ -148,7 +229,14 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
           </header>
 
           {areaSwitch}
-          <TripCover trip={trip} fluent={fluent} onEdit={() => setTripMode({ kind: 'edit', trip })} />
+          <TripCover
+            trip={trip}
+            fluent={fluent}
+            onEdit={() => setTripMode({ kind: 'edit', trip })}
+            onShare={loginEnabled ? () => setSharing(true) : undefined}
+            members={members}
+            accountId={account?.id ?? null}
+          />
           <PwaBars />
 
           <div className="tabs" role="tablist" aria-label="Partes da viagem" ref={tabsRef}>
@@ -216,7 +304,9 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />
+      <ShareSheet open={sharing} trip={trip} entry={entry} members={members} account={account} onCreate={share} toast={toast} onClose={() => setSharing(false)} />
       {tripSheet}
+      {inviteSheet}
       {toastEl}
     </>
   );

@@ -1,7 +1,9 @@
 import { formatBRL } from '../../core/money';
 import { activeExpenses, tripSummary, type Trip } from '../../core/trip';
 import { AvatarStack } from '../Avatar';
-import { IconPencil } from '../icons';
+import { IconPencil, IconShare } from '../icons';
+import type { Member } from '../../sync/groups';
+import { MemberDots } from './ShareSheet';
 import { Art } from '../illustrations';
 import { tripDates } from './tripDates';
 
@@ -9,10 +11,15 @@ interface CoverProps {
   trip: Trip;
   fluent: boolean;
   onEdit: () => void;
+  /** Abre o compartilhar (sem isso, o botão não aparece: sem login configurado). */
+  onShare?: () => void;
+  /** Quem está no grupo (viagem compartilhada). */
+  members?: Member[];
+  accountId?: string | null;
 }
 
 /** Capa da caderneta aberta: nome, datas e o gasto total da viagem. */
-export function TripCover({ trip, fluent, onEdit }: CoverProps) {
+export function TripCover({ trip, fluent, onEdit, onShare, members = [], accountId = null }: CoverProps) {
   const s = tripSummary(trip);
   const count = activeExpenses(trip).length;
   const dates = tripDates(trip.start, trip.end);
@@ -24,9 +31,21 @@ export function TripCover({ trip, fluent, onEdit }: CoverProps) {
           <span className="hero-title">{trip.name}</span>
           {dates && <span className="hero-date">{dates}</span>}
         </span>
-        <button type="button" className="hero-photo-btn" onClick={onEdit} aria-label="Editar viagem" title="Editar viagem">
-          <IconPencil size={18} />
-        </button>
+        <span className="hero-actions">
+          {members.length > 0 && onShare && (
+            <button type="button" className="member-dots-btn" onClick={onShare} aria-label="Ver quem está no grupo">
+              <MemberDots members={members} accountId={accountId} />
+            </button>
+          )}
+          {onShare && (
+            <button type="button" className="hero-photo-btn" onClick={onShare} aria-label="Compartilhar viagem" title="Compartilhar viagem">
+              <IconShare size={18} />
+            </button>
+          )}
+          <button type="button" className="hero-photo-btn" onClick={onEdit} aria-label="Editar viagem" title="Editar viagem">
+            <IconPencil size={18} />
+          </button>
+        </span>
       </div>
       {fluent && <Art kind="suitcase" size={64} className="hero-art" />}
       <span className="hero-label">Gasto total da viagem</span>

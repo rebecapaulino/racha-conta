@@ -190,3 +190,73 @@ describe('registro de alterações da viagem', () => {
     expect(openTrip(s)!.log!.at(-1)).toMatchObject({ by: 'Rebeca', text: 'Adicionou Mauricio' });
   });
 });
+
+describe('viagem compartilhada (fila e versões)', () => {
+  const input = (cents: number, over: Partial<ExpenseInput> = {}): ExpenseInput => ({
+    description: 'Almoço', cents, date: '2026-10-14', category: 'alimentacao', payerId: 'r', split: 'equal', people: ['r', 'm'], ...over,
+  });
+  function shared() {
+    let s = run(blankTrips(), { type: 'createTrip', id: 'v', name: 'Praia', meName: 'Rebeca', meId: 'r' }, { type: 'addTraveler', id: 'm', name: 'Mauricio' });
+    s = run(s, { type: 'setAuthor', name: 'Rebeca' }, { type: 'syncLink', tripId: 'v', groupId: 'g1', code: 'c1', version: 1 });
+    return s;
+  }
+
+  it('mudança na viagem compartilhada entra na fila, com o nome de quem fez no registro', () => {
+    const s = run(shared(), { type: 'addExpense', id: 'e1', input: input(10000) }, { type: 'openTrip', id: null });
+    expect(s.sync!.v.pending.map((a) => a.type)).toEqual(['addExpense']);
+    expect(s.trips[0].log!.at(-1)).toMatchObject({ by: 'Rebeca', text: 'Lançou Almoço · R$ 100,00, pago por Rebeca' });
+  });
+
+  it('viagem só neste aparelho não usa fila nem autor', () => {
+    let s = run(blankTrips(), { type: 'setAuthor', name: 'Rebeca' }, { type: 'createTrip', id: 'v', name: 'Praia', meName: 'Rebeca', meId: 'r' });
+    s = run(s, { type: 'addTraveler', id: 'm', name: 'Mauricio' });
+    expect(s.sync).toBeUndefined();
+    expect(trip(s).log!.at(-1)!.by).toBeNull();
+  });
+
+  it('salvou: a fila esvazia e a versão sobe', () => {
+    let s = run(shared(), { type: 'addExpense', id: 'e1', input: input(10000) });
+    const sent = trip(s);
+    s = run(s, { type: 'syncSaved', tripId: 'v', version: 2, count: 1, sent });
+    expect(s.sync!.v).toMatchObject({ version: 2, pending: [] });
+    expect(s.sync!.v.base).toBe(sent);
+  });
+
+  it('outra pessoa salvou antes: a versão dela chega e a minha mudança é refeita por cima', () => {
+    let s = run(shared(), { type: 'addExpense', id: 'e1', input: input(10000) });
+    // Mauricio lançou um mercado (versão 2) enquanto o almoço da Rebeca esperava na fila.
+    const theirs = run(
+      { trips: [shared().sync!.v.base], openId: 'v', me: {} },
+      { type: 'addExpense', id: 'e2', input: input(6000, { description: 'Mercado', payerId: 'm' }) },
+    ).trips[0];
+    s = run(s, { type: 'syncRemote', tripId: 'v', trip: theirs, version: 2 });
+    expect(trip(s).expenses.map((e) => e.description)).toEqual(['Mercado', 'Almoço']);
+    expect(s.sync!.v).toMatchObject({ version: 2, pending: [{ type: 'addExpense', id: 'e1' }] });
+    // Versão velha (ou repetida) não volta atrás.
+    expect(run(s, { type: 'syncRemote', tripId: 'v', trip: shared().sync!.v.base, version: 2 })).toEqual(s);
+    // E a conta fecha com as duas despesas: Rebeca pagou 100, Mauricio 60, cada um consumiu 80.
+    const bal = Object.fromEntries(tripSummary(trip(s)).people.map((r) => [r.person.id, r.balance]));
+    expect(bal).toEqual({ r: 2000, m: -2000 });
+  });
+
+  it('entrar pelo convite: a viagem chega, abre e fica ligada ao grupo', () => {
+    const t = shared().sync!.v.base;
+    const s = run(blankTrips(), { type: 'syncJoin', groupId: 'g1', code: 'c1', version: 5, trip: t, meId: 'm' });
+    expect(s.openId).toBe('v');
+    expect(s.me).toEqual({ v: 'm' });
+    expect(s.sync!.v).toMatchObject({ groupId: 'g1', version: 5, pending: [] });
+  });
+
+  it('guarda a fila no aparelho (sem internet, ela espera)', () => {
+    const s = run(shared(), { type: 'addExpense', id: 'e1', input: input(10000) });
+    saveTrips(s);
+    expect(loadTrips().sync!.v.pending).toEqual(s.sync!.v.pending);
+    expect(loadTrips().author).toBe('Rebeca');
+  });
+
+  it('perdeu o acesso: a viagem fica só neste aparelho', () => {
+    const s = run(shared(), { type: 'syncUnlink', tripId: 'v' });
+    expect(s.sync).toEqual({});
+    expect(trip(s).name).toBe('Praia');
+  });
+});

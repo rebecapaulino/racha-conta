@@ -1,0 +1,95 @@
+// Grupos no Supabase: criar, entrar pelo convite, buscar, salvar e ouvir mudanças.
+// Quem protege os dados são as regras do banco (só quem é do grupo lê; gravar só pelas
+// funções, que conferem o grupo e a versão). Ver supabase/migrations/20261014_grupos.sql.
+
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { supabase } from '../auth/supabase';
+import type { Trip } from '../core/trip';
+
+export interface Member {
+  userId: string;
+  name: string;
+  photo: string | null;
+  role: 'owner' | 'editor';
+}
+
+export interface InvitePreview {
+  groupId: string;
+  kind: 'trip' | 'role';
+  title: string;
+  ownerName: string;
+  members: number;
+}
+
+export interface RemoteTrip {
+  trip: Trip;
+  version: number;
+  code: string;
+}
+
+function db() {
+  const sb = supabase();
+  if (!sb) throw new Error('Sem conexão com o servidor.');
+  return sb;
+}
+
+/** Endereço do convite: abre o app e mostra "Entrar no grupo". */
+export const inviteUrl = (code: string) => `${window.location.origin}/?convite=${encodeURIComponent(code)}`;
+
+export async function createTripGroup(trip: Trip, name: string, photo: string | null): Promise<{ groupId: string; code: string; version: number }> {
+  const { data, error } = await db().rpc('create_group', { p_kind: 'trip', p_data: { trip }, p_name: name, p_photo: photo });
+  if (error) throw error;
+  return { groupId: data.id, code: data.invite_code, version: data.version };
+}
+
+export async function previewInvite(code: string): Promise<InvitePreview | null> {
+  const { data, error } = await db().rpc('invite_preview', { p_code: code });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+  return { groupId: row.group_id, kind: row.kind, title: row.title, ownerName: row.owner_name ?? '', members: row.members ?? 0 };
+}
+
+export async function joinGroup(code: string, name: string, photo: string | null): Promise<string> {
+  const { data, error } = await db().rpc('join_group', { p_code: code, p_name: name, p_photo: photo });
+  if (error) throw error;
+  return data as string;
+}
+
+/** A viagem como está no grupo. null: não existe mais ou a pessoa não é do grupo. */
+export async function fetchTripGroup(groupId: string): Promise<RemoteTrip | null> {
+  const { data, error } = await db().from('groups').select('data, version, invite_code').eq('id', groupId).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { trip: (data.data as { trip: Trip }).trip, version: data.version, code: data.invite_code };
+}
+
+/** Salva. Devolve a versão nova, ou -1 se outra pessoa salvou antes (aí busca e refaz). */
+export async function saveTripGroup(groupId: string, trip: Trip, base: number): Promise<number> {
+  const { data, error } = await db().rpc('save_group', { p_id: groupId, p_data: { trip }, p_base: base });
+  if (error) throw error;
+  return data as number;
+}
+
+export async function fetchMembers(groupId: string): Promise<Member[]> {
+  const { data, error } = await db().from('group_members').select('user_id, name, photo, role, joined_at').eq('group_id', groupId).order('joined_at');
+  if (error) throw error;
+  return (data ?? []).map((m) => ({ userId: m.user_id, name: m.name, photo: m.photo, role: m.role }));
+}
+
+/** Ouve o grupo: nova versão da viagem e gente entrando ou saindo. Devolve como parar. */
+export function watchGroup(groupId: string, onTrip: (r: { trip: Trip; version: number }) => void, onMembers: () => void): () => void {
+  const sb = supabase();
+  if (!sb) return () => {};
+  const channel: RealtimeChannel = sb
+    .channel(`grupo-${groupId}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'groups', filter: `id=eq.${groupId}` }, (p) => {
+      const row = p.new as { data?: { trip?: Trip }; version?: number };
+      if (row.data?.trip && typeof row.version === 'number') onTrip({ trip: row.data.trip, version: row.version });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${groupId}` }, () => onMembers())
+    .subscribe();
+  return () => {
+    void sb.removeChannel(channel);
+  };
+}

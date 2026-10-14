@@ -271,3 +271,13 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Registro na Viagem:** na aba Saldos, as últimas 4 alterações e "Ver tudo" (igual ao Rolê): pessoa adicionada, renomeada ou tirada, quem paga a parte de quem, despesa lançada/editada (com o valor antigo → novo)/excluída, "todos pagos", pagamentos marcados e desmarcados, nome e datas da viagem. Guardado na própria viagem (`trip.log`, até 300 linhas), com o campo "quem fez" pronto para o compartilhado.
 - **Compartilhar (em andamento):** SQL das tabelas em `supabase/migrations/20261014_grupos.sql` (grupo com o conteúdo inteiro, membros, convite por código, salvar com conferência de versão, tempo real). Gravação só por funções que conferem quem é do grupo; leitura só para membros (RLS). Passo a passo em `docs/PASSO-A-PASSO-COMPARTILHAR.md`.
 - **Decidido agora:** todo mundo do grupo vê e edita tudo (substitui "editor mexe só no que lançou"); o registro mostra quem fez cada mudança.
+
+## Viagem compartilhada (grupo) — 14/10/2026
+
+- **Compartilhar:** botão na capa da viagem → "Criar link de convite" → link (`/?convite=código`) para copiar ou mandar no WhatsApp. A janela mostra quem está no grupo.
+- **Entrar:** quem abre o link entra com o Google (como todo mundo no app) e vê "Fulano te chamou para a viagem X · N pessoas" → "Entrar no grupo". A viagem chega e abre; se uma pessoa da viagem tem o mesmo primeiro nome da conta, ela já fica como "sou eu".
+- **Todo mundo do grupo vê e edita tudo.** O registro mostra quem fez cada mudança (nome da conta).
+- **Bolinhas do grupo** na capa (como no Excel): iniciais de quem está no grupo; duas letras quando duas pessoas começam igual ("Ma", "Mo"); nome e sobrenome quando o nome é igual.
+- **Sincronização:** cada mudança feita no aparelho entra numa fila e vai para o grupo (sem internet, espera). O banco só aceita se a versão for a mesma; se outra pessoa salvou antes, o app busca a versão dela e refaz as mudanças da fila por cima (ninguém perde despesa). Em tempo real, as mudanças dos outros aparecem sozinhas.
+- Código: `src/sync/groups.ts` (Supabase), `src/state/tripState.ts` (fila, versões, `replay`), `src/ui/viagem/useTripSync.ts`, `ShareSheet.tsx`, `src/core/initials.ts`. Testado com testes automáticos e no navegador com um Supabase simulado (duas contas, conflito de versão).
+- **Ainda não:** Rolê compartilhado (próximo passo), sair do grupo/tirar alguém, trocar o link, expiração de 90 dias.

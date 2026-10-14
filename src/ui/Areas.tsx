@@ -8,7 +8,8 @@ import TripApp from './viagem/TripApp';
 
 /** O app tem duas áreas com dados separados: Rolê (o que já existia) e Viagem. */
 export default function Areas() {
-  const [area, setArea] = useState<Area>(loadArea);
+  // Link de convite (?convite=…) abre na Viagem, onde fica o "Entrar no grupo".
+  const [area, setArea] = useState<Area>(() => (new URLSearchParams(window.location.search).has('convite') ? 'viagem' : loadArea()));
 
   function change(next: Area) {
     if (next === area) return;

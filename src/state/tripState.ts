@@ -36,6 +36,23 @@ export interface TripsState {
   openId: string | null;
   /** Quem é a pessoa deste aparelho em cada viagem (id da viagem → id do participante). */
   me: Record<string, string>;
+  /** Viagens compartilhadas (id da viagem → grupo no Supabase e o que falta enviar). */
+  sync?: Record<string, SyncEntry>;
+  /** Nome da conta deste aparelho: vai como "quem fez" no registro das viagens compartilhadas. */
+  author?: string | null;
+}
+
+/**
+ * Viagem compartilhada: `base` é a última versão salva no grupo; `pending`, as mudanças feitas
+ * aqui que ainda não foram enviadas (a viagem na tela = `pending` aplicadas sobre `base`).
+ * Sem internet, elas esperam na fila e vão quando a conexão voltar.
+ */
+export interface SyncEntry {
+  groupId: string;
+  code: string;
+  version: number;
+  base: Trip;
+  pending: TripAction[];
 }
 
 export type TripAction =
@@ -55,7 +72,22 @@ export type TripAction =
   /** "Todos pagos": a despesa sai (ou volta) do painel de acerto. */
   | { type: 'settleExpense'; id: string; settled: boolean }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
-  | { type: 'unsettle'; id: string };
+  | { type: 'unsettle'; id: string }
+  // ---- compartilhamento (só o app manda; não entram no registro) ----
+  /** A viagem aberta virou um grupo (acabou de ser compartilhada). */
+  | { type: 'syncLink'; tripId: string; groupId: string; code: string; version: number }
+  /** Chegou do grupo uma versão mais nova (de outra pessoa ou buscada de novo). */
+  | { type: 'syncRemote'; tripId: string; trip: Trip; version: number }
+  /** As primeiras `count` mudanças da fila foram salvas no grupo como `sent`. */
+  | { type: 'syncSaved'; tripId: string; version: number; count: number; sent: Trip }
+  /** Entrou num grupo pelo convite: a viagem chega e abre. */
+  | { type: 'syncJoin'; groupId: string; code: string; version: number; trip: Trip; meId?: string }
+  /** Perdeu o acesso ao grupo (ou saiu): a viagem fica só neste aparelho. */
+  | { type: 'syncUnlink'; tripId: string }
+  | { type: 'setAuthor'; name: string | null };
+
+/** Ações que só mexem neste aparelho (não vão para o grupo). */
+const LOCAL_ONLY = new Set<TripAction['type']>(['createTrip', 'openTrip', 'deleteTrip', 'setMe', 'syncLink', 'syncRemote', 'syncSaved', 'syncJoin', 'syncUnlink', 'setAuthor']);
 
 export const blankTrips = (): TripsState => ({ trips: [], openId: null, me: {} });
 
@@ -143,9 +175,66 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
   }
 }
 
-/** Aplica a ação e, se a viagem aberta mudou, anota no registro dela (sem autor: modo solo). */
+/**
+ * Aplica a ação e, se a viagem aberta mudou, anota no registro dela. Na viagem compartilhada,
+ * a mudança também entra na fila para ir ao grupo, e o registro leva o nome de quem fez.
+ */
 export function tripsReducer(s: TripsState, a: TripAction): TripsState {
-  return reduceAs(s, a, null);
+  const sync = syncReducer(s, a);
+  if (sync) return sync;
+  const open = openTrip(s);
+  const entry = open ? s.sync?.[open.id] : undefined;
+  const after = reduceAs(s, a, entry ? s.author ?? null : null);
+  if (!entry || after === s || LOCAL_ONLY.has(a.type) || openTrip(after) === open) return after;
+  return { ...after, sync: { ...s.sync, [open!.id]: { ...entry, pending: [...entry.pending, a] } } };
+}
+
+/** Aplica a fila sobre a viagem (o mesmo que aconteceu na tela, de novo, sobre a versão do grupo). */
+export function replay(trip: Trip, actions: TripAction[], by: string | null): Trip {
+  let s: TripsState = { trips: [trip], openId: trip.id, me: {} };
+  for (const a of actions) s = reduceAs(s, a, by);
+  return s.trips[0];
+}
+
+function syncReducer(s: TripsState, a: TripAction): TripsState | null {
+  const put = (trip: Trip, entry: SyncEntry | null) => {
+    const sync = { ...s.sync };
+    if (entry) sync[trip.id] = entry;
+    else delete sync[trip.id];
+    const has = s.trips.some((t) => t.id === trip.id);
+    return { ...s, trips: has ? s.trips.map((t) => (t.id === trip.id ? trip : t)) : [trip, ...s.trips], sync };
+  };
+  switch (a.type) {
+    case 'setAuthor':
+      return { ...s, author: a.name };
+    case 'syncLink': {
+      const trip = s.trips.find((t) => t.id === a.tripId);
+      return trip ? put(trip, { groupId: a.groupId, code: a.code, version: a.version, base: trip, pending: [] }) : s;
+    }
+    case 'syncRemote': {
+      const entry = s.sync?.[a.tripId];
+      if (!entry || a.version <= entry.version || a.trip.id !== a.tripId) return s;
+      const local = replay(a.trip, entry.pending, s.author ?? null);
+      return put(local, { ...entry, version: a.version, base: a.trip });
+    }
+    case 'syncSaved': {
+      const entry = s.sync?.[a.tripId];
+      if (!entry) return s;
+      return { ...s, sync: { ...s.sync, [a.tripId]: { ...entry, version: a.version, base: a.sent, pending: entry.pending.slice(a.count) } } };
+    }
+    case 'syncJoin': {
+      const old = s.sync?.[a.trip.id];
+      const next = put(a.trip, { groupId: a.groupId, code: a.code, version: a.version, base: a.trip, pending: old?.pending ?? [] });
+      const me = a.meId && a.trip.people.some((p) => p.id === a.meId) ? { ...s.me, [a.trip.id]: a.meId } : s.me;
+      return { ...next, openId: a.trip.id, me };
+    }
+    case 'syncUnlink': {
+      const trip = s.trips.find((t) => t.id === a.tripId);
+      return trip ? put(trip, null) : s;
+    }
+    default:
+      return null;
+  }
 }
 
 /** O mesmo, com o nome de quem fez (viagem compartilhada). */
@@ -265,6 +354,8 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       });
     case 'unsettle':
       return onOpen(s, (t) => ({ ...t, settlements: t.settlements.filter((x) => x.id !== a.id) }));
+    default:
+      return s;
   }
 }
 
@@ -338,7 +429,22 @@ export function loadTrips(): TripsState {
         if (isStr(id) && t.people.some((p) => p.id === id)) me[t.id] = id;
       }
     }
-    return { trips, openId, me };
+    const sync: Record<string, SyncEntry> = {};
+    if (isObj(parsed.sync)) {
+      for (const t of trips) {
+        const e = parsed.sync[t.id];
+        if (isObj(e) && isStr(e.groupId) && isStr(e.code) && isInt(e.version) && isValidTrip(e.base) && Array.isArray(e.pending)) {
+          sync[t.id] = { groupId: e.groupId, code: e.code, version: e.version, base: e.base, pending: e.pending.filter((x): x is TripAction => isObj(x) && isStr(x.type)) };
+        }
+      }
+    }
+    return {
+      trips,
+      openId,
+      me,
+      ...(Object.keys(sync).length ? { sync } : {}),
+      ...(isStr(parsed.author) ? { author: parsed.author } : {}),
+    };
   } catch {
     return blankTrips();
   }
