@@ -560,6 +560,9 @@ h3.field-label { margin: 0; }
 /* O título só recebe o foco para o leitor de tela anunciar a etapa: não é clicável, sem contorno. */
 .expense-form .wizard-title:focus, .expense-form .wizard-title:focus-visible { outline: none; }
 .wizard-step h4.field-label { margin: 0; }
+/* Categoria: a pergunta tem o tamanho do rótulo "Nome da despesa" e a mesma distância da grade. */
+.wizard-title.wizard-title-sm { font-size: .95rem; }
+.wizard-step.is-tight { gap: 8px; }
 @keyframes wizard-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .wizard-step { animation: none; }

@@ -245,8 +245,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
         </p>
       ) : null}
 
-      <div className="wizard-step" key={step}>
-        <h3 className="wizard-title" ref={titleRef} tabIndex={-1}>
+      <div className={`wizard-step${step === 1 ? ' is-tight' : ''}`} key={step}>
+        <h3 className={`wizard-title${step === 1 ? ' wizard-title-sm' : ''}`} ref={titleRef} tabIndex={-1}>
           <small>Etapa {step + 1} de {STEPS.length}</small>
           {STEPS[step].title}
         </h3>
