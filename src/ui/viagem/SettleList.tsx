@@ -27,7 +27,7 @@ interface Props {
   onExplain?: (id: string) => void;
   /** A despesa parcelada da linha (só na Viagem). */
   expenseOf?: (id: string) => { description: string; category: TripCategory } | undefined;
-  /** Mostra também um pagamento por vez, com a seta para o próximo (Viagem). */
+  /** Um card por vez (quem paga e para quem), com a seta para o próximo (Viagem). */
   carousel?: boolean;
 }
 
@@ -129,47 +129,17 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
       return { from: p.id, cents: items.reduce((a, r) => a + r.cents, 0), items };
     })
     .filter((g) => g.items.length > 0);
+  // Carrossel: um card por vez; a seta passa para quem paga em seguida (no último, volta ao primeiro).
+  const at = groups.length ? slide % groups.length : 0;
+  const following = groups.length > 1 ? groups[(at + 1) % groups.length] : null;
   const incoming = rows.filter((r) => r.to === account);
   const outgoing = rows.filter((r) => r.from === account);
   const leftOf = (list: ListRow[]) => list.reduce((a, r) => a + r.remaining, 0);
   const viewed = valid ? person(valid) : null;
   const sponsor = viewed && account !== viewed.id ? person(account) : null;
 
-  // Carrossel: um pagamento por vez, agrupado por quem recebe (todos que devem ao Mauricio,
-  // depois os que devem à próxima pessoa). A seta passa para o próximo; no último, volta ao primeiro.
-  const pos = (id: string) => people.findIndex((p) => p.id === id);
-  const slides = [...rows].sort((a, b) => pos(a.to) - pos(b.to) || pos(a.from) - pos(b.from));
-  const at = slides.length ? slide % slides.length : 0;
-  const current = slides[at];
-  const following = slides.length > 1 ? slides[(at + 1) % slides.length] : null;
-
   return (
     <>
-      {carousel && current && (
-        <section className="pay-carousel" aria-label="Um pagamento por vez">
-          <div className="pay-group pay-slide" aria-live="polite">
-            <div className="pay-head">
-              <Avatar person={person(current.from)} size="md" />
-              <span className="pay-who">
-                <b>{called(current.from)} paga</b>
-                <small>{at + 1} de {slides.length}</small>
-              </span>
-            </div>
-            <ul className="pay-items">{row(current, 'out')}</ul>
-          </div>
-          {following && (
-            <button
-              type="button"
-              className="icon-btn carousel-next"
-              onClick={() => setSlide(at + 1)}
-              aria-label={`Próximo: ${called(following.from)} paga para ${called(following.to, true)}`}
-            >
-              <IconArrowRight size={20} />
-            </button>
-          )}
-        </section>
-      )}
-
       <label className="filter settle-filter" data-on={!!valid || undefined}>
         <span className="field-label">Ver de quem</span>
         <select value={valid} onChange={(e) => setWho(e.target.value)}>
@@ -236,12 +206,12 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
           )}
         </div>
       ) : (
-        <ul className="pay-groups">
-          {groups.map((g) => {
+        <ul className={`pay-groups${carousel ? ' is-carousel' : ''}`}>
+          {(carousel ? groups.slice(at, at + 1) : groups).map((g) => {
             const left = leftOf(g.items);
             const members = membersOf(g.from);
             return (
-              <li key={g.from} className={`pay-group${left === 0 ? ' is-done' : ''}`}>
+              <li key={g.from} className={`pay-group${left === 0 ? ' is-done' : ''}${carousel ? ' pay-slide' : ''}`} aria-live={carousel ? 'polite' : undefined}>
                 <div className="pay-head">
                   <Avatar person={person(g.from)} size="md" />
                   <span className="pay-who">
@@ -256,6 +226,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                           ? 'para 1 pessoa'
                           : `${glued(left)} ${left === g.cents ? 'no total' : 'faltando'}, para ${g.items.length} pessoas`}
                     </small>
+                    {carousel && groups.length > 1 && <small className="slide-count">{at + 1} de {groups.length}</small>}
                   </span>
                 </div>
                 <ul className="pay-items">
@@ -264,6 +235,16 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                 {onExplain && (
                   <button type="button" className="link-btn pay-why" onClick={() => onExplain(g.from)}>
                     Por que {called(g.from, true)} paga isso? Ver a conta
+                  </button>
+                )}
+                {carousel && following && (
+                  <button
+                    type="button"
+                    className="icon-btn carousel-next"
+                    onClick={() => setSlide(at + 1)}
+                    aria-label={`Próximo: ${called(following.from)} paga`}
+                  >
+                    <IconArrowRight size={20} />
                   </button>
                 )}
               </li>

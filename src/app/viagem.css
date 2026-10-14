@@ -600,11 +600,14 @@ h3.field-label { margin: 0; }
   .statement-amount b { font-weight: 700; }
 }
 
-/* ---------- acerto: um pagamento por vez ---------- */
-.pay-carousel { position: relative; }
-.pay-carousel .pay-slide { padding-right: 52px; }
+/* ---------- acerto: um card por vez ---------- */
+.pay-groups.is-carousel { overflow: hidden; }
+.pay-slide { position: relative; padding-right: 60px; animation: slide-in .28s ease-out; }
+.slide-count { color: var(--muted); }
 .carousel-next {
-  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
   background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line);
 }
 .carousel-next:hover { color: var(--primary); }
+@keyframes slide-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pay-slide { animation: none; } }
