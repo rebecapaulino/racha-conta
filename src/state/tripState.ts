@@ -94,12 +94,18 @@ export type TripAction =
   | { type: 'syncSaved'; tripId: string; version: number; count: number; sent: Trip }
   /** Entrou num grupo pelo convite: a viagem chega e abre. */
   | { type: 'syncJoin'; groupId: string; code: string; version: number; trip: Trip; meId?: string }
+  /**
+   * As viagens dos grupos da conta (em qualquer aparelho em que ela entrar): as que faltam
+   * aparecem na lista, as que já estão ficam em dia, e as excluídas pela pessoa (`hidden`,
+   * ids de grupo) saem. Não muda a viagem aberta, a não ser que ela tenha sido excluída.
+   */
+  | { type: 'syncAdopt'; groups: { groupId: string; code: string; version: number; trip: Trip }[]; hidden: string[] }
   /** Perdeu o acesso ao grupo (ou saiu): a viagem fica só neste aparelho. */
   | { type: 'syncUnlink'; tripId: string }
   | { type: 'setAuthor'; name: string | null };
 
 /** Ações que só mexem neste aparelho (não vão para o grupo). */
-const LOCAL_ONLY = new Set<TripAction['type']>(['createTrip', 'openTrip', 'deleteTrip', 'setMe', 'syncLink', 'syncRemote', 'syncSaved', 'syncJoin', 'syncUnlink', 'setAuthor']);
+const LOCAL_ONLY = new Set<TripAction['type']>(['createTrip', 'openTrip', 'deleteTrip', 'setMe', 'syncLink', 'syncRemote', 'syncSaved', 'syncJoin', 'syncAdopt', 'syncUnlink', 'setAuthor']);
 
 export const blankTrips = (): TripsState => ({ trips: [], openId: null, me: {} });
 
@@ -265,9 +271,39 @@ function syncReducer(s: TripsState, a: TripAction): TripsState | null {
       const trip = s.trips.find((t) => t.id === a.tripId);
       return trip ? put(trip, null) : s;
     }
+    case 'syncAdopt':
+      return adopt(s, a.groups, new Set(a.hidden));
     default:
       return null;
   }
+}
+
+/** Ver a ação syncAdopt. */
+function adopt(s: TripsState, groups: { groupId: string; code: string; version: number; trip: Trip }[], hidden: Set<string>): TripsState {
+  let next = s;
+  // Excluídas pela pessoa (em qualquer aparelho): saem daqui também.
+  for (const [tripId, e] of Object.entries(s.sync ?? {})) {
+    if (hidden.has(e.groupId)) next = applyTrip(next, { type: 'deleteTrip', id: tripId });
+  }
+  for (const g of groups) {
+    if (hidden.has(g.groupId) || !isValidTrip(g.trip)) continue;
+    const linked = Object.entries(next.sync ?? {}).find(([, e]) => e.groupId === g.groupId);
+    if (linked) {
+      // Já está aqui: só põe em dia (a fila deste aparelho é refeita por cima).
+      next = syncReducer(next, { type: 'syncRemote', tripId: linked[0], trip: g.trip, version: g.version, code: g.code }) ?? next;
+      continue;
+    }
+    // A mesma viagem já ligada a outro grupo (compartilhada duas vezes): fica a que já está.
+    if (next.sync?.[g.trip.id]) continue;
+    // Falta (ou estava só neste aparelho, solta do grupo): a versão do grupo vale.
+    const has = next.trips.some((t) => t.id === g.trip.id);
+    next = {
+      ...next,
+      trips: has ? next.trips.map((t) => (t.id === g.trip.id ? g.trip : t)) : [...next.trips, g.trip],
+      sync: { ...next.sync, [g.trip.id]: { groupId: g.groupId, code: g.code, version: g.version, base: g.trip, pending: [] } },
+    };
+  }
+  return next;
 }
 
 /** O mesmo, com o nome de quem fez (viagem compartilhada). */

@@ -412,3 +412,12 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Quem criou o grupo** não é perguntado: na Viagem é o seu "sou eu"; no Rolê não é adicionado (já está na mesa).
 - Errou a escolha: "Assumir despesas de outra pessoa" continua resolvendo.
 - Conferido no navegador (Viagem, três contas): a outra Rebeca entra como "Rebeca O." e a anotada continua sem foto e com as despesas dela; a Bia escolhe a "Bia" anotada e fica com ela.
+
+## Grupos na conta, em qualquer aparelho; link do convite e o app instalado (14/10/2026)
+
+- **Problema:** quem entrava num grupo pelo navegador do celular (o link do WhatsApp abre o navegador) não via a viagem no app da tela inicial: cada lugar guardava só o que tinha acontecido nele.
+- **Agora:** ao abrir (e a cada minuto, e ao voltar para o app), o app busca todos os grupos da conta logada. As viagens que faltam aparecem em "Suas viagens" e os rolês em "Rolês", já ligados ao grupo, em qualquer lugar: app instalado, navegador do celular, computador. As viagens que já estão ficam em dia. Viagem que tinha ficado solta do grupo (mesmo id) volta a ficar ligada (a versão do grupo vale). O "você" segue a conta.
+- **Excluir viagem ou rolê compartilhado** vale para a conta: some de todos os aparelhos dela (a lista fica nos dados da conta no Supabase, `hidden_groups`; sem tabela nova). Para o grupo, continua. Sem internet, vale no aparelho na hora e vai para a conta depois. Entrar de novo pelo convite tira da lista.
+- **Link abrindo o app:** no iPhone não é possível (o iOS sempre abre links no Safari). No Android, com o app instalado pelo Chrome, o manifesto pede que links do site abram no app (`handle_links`, `launch_handler`). Quem entra pelo navegador do celular vê "Ela já aparece também no app Racha Conta da sua tela inicial".
+- Avisos longos ficam mais tempo na tela (proporcional ao texto).
+- Testes: `syncAdopt` (state/tripShare), `adoptRoles` (sync/roleEngine), lista de excluídos (state/hiddenGroups) e integração com a mesma conta em dois aparelhos (sync/tripEngine). Conferido no navegador com Supabase simulado: entra pelo navegador, aparece no "atalho"; exclui no atalho, some do navegador.

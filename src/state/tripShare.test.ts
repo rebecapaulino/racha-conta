@@ -180,3 +180,50 @@ describe('dados novos da viagem são aceitos (e os estranhos, não)', () => {
     expect(isValidTrip({ ...t, people: [{ ...t.people[0], auto: 'sim' }] })).toBe(false);
   });
 });
+
+describe('viagens da conta em qualquer aparelho (syncAdopt)', () => {
+  const remote = (id: string, name: string) => openTrip(run(blankTrips(), { type: 'createTrip', id, name, meName: 'Bia', meId: 'bia' }))!;
+
+  it('a viagem de um grupo da conta aparece na lista, ligada ao grupo, sem trocar a aberta', () => {
+    const s = run(sharedA(), { type: 'syncAdopt', groups: [{ groupId: 'gB', code: 'cB', version: 4, trip: remote('B', 'Praia') }], hidden: [] });
+    expect(s.openId).toBe('A');
+    expect(s.trips.map((t) => t.name)).toEqual(['Chácara', 'Praia']);
+    expect(s.sync?.B).toMatchObject({ groupId: 'gB', code: 'cB', version: 4, pending: [] });
+    // De novo: nada muda.
+    const again = run(s, { type: 'syncAdopt', groups: [{ groupId: 'gB', code: 'cB', version: 4, trip: remote('B', 'Praia') }], hidden: [] });
+    expect(again.trips).toEqual(s.trips);
+  });
+
+  it('a que já está aqui fica em dia (versão mais nova), com a fila deste aparelho por cima', () => {
+    let s = run(sharedA(), { type: 'addTraveler', id: 'lia', name: 'Lia' });
+    const newer = { ...openTrip(sharedA())!, name: 'Chácara do Zé' };
+    s = run(s, { type: 'openTrip', id: null }, { type: 'syncAdopt', groups: [{ groupId: 'gA', code: 'cA', version: 5, trip: newer }], hidden: [] });
+    const t = s.trips.find((x) => x.id === 'A')!;
+    expect(t.name).toBe('Chácara do Zé');
+    expect(t.people.some((p) => p.id === 'lia')).toBe(true);
+    expect(s.sync?.A.version).toBe(5);
+  });
+
+  it('viagem solta do grupo (com o mesmo id) volta a ficar ligada; ligada a outro grupo, fica como está', () => {
+    const solta = run(blankTrips(), { type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca' });
+    const s = run(solta, { type: 'syncAdopt', groups: [{ groupId: 'gA', code: 'cA', version: 2, trip: remote('A', 'Chácara (grupo)') }], hidden: [] });
+    expect(s.sync?.A.groupId).toBe('gA');
+    expect(s.trips[0].name).toBe('Chácara (grupo)');
+    const twice = run(s, { type: 'syncAdopt', groups: [{ groupId: 'gA2', code: 'x', version: 9, trip: remote('A', 'Outra') }], hidden: [] });
+    expect(twice.sync?.A.groupId).toBe('gA');
+    expect(twice.trips[0].name).toBe('Chácara (grupo)');
+  });
+
+  it('excluída pela pessoa (em qualquer aparelho): sai daqui e não volta', () => {
+    const s = run(sharedA(), { type: 'syncAdopt', groups: [{ groupId: 'gA', code: 'cA', version: 3, trip: openTrip(sharedA())! }, { groupId: 'gB', code: 'cB', version: 1, trip: remote('B', 'Praia') }], hidden: ['gA', 'gB'] });
+    expect(s.trips).toHaveLength(0);
+    expect(s.openId).toBeNull();
+    expect(s.sync).toBeUndefined();
+  });
+
+  it('viagem estragada vinda do grupo é ignorada', () => {
+    const bad = { ...remote('B', 'Praia'), currency: 'USD' } as never;
+    const s = sharedA();
+    expect(run(s, { type: 'syncAdopt', groups: [{ groupId: 'gB', code: 'cB', version: 1, trip: bad }], hidden: [] }).trips).toEqual(s.trips);
+  });
+});

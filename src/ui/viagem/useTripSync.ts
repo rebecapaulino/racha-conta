@@ -2,13 +2,17 @@ import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../../auth/account';
 import { openTrip, type TripAction, type TripsState } from '../../state/tripState';
 import { getPhoto } from '../../state/photos';
-import { errorText, fetchMembers, fetchTripGroup, joinGroup, saveTripGroup, type Member, type SyncStatus } from '../../sync/groups';
-import { pullTrip, pushTrip, type TripApi } from '../../sync/tripEngine';
+import { errorText, fetchMembers, fetchTripGroup, joinGroup, listMyGroups, saveTripGroup, type Member, type SyncStatus } from '../../sync/groups';
+import { adoptAction, pullTrip, pushTrip, type TripApi } from '../../sync/tripEngine';
+import { hiddenFor, pushHidden } from '../../state/hiddenGroups';
+import { fetchHiddenGroups } from '../../auth/account';
 import { uploadReceipt, wasSent } from '../../sync/receipts';
 
 const RETRY_MS = 8000;
 /** De quanto em quanto tempo confere o grupo (com o app aberto). */
 const POLL_MS = 20000;
+/** De quanto em quanto tempo confere quais viagens são da conta (as de outros aparelhos). */
+const ADOPT_MS = 60000;
 
 /** O servidor de verdade (Supabase), para o motor da viagem. */
 export const supabaseTripApi: TripApi = { save: saveTripGroup, fetch: fetchTripGroup, join: joinGroup };
@@ -37,6 +41,36 @@ export function useTripSync(
   useEffect(() => {
     if (name !== (state.author ?? null)) dispatch({ type: 'setAuthor', name });
   }, [name, state.author, dispatch]);
+
+  // As viagens da conta, em qualquer aparelho: as dos grupos em que ela entrou (pelo navegador,
+  // pelo app, no computador…) aparecem aqui; as que ela excluiu em outro lugar saem.
+  useEffect(() => {
+    if (account) pushHidden(account);
+  }, [account]);
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    const adopt = () => {
+      if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
+      Promise.all([listMyGroups(), fetchHiddenGroups()])
+        .then(([list, hidden]) => {
+          if (alive) dispatch(adoptAction(list, hiddenFor({ hiddenGroups: hidden })));
+        })
+        .catch(fail('Buscar as viagens da conta'));
+    };
+    adopt();
+    const timer = window.setInterval(adopt, ADOPT_MS);
+    document.addEventListener('visibilitychange', adopt);
+    window.addEventListener('focus', adopt);
+    window.addEventListener('online', adopt);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', adopt);
+      window.removeEventListener('focus', adopt);
+      window.removeEventListener('online', adopt);
+    };
+  }, [userId, dispatch]);
 
   // Envia a fila. Uma viagem por vez; se der erro de rede, tenta de novo depois.
   const inflight = useRef(new Set<string>());

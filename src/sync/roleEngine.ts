@@ -5,7 +5,8 @@
 import { personUsed, type Bill, type Person } from '../core/bill';
 import { sameNameIds } from '../core/faces';
 import { isValidRoleDoc, roleDoc, type Action, type AppState, type RoleDoc } from '../state/billState';
-import type { Member } from './groups';
+import type { Member, MyGroup } from './groups';
+import { addEntry, type HistoryEntry } from '../state/history';
 
 export interface RoleApi {
   save(groupId: string, doc: RoleDoc, base: number): Promise<number>;
@@ -76,4 +77,35 @@ export function selfJoinRole(bill: Bill, members: Member[], account: { id: strin
   if ((bill.joined ?? []).includes(account.id)) return { kind: 'none' };
   if (free.length === 0) return { kind: 'auto', action: base };
   return { kind: 'ask', free, suggested: sameNameIds(free, account.name) };
+}
+
+/**
+ * Os rolês dos grupos da conta, para aparecerem em qualquer aparelho em que ela entrar: os que
+ * não são o rolê aberto nem estão em Rolês entram em Rolês (ligados ao grupo); os excluídos pela
+ * pessoa (`hidden`) saem de Rolês. O rolê aberto não é mexido aqui (ele já se mantém em dia).
+ */
+export function adoptRoles(history: HistoryEntry[], current: AppState, groups: MyGroup[], hidden: Set<string>): HistoryEntry[] {
+  const groupOf = (e: { id: string; shared?: { groupId: string } }) => e.shared?.groupId ?? (e.id.startsWith('grupo-') ? e.id.slice(6) : null);
+  let list = history.filter((e) => {
+    const g = groupOf(e);
+    return !g || !hidden.has(g);
+  });
+  let changed = list.length !== history.length;
+  const known = new Set([groupOf(current), ...list.map(groupOf)].filter((g): g is string => !!g));
+  for (const g of groups) {
+    if (g.kind !== 'role' || hidden.has(g.groupId) || known.has(g.groupId) || !isValidRoleDoc(g.content)) continue;
+    const doc = g.content;
+    list = addEntry(list, {
+      id: `grupo-${g.groupId}`,
+      startedAt: doc.startedAt,
+      photoId: doc.photoId ?? null,
+      bill: doc.bill,
+      nextColor: doc.nextColor,
+      log: doc.log,
+      shared: { groupId: g.groupId, code: g.code, version: g.version, base: doc, pending: [] },
+    });
+    known.add(g.groupId);
+    changed = true;
+  }
+  return changed ? list : history;
 }

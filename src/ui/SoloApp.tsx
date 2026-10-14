@@ -6,10 +6,13 @@ import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { loginEnabled, useAccount } from '../auth/account';
 import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, newId, reducer, roleDoc, saveState, worthKeeping } from '../state/billState';
-import { roleMemberActions, selfJoinRole } from '../sync/roleEngine';
+import { adoptRoles, roleMemberActions, selfJoinRole } from '../sync/roleEngine';
 import { newcomerName } from '../core/faces';
 import { WhoAmISheet } from './WhoAmISheet';
-import { createGroup, fetchGroup, joinGroup } from '../sync/groups';
+import { createGroup, fetchGroup, joinGroup, listMyGroups } from '../sync/groups';
+import { fetchHiddenGroups } from '../auth/account';
+import { usePwa } from '../pwa/pwa';
+import { hideGroup, hiddenFor, unhideGroup } from '../state/hiddenGroups';
 import { useBillSync } from './useBillSync';
 import { InviteSheet, useInvite } from './useInvite';
 import { ShareSheet } from './viagem/ShareSheet';
@@ -50,6 +53,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
 
   // Rolê compartilhado: grupo, convite e quem está nele.
   const { account } = useAccount();
+  const pwa = usePwa();
   const { members, status: syncStatus, refresh: syncRefresh } = useBillSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
   const [sharing, setSharing] = useState(false);
   async function share() {
@@ -80,6 +84,41 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
   const [screen, setScreen] = useState<'conta' | 'roles'>('conta');
   useEffect(() => saveHistory(history), [history]);
+
+  // Os rolês da conta, em qualquer aparelho: os dos grupos em que ela entrou (pelo navegador,
+  // pelo app, no computador…) aparecem em Rolês; os que ela excluiu em outro lugar saem.
+  const userId = account?.id ?? null;
+  const latest = useRef(state);
+  useEffect(() => {
+    latest.current = state;
+  }, [state]);
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    const adopt = () => {
+      if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
+      Promise.all([listMyGroups(), fetchHiddenGroups()]).then(
+        ([groups, hidden]) => {
+          if (alive) setHistory((h) => adoptRoles(h, latest.current, groups, hiddenFor({ hiddenGroups: hidden })));
+        },
+        () => {
+          /* sem internet ou sessão renovando: tenta na próxima */
+        },
+      );
+    };
+    adopt();
+    const timer = window.setInterval(adopt, 60000);
+    document.addEventListener('visibilitychange', adopt);
+    window.addEventListener('focus', adopt);
+    window.addEventListener('online', adopt);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', adopt);
+      window.removeEventListener('focus', adopt);
+      window.removeEventListener('online', adopt);
+    };
+  }, [userId]);
 
   // No computador a divisão fica sempre à direita; as abas viram só Mesa e Pedidos.
   const wide = useMediaQuery('(min-width: 1000px)');
@@ -117,7 +156,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     setToastMsg({ text, undo });
     setToastOn(true);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToastOn(false), undo ? 6000 : 2400);
+    toastTimer.current = window.setTimeout(() => setToastOn(false), undo ? 6000 : Math.max(2400, text.length * 60));
   }
   const toastBox = (
     <div className={`toast${toastOn ? ' show' : ''}${toastMsg?.undo ? ' has-undo' : ''}`} role="status" aria-live="polite">
@@ -164,6 +203,8 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   }
   function forget(e: HistoryEntry) {
     setHistory((h) => removeEntry(h, e.id));
+    // Rolê compartilhado: some também dos outros aparelhos da conta (para o grupo, continua).
+    if (e.shared) hideGroup(e.shared.groupId);
     if (e.photoId) deletePhoto(e.photoId);
     e.bill.notes?.forEach((n) => n.photoId && deletePhoto(n.photoId));
     toast('Rolê apagado');
@@ -174,6 +215,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     setInvite({ ...invite, status: 'joining' });
     try {
       const groupId = await joinGroup(invite.code, account.name, account.photo);
+      unhideGroup(groupId); // tinha excluído e entrou de novo
       const remote = await fetchGroup(groupId);
       if (!remote || !isValidRoleDoc(remote.content)) throw new Error('rolê inválido');
       const doc = remote.content;
@@ -189,7 +231,10 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
       setTab(doc.bill.people.length ? 'pedidos' : 'mesa');
       setScreen('conta');
       closeInvite();
-      toast(`Você entrou no rolê ${doc.bill.title.trim() || 'Conta da mesa'}`);
+      // Abriu o link no navegador do celular (o link não abre o atalho): o rolê já está na conta.
+      const name = doc.bill.title.trim() || 'Conta da mesa';
+      const phone = window.matchMedia('(pointer: coarse)').matches;
+      toast(phone && !pwa.standalone ? `Você entrou no rolê ${name}. Ele já aparece também no app Racha Conta da sua tela inicial.` : `Você entrou no rolê ${name}`);
     } catch {
       setInvite({ ...invite, status: 'error' });
     }

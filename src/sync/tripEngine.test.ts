@@ -5,8 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import { tripSummary, type Trip } from '../core/trip';
 import { blankTrips, meOf, openTrip, tripsReducer, type TripAction, type TripsState } from '../state/tripState';
-import type { Member, RemoteTrip } from './groups';
-import { CHOOSE_MS, joinByInvite, memberActions, pullTrip, pushTrip, selfJoin, type TripApi } from './tripEngine';
+import type { Member, MyGroup, RemoteTrip } from './groups';
+import { adoptAction, CHOOSE_MS, joinByInvite, memberActions, pullTrip, pushTrip, selfJoin, type TripApi } from './tripEngine';
 
 /** O banco: grupos com a viagem, a versão, o convite e quem está nele. */
 class Server {
@@ -63,6 +63,11 @@ class Server {
         throw new Error('convite inválido');
       },
     };
+  }
+
+  /** listMyGroups: os grupos de que a conta faz parte. */
+  list(userId: string): MyGroup[] {
+    return [...this.groups].filter(([, g]) => g.members.some((m) => m.userId === userId)).map(([id, g]) => ({ groupId: id, kind: 'trip', content: clone({ trip: g.trip }), version: g.version, code: g.code }));
   }
 
   members(groupId: string) {
@@ -159,6 +164,10 @@ class Phone {
   }
   names() {
     return this.trip.people.map((p) => p.name);
+  }
+  /** O que o app faz ao abrir (e a cada minuto): busca as viagens da conta. */
+  adopt(hidden: string[] = []) {
+    this.do(adoptAction(this.server.list(this.account.id), hidden));
   }
 }
 
@@ -487,5 +496,66 @@ describe('sem internet e brigas de versão', () => {
       // Todo mundo do grupo está em Pessoas (ninguém duplicado).
       for (const u of ['u-reb', 'u-bia', 'u-caio']) expect(final.people.filter((q) => q.userId === u), `semente ${seed}`).toHaveLength(1);
     }
+  });
+});
+
+describe('a viagem fica na conta, em qualquer aparelho', () => {
+  it('entrou pelo navegador do celular: a viagem aparece no atalho (outro aparelho, mesma conta), já como "você"', async () => {
+    const { server, caio } = setup();
+    const navegador = new Phone(server, { id: 'u-reb', name: 'Rebeca Oliveira', photo: null });
+    const atalho = new Phone(server, { id: 'u-reb', name: 'Rebeca Oliveira', photo: null });
+    caio.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Caio', meId: 'caio' });
+    await navegador.join(caio.share(), null);
+    await navegador.push();
+    // O atalho nunca abriu o link: ao abrir, busca as viagens da conta.
+    expect(atalho.state.trips).toHaveLength(0);
+    atalho.adopt();
+    expect(atalho.state.trips.map((t) => t.name)).toEqual(['Chácara']);
+    atalho.do({ type: 'openTrip', id: 'A' });
+    expect(atalho.me).toBe(atalho.trip.people.find((p) => p.userId === 'u-reb')!.id);
+    await atalho.pull();
+    expect(atalho.asked).toBe(false); // já disse quem é (no navegador)
+    // Mexe pelo atalho; o navegador e o Caio veem.
+    atalho.do({ type: 'addExpense', id: 'x1', input: expense(atalho.me!, ['caio', atalho.me!], 8000) });
+    await atalho.push();
+    await caio.sync();
+    await navegador.pull();
+    await atalho.pull();
+    expect(navegador.trip).toEqual(atalho.trip);
+    expect(caio.trip).toEqual(atalho.trip);
+  });
+
+  it('excluiu num aparelho: sai dos outros da conta; para o grupo, continua; entrar de novo traz de volta', async () => {
+    const { server, caio } = setup();
+    const mac = new Phone(server, { id: 'u-reb', name: 'Rebeca Oliveira', photo: null });
+    const celular = new Phone(server, { id: 'u-reb', name: 'Rebeca Oliveira', photo: null });
+    caio.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Caio', meId: 'caio' });
+    const code = caio.share();
+    await mac.join(code, null);
+    await mac.push();
+    celular.adopt();
+    expect(celular.state.trips).toHaveLength(1);
+    // Exclui no celular (o grupo vai para a lista de excluídos da conta).
+    const hidden = [celular.entry('A')!.groupId];
+    celular.do({ type: 'deleteTrip', id: 'A' });
+    mac.adopt(hidden);
+    expect(mac.state.trips).toHaveLength(0);
+    celular.adopt(hidden);
+    expect(celular.state.trips).toHaveLength(0);
+    await caio.sync();
+    expect(caio.names()).toContain('Rebeca');
+    // Entrou de novo pelo convite: sai da lista de excluídos e volta.
+    await mac.join(code, null);
+    celular.adopt([]);
+    expect(celular.state.trips.map((t) => t.name)).toEqual(['Chácara']);
+  });
+
+  it('quem não é do grupo não recebe a viagem', () => {
+    const { server, caio, bia } = setup();
+    caio.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Caio' });
+    caio.share();
+    bia.adopt();
+    expect(bia.state.trips).toHaveLength(0);
+    expect(server.list('u-bia')).toHaveLength(0);
   });
 });

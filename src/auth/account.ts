@@ -21,6 +21,8 @@ export interface Account {
   email: string;
   /** Foto do perfil Google, se houver. */
   photo: string | null;
+  /** Grupos que a pessoa excluiu da lista dela (valem em todo aparelho em que ela entrar). */
+  hiddenGroups: string[];
 }
 
 export interface AccountState {
@@ -45,6 +47,7 @@ function toAccount(session: Session | null): Account | null {
     name: text(m.full_name) ?? text(m.name) ?? (email.split('@')[0] || 'Você'),
     email,
     photo: text(m.avatar_url) ?? text(m.picture),
+    hiddenGroups: Array.isArray(m.hidden_groups) ? m.hidden_groups.filter((g): g is string => typeof g === 'string') : [],
   };
 }
 
@@ -108,6 +111,30 @@ export async function signInWithGoogleToken(token: string, nonce: string): Promi
   const sb = supabase();
   if (!sb) throw new Error('Login indisponível neste momento.');
   const { error } = await sb.auth.signInWithIdToken({ provider: 'google', token, nonce });
+  if (error) throw error;
+}
+
+/** A lista de grupos excluídos como está na conta agora (a da sessão pode ter até 1 hora). */
+export async function fetchHiddenGroups(): Promise<string[]> {
+  const sb = supabase();
+  if (!sb) return [];
+  const { data, error } = await sb.auth.getUser();
+  if (error) throw error;
+  return toAccount(data.user ? ({ user: data.user } as Session) : null)?.hiddenGroups ?? [];
+}
+
+/**
+ * Guarda na conta a lista de grupos excluídos (os dados extras da conta no Supabase; não
+ * precisa de tabela nova). Junta com o que já está lá, para dois aparelhos não se apagarem.
+ */
+export async function saveHiddenGroups(add: string[], remove: string[] = []): Promise<void> {
+  const sb = supabase();
+  if (!sb) return;
+  const { data } = await sb.auth.getUser();
+  const current = toAccount(data.user ? ({ user: data.user } as Session) : null)?.hiddenGroups ?? [];
+  const next = [...new Set([...current, ...add])].filter((g) => !remove.includes(g));
+  if (next.length === current.length && next.every((g) => current.includes(g))) return;
+  const { error } = await sb.auth.updateUser({ data: { hidden_groups: next } });
   if (error) throw error;
 }
 

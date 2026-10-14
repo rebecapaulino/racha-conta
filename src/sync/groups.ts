@@ -99,6 +99,25 @@ export async function fetchTripGroup(groupId: string): Promise<RemoteTrip | null
 /** Salva. Devolve a versão nova, ou -1 se outra pessoa salvou antes (aí busca e refaz). */
 export const saveTripGroup = (groupId: string, trip: Trip, base: number) => saveGroup(groupId, { trip }, base);
 
+/** Um grupo do qual a conta faz parte (com o conteúdo, para aparecer em qualquer aparelho). */
+export interface MyGroup {
+  groupId: string;
+  kind: 'trip' | 'role';
+  content: unknown;
+  version: number;
+  code: string;
+}
+
+/**
+ * Todos os grupos da conta logada, do mais mexido para o menos. As regras do banco só deixam
+ * ler os grupos de que a pessoa faz parte, então não precisa filtrar por conta aqui.
+ */
+export async function listMyGroups(): Promise<MyGroup[]> {
+  const { data, error } = await db().from('groups').select('id, kind, data, version, invite_code').order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((g) => ({ groupId: g.id, kind: g.kind, content: g.data, version: g.version, code: g.invite_code }));
+}
+
 export async function fetchMembers(groupId: string): Promise<Member[]> {
   const { data, error } = await db().from('group_members').select('user_id, name, photo, role, joined_at').eq('group_id', groupId).order('joined_at');
   if (error) throw error;

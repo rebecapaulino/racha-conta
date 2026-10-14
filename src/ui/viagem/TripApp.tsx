@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../core/trip';
 import { loginEnabled, useAccount } from '../../auth/account';
-import { loadTrips, meOf, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
+import { loadTrips, meOf, openTrip, saveTrips, tripsReducer, type TripAction } from '../../state/tripState';
+import { hideGroup, unhideGroup } from '../../state/hiddenGroups';
+import { usePwa } from '../../pwa/pwa';
 import { createTripGroup } from '../../sync/groups';
 import { joinByInvite, memberActions, selfJoin } from '../../sync/tripEngine';
 import { newcomerName } from '../../core/faces';
@@ -43,6 +45,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   useEffect(() => saveTrips(state), [state]);
   const trip = openTrip(state);
   const { account } = useAccount();
+  const pwa = usePwa();
   const meId = trip ? meOf(state, trip, account?.id ?? null) : null;
   const summary = useMemo(() => (trip ? tripSummary(trip) : null), [trip]);
   const fluent = activeVisual() === 'fluent';
@@ -94,9 +97,14 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     try {
       // A viagem chega e abre; em seguida, "Quem é você nesta viagem?".
       const { actions, trip: joined } = await joinByInvite(supabaseTripApi, invite.code, account);
-      for (const a of actions) dispatch(a);
+      for (const a of actions) {
+        if (a.type === 'syncJoin') unhideGroup(a.groupId); // tinha excluído e entrou de novo
+        dispatch(a);
+      }
       closeInvite();
-      toast(`Você entrou na viagem ${joined.name}`);
+      // Abriu o link no navegador do celular (o link não abre o atalho): a viagem já está na conta.
+      const phone = window.matchMedia('(pointer: coarse)').matches;
+      toast(phone && !pwa.standalone ? `Você entrou na viagem ${joined.name}. Ela já aparece também no app Racha Conta da sua tela inicial.` : `Você entrou na viagem ${joined.name}`);
     } catch {
       setInvite({ ...invite, status: 'error' });
     }
@@ -129,7 +137,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     setToastMsg({ text, undo });
     setToastOn(true);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToastOn(false), undo ? 6000 : 2600);
+    toastTimer.current = window.setTimeout(() => setToastOn(false), undo ? 6000 : Math.max(2600, text.length * 60));
   }
 
   const [expenseMode, setExpenseMode] = useState<ExpenseMode | null>(null);
@@ -163,7 +171,15 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       )}
     </div>
   );
-  const tripSheet = <TripSheet mode={tripMode} dispatch={dispatch} toast={toast} accountName={account?.name ?? null} onClose={() => setTripMode(null)} />;
+  // Excluir uma viagem compartilhada vale para a conta (some de todos os aparelhos dela).
+  const act = (a: TripAction) => {
+    if (a.type === 'deleteTrip') {
+      const groupId = state.sync?.[a.id]?.groupId;
+      if (groupId) hideGroup(groupId);
+    }
+    dispatch(a);
+  };
+  const tripSheet = <TripSheet mode={tripMode} dispatch={act} toast={toast} accountName={account?.name ?? null} onClose={() => setTripMode(null)} />;
   const inviteSheet = <InviteSheet invite={invite} noun="viagem" onJoin={join} onClose={closeInvite} />;
 
 
@@ -188,7 +204,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
               onOpen={openOne}
               onCreate={() => setTripMode({ kind: 'create' })}
               onDelete={(id) => {
-                dispatch({ type: 'deleteTrip', id });
+                act({ type: 'deleteTrip', id });
                 toast('Viagem apagada');
               }}
             />

@@ -5,7 +5,7 @@
 import { canRemoveTraveler, freeTravelers, type Traveler, type Trip } from '../core/trip';
 import { sameNameIds } from '../core/faces';
 import { isValidTrip, type TripAction, type TripsState } from '../state/tripState';
-import type { Member, RemoteTrip } from './groups';
+import type { Member, MyGroup, RemoteTrip } from './groups';
 
 /** O que o motor precisa do servidor (no app, as funções de sync/groups.ts). */
 export interface TripApi {
@@ -114,4 +114,15 @@ export function selfJoin(trip: Trip, members: Member[], account: { id: string; n
   if (joined) return { kind: 'none' }; // foi tirada da viagem depois: não volta sozinha
   if (free.length === 0) return { kind: 'auto', action: base };
   return { kind: 'ask', free, suggested: sameNameIds(free, account.name) };
+}
+
+/**
+ * As viagens dos grupos da conta, para aparecerem em qualquer aparelho em que ela entrar (ver a
+ * ação syncAdopt). `hidden`: grupos que a pessoa excluiu da lista dela.
+ */
+export function adoptAction(groups: MyGroup[], hidden: Iterable<string>): TripAction {
+  const trips = groups
+    .filter((g) => g.kind === 'trip' && !!g.content && typeof g.content === 'object' && isValidTrip((g.content as { trip?: unknown }).trip))
+    .map((g) => ({ groupId: g.groupId, code: g.code, version: g.version, trip: (g.content as { trip: Trip }).trip }));
+  return { type: 'syncAdopt', groups: trips, hidden: [...hidden] };
 }

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { computeSplit, joinPerson, removePerson, type Bill } from '../core/bill';
 import { blankState, isValidBill, reducer, roleDoc, type Action, type AppState, type RoleDoc } from '../state/billState';
 import type { Member } from './groups';
-import { CHOOSE_MS, pullRole, pushRole, roleMemberActions, selfJoinRole, type RoleApi } from './roleEngine';
+import { adoptRoles, CHOOSE_MS, pullRole, pushRole, roleMemberActions, selfJoinRole, type RoleApi } from './roleEngine';
 
 const bill = (names: string[], extra: Partial<Bill> = {}): Bill => ({
   title: 'Bar do Zé',
@@ -268,5 +268,30 @@ describe('rolê compartilhado: quem entra vai para a mesa', () => {
     await reb.sync();
     await reb.sync();
     expect(reb.names()).toEqual(['Rebeca', 'Caio']);
+  });
+});
+
+describe('rolês da conta em qualquer aparelho (adoptRoles)', () => {
+  const doc = (title: string): RoleDoc => roleDoc({ ...blankState(), bill: { ...blankState().bill, title, people: [{ id: 'p1', name: 'Caio', color: 0 }] } });
+  const group = (id: string, title: string) => ({ groupId: id, kind: 'role' as const, content: doc(title), version: 3, code: 'c-' + id });
+
+  it('o rolê de um grupo da conta entra em Rolês, ligado ao grupo; de novo, nada muda', () => {
+    const h = adoptRoles([], blankState(), [group('g1', 'Bar do Zé')], new Set());
+    expect(h).toHaveLength(1);
+    expect(h[0]).toMatchObject({ id: 'grupo-g1', bill: { title: 'Bar do Zé' }, shared: { groupId: 'g1', code: 'c-g1', version: 3, pending: [] } });
+    expect(adoptRoles(h, blankState(), [group('g1', 'Bar do Zé')], new Set())).toBe(h);
+  });
+
+  it('não repete o rolê aberto nem o que já está em Rolês (mesmo criado aqui, com outro id)', () => {
+    const open: AppState = { ...blankState(), shared: { groupId: 'g1', code: 'c', version: 1, base: doc('A'), pending: [] } };
+    const mine = { ...blankState(), id: 'meu-rolê', shared: { groupId: 'g2', code: 'c', version: 1, base: doc('B'), pending: [] } };
+    const h = [{ id: mine.id, startedAt: 1, photoId: null, bill: mine.bill, nextColor: 0, log: [], shared: mine.shared }];
+    expect(adoptRoles(h, open, [group('g1', 'A'), group('g2', 'B')], new Set())).toBe(h);
+  });
+
+  it('excluído pela pessoa: sai de Rolês e não entra; viagem e conteúdo estranho são ignorados', () => {
+    const h = adoptRoles([], blankState(), [group('g1', 'A'), group('g2', 'B')], new Set());
+    const after = adoptRoles(h, blankState(), [group('g1', 'A'), group('g2', 'B'), { groupId: 'g3', kind: 'trip', content: {}, version: 1, code: 'x' }, { groupId: 'g4', kind: 'role', content: { nada: 1 }, version: 1, code: 'y' }], new Set(['g1']));
+    expect(after.map((e) => e.id)).toEqual(['grupo-g2']);
   });
 });
