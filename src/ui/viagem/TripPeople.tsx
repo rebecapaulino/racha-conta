@@ -1,7 +1,7 @@
 import { useRef, useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import { formatWeight, type Traveler, type Trip, type TripSummary } from '../../core/trip';
+import { formatWeight, usesWeight, type Traveler, type Trip, type TripSummary } from '../../core/trip';
 import { newId } from '../../state/billState';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
@@ -17,11 +17,12 @@ interface Props {
   onEdit: (p: Traveler) => void;
 }
 
-/** Quem vai na viagem: pessoas ou famílias inteiras (com peso). */
+/** Quem vai na viagem. */
 export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Props) {
   const [name, setName] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const people = trip.people;
+  const weighted = usesWeight(trip);
 
   function add(e: React.FormEvent) {
     e.preventDefault();
@@ -62,7 +63,7 @@ export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Pr
         {people.length === 0 ? (
           <div className="empty">
             <span className="empty-icon">{fluent ? <Art kind="people" size={36} /> : <IconUsers size={26} />}</span>
-            <p><b>Ninguém na viagem ainda.</b><br />Adicione cada pessoa, ou cada família como uma pessoa só.</p>
+            <p><b>Ninguém na viagem ainda.</b><br />Adicione cada pessoa. Quem paga a parte de outra (o pai paga a da filha)? Toque no nome depois.</p>
           </div>
         ) : (
           <ul className="list">
@@ -75,10 +76,13 @@ export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Pr
                       {person.name}
                       {person.id === meId && <span className="tag">você</span>}
                     </b>
-                    <small>
-                      <span>peso {formatWeight(person.weight)}</span>
-                      {(paid > 0 || owes > 0) && <> · <span>pagou {formatBRL(paid)}</span> · <span>consumiu {formatBRL(owes)}</span></>}
-                    </small>
+                    {(weighted || paid > 0 || owes > 0) && (
+                      <small>
+                        {weighted && <span>peso {formatWeight(person.weight)}</span>}
+                        {weighted && (paid > 0 || owes > 0) && ' · '}
+                        {(paid > 0 || owes > 0) && <><span>pagou {formatBRL(paid)}</span> · <span>consumiu {formatBRL(owes)}</span></>}
+                      </small>
+                    )}
                     {person.coveredBy && trip.people.some((p) => p.id === person.coveredBy) && (
                       <small className="covered-tag">
                         {person.coveredBy === meId ? 'Você paga' : `${trip.people.find((p) => p.id === person.coveredBy)!.name} paga`}{' '}
@@ -95,8 +99,8 @@ export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Pr
       </section>
 
       <p className="hint tip">
-        <b>Dica:</b> alguém paga a parte de outra pessoa (o pai paga a da filha)? Toque no nome dela e escolha quem paga. As despesas
-        continuam no nome dela, e no acerto a conta junta com a de quem paga.
+        <b>Dica:</b> alguém paga a parte de outra pessoa (o pai paga a da filha)? Toque no nome e escolha quem paga. As despesas
+        continuam no nome de quem consumiu, e no acerto a conta junta com a de quem paga.
       </p>
     </div>
   );

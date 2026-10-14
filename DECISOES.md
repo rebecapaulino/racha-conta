@@ -198,3 +198,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Na Mesa, tocar no nome abre "Quem paga a parte de X?". A parte da pessoa entra na de quem paga: numa nota só, quem paga marca tudo de uma vez; no resumo do grupo, as linhas são entre contas.
 - Resumo do grupo: "Direto para quem pagou" (padrão) ou "Menos Pix", filtro "Ver de quem", seta e valores em vermelho/verde. O que foi pago continua na lista em verde (tocar desmarca, com Desfazer). A lista é a mesma da Viagem (SettleList), sem parcelas.
 - Lógica genérica em settle.ts (accountIn, canCoverIn, netPairs, reconcilePlan), com testes.
+
+## Viagem: nova despesa em etapas, sem "Por peso" e sem Hoje/Ontem
+
+- **Por quê:** a tela pedia tudo de uma vez, e "peso" não era claro para quem usa. Os botões Hoje/Ontem repetiam o calendário. A dica "quem paga a próxima" já aparece na caderneta.
+- **Etapas:** 1 Valor e nome · 2 Categoria · 3 Quem pagou, dia, à vista ou parcelado · 4 Quem participa e como dividir, com o valor de cada um, e Lançar. Dá para voltar e tocar numa etapa já vista. Editando, todas as etapas ficam abertas e "Salvar" funciona de qualquer uma.
+- **Peso:** saiu da tela. As despesas antigas divididas por peso continuam com a mesma conta, e o peso só aparece (na despesa e em Pessoas) nas viagens que já usaram. Para famílias, use "quem paga a parte de quem".

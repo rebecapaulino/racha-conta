@@ -1,6 +1,6 @@
 import { useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
-import { accountMembers, canCover, formatWeight, MAX_WEIGHT, travelerUsage, type Traveler, type Trip } from '../../core/trip';
+import { accountMembers, canCover, formatWeight, MAX_WEIGHT, travelerUsage, usesWeight, type Traveler, type Trip } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
 import { IconMinus, IconPlus, IconTrash } from '../icons';
@@ -21,7 +21,7 @@ const PRESETS = [
   { weight: 0, label: 'Não divide', hint: '0' },
 ];
 
-/** Editar alguém da viagem: nome, peso, "sou eu" e remover (sem apagar nada em silêncio). */
+/** Editar alguém da viagem: nome, quem paga a parte, "sou eu" e remover (sem apagar nada em silêncio). */
 export function PersonSheet({ person, onClose, ...rest }: Props) {
   return (
     <Sheet open={!!person} onClose={onClose} labelledBy="h-person" className="person-sheet">
@@ -81,30 +81,32 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
         />
       </div>
 
-      <div className="note-field">
-        <h3 className="field-label" id="h-weight">Peso na divisão</h3>
-        <div className="weight-row">
-          <div className="stepper" role="group" aria-labelledby="h-weight">
-            <button type="button" onClick={() => step(-0.5)} disabled={weight <= 0} aria-label="Diminuir peso">
-              <IconMinus size={18} />
-            </button>
-            <output aria-live="polite">{formatWeight(weight)}</output>
-            <button type="button" onClick={() => step(0.5)} disabled={weight >= MAX_WEIGHT} aria-label="Aumentar peso">
-              <IconPlus size={18} />
-            </button>
-          </div>
-          <div className="chips weight-presets">
-            {PRESETS.map((p) => (
-              <button key={p.label} type="button" className="chip" aria-pressed={weight === p.weight} onClick={() => setWeight(p.weight)}>
-                {p.label} <small>{p.hint}</small>
+      {usesWeight(trip) && (
+        <div className="note-field">
+          <h3 className="field-label" id="h-weight">Peso na divisão</h3>
+          <div className="weight-row">
+            <div className="stepper" role="group" aria-labelledby="h-weight">
+              <button type="button" onClick={() => step(-0.5)} disabled={weight <= 0} aria-label="Diminuir peso">
+                <IconMinus size={18} />
               </button>
-            ))}
+              <output aria-live="polite">{formatWeight(weight)}</output>
+              <button type="button" onClick={() => step(0.5)} disabled={weight >= MAX_WEIGHT} aria-label="Aumentar peso">
+                <IconPlus size={18} />
+              </button>
+            </div>
+            <div className="chips weight-presets">
+              {PRESETS.map((p) => (
+                <button key={p.label} type="button" className="chip" aria-pressed={weight === p.weight} onClick={() => setWeight(p.weight)}>
+                  {p.label} <small>{p.hint}</small>
+                </button>
+              ))}
+            </div>
           </div>
+          <p className="hint">
+            Vale quando a despesa é dividida <b>por peso</b>. Família inteira numa pessoa só? Some: 2 adultos e 1 criança = 2,5.
+          </p>
         </div>
-        <p className="hint">
-          Vale quando a despesa é dividida <b>por peso</b>. Família inteira numa pessoa só? Some: 2 adultos e 1 criança = 2,5.
-        </p>
-      </div>
+      )}
 
       <div className="note-field">
         <h3 className="field-label" id="h-covered">Quem paga a parte de {name.trim() || person.name}?</h3>
