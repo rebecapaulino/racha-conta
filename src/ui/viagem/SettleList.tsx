@@ -39,6 +39,7 @@ interface Props {
 export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf, carousel }: Props) {
   const [who, setWho] = useState('');
   const [slide, setSlide] = useState(0);
+  const [back, setBack] = useState(false);
   const person = (id: string) => people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
   const valid = who && people.some((p) => p.id === who) ? who : '';
@@ -132,6 +133,11 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
   // Carrossel: um card por vez; a seta passa para quem paga em seguida (no último, volta ao primeiro).
   const at = groups.length ? slide % groups.length : 0;
   const following = groups.length > 1 ? groups[(at + 1) % groups.length] : null;
+  const previous = groups.length > 1 ? groups[(at - 1 + groups.length) % groups.length] : null;
+  const go = (to: number, isBack: boolean) => {
+    setBack(isBack);
+    setSlide((to + groups.length) % groups.length);
+  };
   const incoming = rows.filter((r) => r.to === account);
   const outgoing = rows.filter((r) => r.from === account);
   const leftOf = (list: ListRow[]) => list.reduce((a, r) => a + r.remaining, 0);
@@ -211,7 +217,11 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
             const left = leftOf(g.items);
             const members = membersOf(g.from);
             return (
-              <li key={g.from} className={`pay-group${left === 0 ? ' is-done' : ''}${carousel ? ' pay-slide' : ''}`} aria-live={carousel ? 'polite' : undefined}>
+              <li
+                key={g.from}
+                className={`pay-group${left === 0 ? ' is-done' : ''}${carousel ? ` pay-slide${back ? ' from-left' : ''}` : ''}`}
+                aria-live={carousel ? 'polite' : undefined}
+              >
                 <div className="pay-head">
                   <Avatar person={person(g.from)} size="md" />
                   <span className="pay-who">
@@ -237,11 +247,21 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                     Por que {called(g.from, true)} paga isso? Ver a conta
                   </button>
                 )}
+                {carousel && previous && (
+                  <button
+                    type="button"
+                    className="icon-btn carousel-prev"
+                    onClick={() => go(at - 1, true)}
+                    aria-label={`Anterior: ${called(previous.from)} paga`}
+                  >
+                    <IconArrowRight size={20} />
+                  </button>
+                )}
                 {carousel && following && (
                   <button
                     type="button"
                     className="icon-btn carousel-next"
-                    onClick={() => setSlide(at + 1)}
+                    onClick={() => go(at + 1, false)}
                     aria-label={`Próximo: ${called(following.from)} paga`}
                   >
                     <IconArrowRight size={20} />

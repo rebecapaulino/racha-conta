@@ -30,6 +30,7 @@ interface Props {
 export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dispatch, toast, onGoToItem }: Props) {
   const previewRef = useRef<HTMLDetailsElement>(null);
   const [slide, setSlide] = useState(0);
+  const [back, setBack] = useState(false);
   const logRef = useRef<HTMLDialogElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const text = summaryText(bill, result);
@@ -156,7 +157,13 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dis
           (() => {
             const at = slide % result.shares.length;
             const s = result.shares[at];
-            const next = result.shares.length > 1 ? result.shares[(at + 1) % result.shares.length] : null;
+            const n = result.shares.length;
+            const next = n > 1 ? result.shares[(at + 1) % n] : null;
+            const prev = n > 1 ? result.shares[(at - 1 + n) % n] : null;
+            const go = (to: number, isBack: boolean) => {
+              setBack(isBack);
+              setSlide((to + n) % n);
+            };
             return (
               <ul className="pay-groups is-carousel">
                 <PersonCard
@@ -167,7 +174,9 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dis
                   total={result.total}
                   dispatch={dispatch}
                   position={result.shares.length > 1 ? `${at + 1} de ${result.shares.length}` : ''}
-                  next={next ? { name: next.person.name, go: () => setSlide(at + 1) } : null}
+                  next={next ? { name: next.person.name, go: () => go(at + 1, false) } : null}
+                  prev={prev ? { name: prev.person.name, go: () => go(at - 1, true) } : null}
+                  back={back}
                 />
               </ul>
             );
@@ -481,6 +490,8 @@ function PersonCard({
   dispatch,
   position,
   next,
+  prev,
+  back,
 }: {
   share: PersonShare;
   payment: Payment;
@@ -489,6 +500,8 @@ function PersonCard({
   dispatch: Dispatch<Action>;
   position: string;
   next: { name: string; go: () => void } | null;
+  prev: { name: string; go: () => void } | null;
+  back: boolean;
 }) {
   const { state, paid, owed, due, covers, coversCents, by } = payment;
   const id = share.person.id;
@@ -501,7 +514,7 @@ function PersonCard({
   const set = (v: boolean) => dispatch({ type: 'markPaid', personId: id, paid: v });
   const left = state === 'partial' ? owed : due;
   return (
-    <li className={`pay-group pay-slide share-card${done ? ' is-done' : ''}`} aria-live="polite">
+    <li className={`pay-group pay-slide share-card${done ? ' is-done' : ''}${back ? ' from-left' : ''}`} aria-live="polite">
       <div className="pay-head">
         <Avatar person={share.person} size="md" />
         <span className="pay-who">
@@ -562,6 +575,11 @@ function PersonCard({
 
       <ShareDetail share={share} servicePct={bill.servicePct} />
 
+      {prev && (
+        <button type="button" className="icon-btn carousel-prev" onClick={prev.go} aria-label={`Anterior: ${prev.name}`}>
+          <IconArrowRight size={20} />
+        </button>
+      )}
       {next && (
         <button type="button" className="icon-btn carousel-next" onClick={next.go} aria-label={`Próximo: ${next.name}`}>
           <IconArrowRight size={20} />
