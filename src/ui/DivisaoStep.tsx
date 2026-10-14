@@ -4,7 +4,8 @@ import { formatBRL } from '../core/money';
 import type { Action, LogEntry } from '../state/billState';
 import { ActivityLog } from './ActivityLog';
 import { Avatar } from './Avatar';
-import { IconAlert, IconChat, IconCheck, IconChevron, IconCopy, IconImage, IconShare, Logo } from './icons';
+import { IconAlert, IconArrowRight, IconChat, IconCheck, IconChevron, IconCopy, IconImage, IconShare, Logo } from './icons';
+import { Signed } from './viagem/Signed';
 import { Art } from './illustrations';
 import { renderReceipt } from './receiptImage';
 import { unassignedText } from './unassigned';
@@ -28,6 +29,7 @@ interface Props {
 /** Etapa 3: quanto cada um paga, quem pagou, a nota e o compartilhamento. */
 export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dispatch, toast, onGoToItem }: Props) {
   const previewRef = useRef<HTMLDetailsElement>(null);
+  const [slide, setSlide] = useState(0);
   const logRef = useRef<HTMLDialogElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const text = summaryText(bill, result);
@@ -150,39 +152,26 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dis
             <p><b>Sem pessoas na mesa.</b><br />Adicione quem vai dividir na etapa Mesa.</p>
           </div>
         ) : (
-          <ul className="shares">
-            {result.shares.map((s) => {
-              const pct = result.total > 0 ? Math.round((s.total / result.total) * 100) : 0;
-              const isPayer = s.person.id === bill.payerId;
-              const p = payOf(s.person.id);
-              const settled = p.state === 'paid' || p.state === 'over' || p.state === 'payer';
-              return (
-                <li key={s.person.id} className={`card share${settled ? ' is-paid' : ''}`}>
-                  <div className="share-head">
-                    <Avatar person={s.person} size="md" />
-                    <span className="row-main">
-                      <b>
-                        {s.person.name}
-                        {isPayer && <span className="tag">pagou</span>}
-                      </b>
-                      <small>
-                        <span>consumo {formatBRL(s.consumption)}</span>
-                        {bill.servicePct > 0 && <>{' '}<span>+ serviço {formatBRL(s.service)}</span></>}
-                      </small>
-                    </span>
-                    <span className="share-amt">{formatBRL(s.total)}</span>
-                  </div>
-                  <div className="meter" style={{ '--pct': `${pct}%` } as CSSProperties} aria-hidden="true">
-                    <span className="meter-fill" />
-                    <span className="meter-knob">{pct}%</span>
-                  </div>
-                  <span className="sr">{pct}% do total</span>
-                  <PayRow payment={p} dispatch={dispatch} nameOf={(id) => bill.people.find((x) => x.id === id)?.name ?? '?'} />
-                  <ShareDetail share={s} servicePct={bill.servicePct} />
-                </li>
-              );
-            })}
-          </ul>
+          // Um card por vez, como no acerto da Viagem; a seta passa para a próxima pessoa.
+          (() => {
+            const at = slide % result.shares.length;
+            const s = result.shares[at];
+            const next = result.shares.length > 1 ? result.shares[(at + 1) % result.shares.length] : null;
+            return (
+              <ul className="pay-groups is-carousel">
+                <PersonCard
+                  key={s.person.id}
+                  share={s}
+                  payment={payOf(s.person.id)}
+                  bill={bill}
+                  total={result.total}
+                  dispatch={dispatch}
+                  position={result.shares.length > 1 ? `${at + 1} de ${result.shares.length}` : ''}
+                  next={next ? { name: next.person.name, go: () => setSlide(at + 1) } : null}
+                />
+              </ul>
+            );
+          })()
         )}
       </section>
 
@@ -441,7 +430,7 @@ function ShareDetail({ share, servicePct }: { share: PersonShare; servicePct: nu
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
       >
-        {open ? 'Esconder' : `Ver o que ${name} consumiu`}
+        {open ? 'Esconder' : 'Detalhe'}
         <IconChevron size={18} />
       </button>
       {open && (
@@ -480,57 +469,104 @@ function ShareDetail({ share, servicePct }: { share: PersonShare; servicePct: nu
   );
 }
 
-/** "Já pagou?": marca quem acertou a parte. Guarda o valor, então mostra se a conta mudou depois. */
-function PayRow({ payment, dispatch, nameOf }: { payment: Payment; dispatch: Dispatch<Action>; nameOf: (id: string) => string }) {
-  const { share, state, paid, owed, due, covers, coversCents, by } = payment;
+/**
+ * O card de uma pessoa, no estilo do acerto da Viagem: quem paga, a seta para quem pagou no
+ * caixa, o valor e o "Pago". Embaixo, o "Detalhe" com o que ela consumiu.
+ */
+function PersonCard({
+  share,
+  payment,
+  bill,
+  total,
+  dispatch,
+  position,
+  next,
+}: {
+  share: PersonShare;
+  payment: Payment;
+  bill: Bill;
+  total: number;
+  dispatch: Dispatch<Action>;
+  position: string;
+  next: { name: string; go: () => void } | null;
+}) {
+  const { state, paid, owed, due, covers, coversCents, by } = payment;
   const id = share.person.id;
   const name = share.person.name;
-  if (state === 'payer') {
-    return (
-      <div className="pay-row">
-        <span className="pay-note ok"><IconCheck size={14} /> Pagou a conta no caixa</span>
-      </div>
-    );
-  }
-  if (state === 'covered') {
-    return (
-      <div className="pay-row">
-        <span className="pay-note ok"><IconCheck size={14} /> {nameOf(by!)} paga a parte de {name}</span>
-      </div>
-    );
-  }
-  const set = (v: boolean) => dispatch({ type: 'markPaid', personId: id, paid: v });
-  // Quem paga a parte de outras pessoas vê o total que paga.
-  const with_ = covers.length > 0 && (
-    <span className="pay-note">
-      Paga também a parte de {covers.map(nameOf).join(', ')} (<span className="num">{formatBRL(coversCents)}</span>): <b className="num">{formatBRL(due)}</b> no total
-    </span>
-  );
-  if (state === 'partial') {
-    return (
-      <div className="pay-row">
-        {with_}
-        <span className="pay-note warn-text">Pagou {formatBRL(paid)} · falta {formatBRL(owed)}</span>
-        <button type="button" className="pay-btn" onClick={() => set(true)}>
-          Pagou o resto
-        </button>
-      </div>
-    );
-  }
+  const nameOf = (pid: string) => bill.people.find((x) => x.id === pid)?.name ?? '?';
+  const payer = bill.people.find((p) => p.id === bill.payerId);
   const on = state === 'paid' || state === 'over';
+  const done = on || state === 'payer' || state === 'covered';
+  const pct = total > 0 ? Math.round((share.total / total) * 100) : 0;
+  const set = (v: boolean) => dispatch({ type: 'markPaid', personId: id, paid: v });
+  const left = state === 'partial' ? owed : due;
   return (
-    <div className="pay-row">
-      {with_}
-      {state === 'over' && <span className="pay-note warn-text">Pagou {formatBRL(-owed)} a mais</span>}
-      <button
-        type="button"
-        className="pay-btn"
-        aria-pressed={on}
-        aria-label={on ? `${name} já pagou ${formatBRL(due)}. Toque para desmarcar` : `Marcar que ${name} já pagou ${formatBRL(due)}`}
-        onClick={() => set(!on)}
-      >
-        {on ? (<><IconCheck size={16} /> Pago</>) : 'Marcar como pago'}
-      </button>
-    </div>
+    <li className={`pay-group pay-slide share-card${done ? ' is-done' : ''}`} aria-live="polite">
+      <div className="pay-head">
+        <Avatar person={share.person} size="md" />
+        <span className="pay-who">
+          <b>
+            {state === 'payer' ? `${name} pagou no caixa` : state === 'covered' ? `${nameOf(by!)} paga a parte de ${name}` : `${name} paga`}
+          </b>
+          <small>
+            consumo {formatBRL(share.consumption)}
+            {bill.servicePct > 0 && <> + serviço {formatBRL(share.service)}</>}
+          </small>
+          {position && <small className="slide-count">{position}</small>}
+        </span>
+      </div>
+      <div className="meter" style={{ '--pct': `${pct}%` } as CSSProperties} aria-hidden="true">
+        <span className="meter-fill" />
+        <span className="meter-knob">{pct}%</span>
+      </div>
+      <span className="sr">{pct}% do total</span>
+
+      {state === 'payer' || state === 'covered' ? (
+        <span className="pay-note ok">
+          <IconCheck size={14} /> {state === 'payer' ? 'Pagou a conta no caixa' : `${nameOf(by!)} paga a parte de ${name}`}
+        </span>
+      ) : (
+        <ul className="pay-items">
+          <li className={`pay-item${on ? ' is-paid' : ''}`}>
+            <span className="pay-flow pay-flow-out" aria-hidden="true">
+              <IconArrowRight size={18} />
+              {payer && <Avatar person={payer} size="md" />}
+            </span>
+            <span className="pay-to">
+              <span className="pay-line">
+                <span className="pay-name">{payer ? <>para <b>{payer.name}</b></> : 'no caixa'}</span>
+                {on ? <b className="num amt-pos pay-amount">{formatBRL(due)}</b> : <Signed cents={-left} className="pay-amount" />}
+              </span>
+              {covers.length > 0 && (
+                <small className="pay-partial">
+                  Paga também a parte de {covers.map(nameOf).join(', ')} ({formatBRL(coversCents)}): {formatBRL(due)} no total
+                </small>
+              )}
+              {state === 'partial' && <small className="pay-partial"><span className="amt-pos">já pagou {formatBRL(paid)}</span> de {formatBRL(due)}</small>}
+              {state === 'over' && <small className="pay-partial">Pagou {formatBRL(-owed)} a mais</small>}
+              <span className="pay-actions">
+                <button
+                  type="button"
+                  className={`btn secondary settle-btn${on ? ' is-paid' : ''}`}
+                  aria-pressed={on}
+                  aria-label={on ? `${name} já pagou ${formatBRL(due)}. Toque para desmarcar` : `Marcar que ${name} já pagou ${formatBRL(due)}`}
+                  onClick={() => set(!on)}
+                >
+                  <IconCheck size={16} /> {state === 'partial' ? 'Pagar o resto' : 'Pago'}
+                </button>
+              </span>
+            </span>
+          </li>
+        </ul>
+      )}
+
+      <ShareDetail share={share} servicePct={bill.servicePct} />
+
+      {next && (
+        <button type="button" className="icon-btn carousel-next" onClick={next.go} aria-label={`Próximo: ${next.name}`}>
+          <IconArrowRight size={20} />
+        </button>
+      )}
+    </li>
   );
 }

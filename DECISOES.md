@@ -247,3 +247,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 - Na etapa "paga conta de alguém?", quem já está na conta de quem pagou na viagem toda aparece marcado ("· viagem toda"). Um toque desativa: a pessoa volta a pagar a própria parte em todas as despesas, e dá para escolher "Só nesta despesa" em seguida. "Ninguém" desativa todos. Só é gravado ao salvar.
 - "Todos pagos" na caderneta desceu, para não encostar no destaque da despesa ao passar o mouse.
+
+## Rolê: carrossel e card no estilo da Viagem
+
+- **"Quanto cada um paga"** (conta de uma nota): um card por vez, no estilo do acerto da Viagem ("Mauricio paga", seta para quem pagou no caixa, valor e "Pago"), com a seta à direita para a próxima pessoa. "Ver o que X consumiu" virou **"Detalhe"**. A barra de porcentagem, o consumo e o serviço continuam no card.
+- **Resumo do grupo** (várias notas): o acerto também é um card por vez, igual à Viagem.
+- "Quem pagou no caixa?" continua igual.

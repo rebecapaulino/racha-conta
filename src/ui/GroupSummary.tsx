@@ -84,7 +84,7 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
             {g.transfers.length === 0 && (
               <p className="all-square" role="status"><IconCheck size={16} /> Tudo pago! Está todo mundo quite.</p>
             )}
-            <SettleList people={bill.people} rows={rows} meId={null} onSettle={pay} onUnpay={unpay} />
+            <SettleList people={bill.people} rows={rows} meId={null} onSettle={pay} onUnpay={unpay} carousel />
           </>
         ) : anyPayer ? (
           <p className="scan-check ok"><IconCheck size={16} /> Tudo acertado entre o grupo.</p>
