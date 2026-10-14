@@ -426,7 +426,7 @@ export function groupSummary(bill: Bill): GroupSummary {
     people,
     total: notes.reduce((a, n) => a + n.result.total, 0),
     balance,
-    transfers: plan[bill.settleMode ?? 'direct'].filter((r) => r.remaining > 0).map((r) => ({ from: r.from, to: r.to, cents: r.remaining })),
+    transfers: plan.direct.filter((r) => r.remaining > 0).map((r) => ({ from: r.from, to: r.to, cents: r.remaining })),
     plan,
     withoutPayer: notes.filter((n) => !n.payer && n.result.total > 0),
   };
@@ -529,7 +529,7 @@ export function groupSummaryText(bill: Bill, g: GroupSummary = groupSummary(bill
     lines.push(`- ${p.person.name}: ${formatBRL(p.total)}` + (parts.length > 1 ? ` (${parts.join(' · ')})` : ''));
   }
 
-  const rows = g.plan[bill.settleMode ?? 'direct'];
+  const rows = g.plan.direct;
   // A conta de quem paga por outras pessoas: "Mauricio (com Lara)".
   const account = (id: string) => {
     const with_ = bill.people.filter((p) => p.id !== id && accountIn(bill.people, p.id) === id).map((p) => p.name);

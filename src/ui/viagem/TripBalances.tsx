@@ -7,15 +7,12 @@ import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
-import { PersonAccount } from './PersonAccount';
 import { SettleList, type ListRow } from './SettleList';
 import { Sheet } from './Sheet';
 import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
 import { renderTripImage } from './tripImage';
 
-/** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
-const glued = (cents: number) => formatBRL(cents).replace(' ', '\u00a0');
 
 interface Props {
   trip: Trip;
@@ -33,7 +30,8 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
   const person = (id: string) => trip.people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
   const hasExpenses = activeExpenses(trip).length > 0;
-  const mode: SettleMode = trip.settleMode ?? 'direct';
+  // Sempre direto para quem pagou ("Menos Pix" saiu: confundia).
+  const mode: SettleMode = 'direct';
   const transfers = settleTransfers(summary, mode);
   const rows = summary.plan[mode];
   const text = kind === 'acerto' ? tripSettleText(trip, summary, mode) : tripBalancesText(trip, summary);
@@ -104,23 +102,6 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
     toast('Imagem salva. Anexe no WhatsApp.');
   }
 
-  function setMode(next: SettleMode) {
-    if (next !== mode) dispatch({ type: 'editTrip', settleMode: next });
-  }
-  const biggest = Math.max(1, ...summary.people.map((r) => Math.abs(r.balance)));
-  const [selected, setSelected] = useState(meId ?? trip.people[0]?.id ?? '');
-  const accountRef = useRef<HTMLElement>(null);
-
-  /** Abre a conta detalhada da pessoa e rola até ela. */
-  function explain(id: string) {
-    setSelected(id);
-    const el = accountRef.current;
-    if (!el) return;
-    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
-    el.focus({ preventScroll: true });
-  }
-
   /** Desmarca um pagamento feito (com Desfazer, caso tenha sido sem querer). */
   function unpay(r: ListRow) {
     const paid = activeSettlements(trip).filter(
@@ -184,15 +165,7 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
           <h2 id="h-quite">Para ficar tudo quite</h2>
           {transfers.length > 0 && <span className="badge" aria-label={`${transfers.length} pagamentos`}>{transfers.length}</span>}
         </div>
-        <div className="seg two" role="group" aria-label="Como acertar">
-          <button type="button" aria-pressed={mode === 'direct'} onClick={() => setMode('direct')}>Direto para quem pagou</button>
-          <button type="button" aria-pressed={mode === 'min'} onClick={() => setMode('min')}>Menos Pix</button>
-        </div>
-        <p className="hint" aria-live="polite">
-          {mode === 'direct'
-            ? 'Cada um paga para quem pagou as despesas dele. Entre duas pessoas, só a diferença.'
-            : 'O app junta tudo e faz o menor número de Pix. O dinheiro pode ir para outra pessoa, mas o total de cada um é o mesmo.'}
-        </p>
+        <p className="hint">Cada um paga para quem pagou as despesas dele. Entre duas pessoas, só a diferença.</p>
         {rows.length === 0 ? (
           <p className="all-square"><IconCheck size={16} /> Está tudo quite!</p>
         ) : (
@@ -206,7 +179,6 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
               meId={meId}
               onSettle={onSettle}
               onUnpay={unpay}
-              onExplain={explain}
               expenseOf={(id) => trip.expenses.find((e) => e.id === id)}
             />
           </>
@@ -240,44 +212,25 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
         )}
       </section>
 
-      {trip.people.length > 0 && (
-        <PersonAccount ref={accountRef} trip={trip} transfers={transfers} mode={mode} meId={meId} selected={selected} onSelect={setSelected} />
-      )}
-
       <section className="card" aria-labelledby="h-balances">
         <div className="card-head">
           <h2 id="h-balances">Saldos</h2>
         </div>
-        <p className="hint">Quanto cada um pagou menos quanto consumiu. Quem pôs mais no caixa recebe.</p>
-        <ul className="list balances">
-          {summary.people.map(({ person: p, paid, owes, sent, received, balance }) => {
-            const state = balance > 0 ? 'in' : balance < 0 ? 'out' : 'zero';
-            const style = { '--w': `${(Math.abs(balance) / biggest) * 50}%` } as CSSProperties;
-            return (
-              <li key={p.id} className={`balance balance-${state}`}>
-                <div className="balance-top">
-                  <Avatar person={p} size="md" />
-                  <span className="row-main">
-                    <b>
-                      {p.name}
-                      {p.id === meId && <span className="tag">você</span>}
-                    </b>
-                    <small className="balance-lines">
-                      <span>pagou {glued(paid)}</span>
-                      <span>consumiu {glued(owes)}</span>
-                      {sent > 0 && <span>já mandou {glued(sent)}</span>}
-                      {received > 0 && <span>já recebeu {glued(received)}</span>}
-                    </small>
-                  </span>
-                  <span className="balance-tag">
-                    {state === 'in' ? 'recebe' : state === 'out' ? 'paga' : 'quite'}
-                    {state !== 'zero' && <Signed cents={balance} />}
-                  </span>
-                </div>
-                <span className="balance-bar" style={style} aria-hidden="true"><i /></span>
-              </li>
-            );
-          })}
+        {/* Extrato: o saldo de cada um de uma vez. Verde recebe, vermelho paga. */}
+        <ul className="statement">
+          {summary.people.map(({ person: p, balance }) => (
+            <li key={p.id} className="statement-row">
+              <Avatar person={p} size="md" />
+              <span className="statement-name">
+                <b>{p.name}</b>
+                {p.id === meId && <small>Você</small>}
+              </span>
+              <span className="statement-amount">
+                <span className="sr">{balance > 0 ? 'recebe' : balance < 0 ? 'paga' : 'está quite'}</span>
+                {balance === 0 ? <b className="num amt-zero">quite</b> : <Signed cents={balance} />}
+              </span>
+            </li>
+          ))}
         </ul>
       </section>
 

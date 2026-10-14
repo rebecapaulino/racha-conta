@@ -225,3 +225,8 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **"Todos pagos":** botão na despesa (editar, primeira etapa). A despesa sai do acerto (saldos, quem paga quem, parcelas), mas continua na caderneta e no gasto total. Dá para voltar.
 - **Pagamento ligado:** ao marcar "Pago", o pagamento guarda as despesas das duas pessoas naquele momento (`expenseIds`). Se uma delas for excluída ou marcada "Todos pagos", o pagamento para de contar. Pagamentos de antes desta versão ligam às despesas das duas pessoas que existiam quando foram marcados.
 - Testado em `trip.test.ts`.
+
+## Saldos como extrato e sem "Menos Pix"
+
+- **Viagem:** a "Conta de cada um" e o card antigo de Saldos viraram um extrato único: cada pessoa com o saldo (verde recebe, vermelho paga, "quite"). Os links "Ver a conta" do acerto saíram junto.
+- **Menos Pix saiu da Viagem e do Rolê:** o acerto é sempre direto para quem pagou. Contas e viagens antigas que tinham "Menos Pix" guardado passam a mostrar o direto.

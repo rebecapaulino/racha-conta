@@ -1,5 +1,5 @@
 import type { Dispatch } from 'react';
-import { groupSummary, groupSummaryText, whatsappUrl, type Bill, type SettleMode } from '../core/bill';
+import { groupSummary, groupSummaryText, whatsappUrl, type Bill } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { accountIn } from '../core/settle';
 import type { Action } from '../state/billState';
@@ -24,8 +24,8 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
   const settled = bill.settled ?? [];
   const anyPayer = g.notes.some((n) => n.payer);
   const text = groupSummaryText(bill, g);
-  const mode: SettleMode = bill.settleMode ?? 'direct';
-  const rows = g.plan[mode];
+  // Sempre direto para quem pagou ("Menos Pix" saiu: confundia).
+  const rows = g.plan.direct;
 
   function pay(t: { from: string; to: string; cents: number }) {
     const index = settled.length;
@@ -76,15 +76,7 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
 
         {rows.length > 0 && (
           <>
-            <div className="seg two" role="group" aria-label="Como acertar">
-              <button type="button" aria-pressed={mode === 'direct'} onClick={() => dispatch({ type: 'settleMode', mode: 'direct' })}>Direto para quem pagou</button>
-              <button type="button" aria-pressed={mode === 'min'} onClick={() => dispatch({ type: 'settleMode', mode: 'min' })}>Menos Pix</button>
-            </div>
-            <p className="hint" aria-live="polite">
-              {mode === 'direct'
-                ? 'Cada um paga para quem pagou a nota. Entre duas pessoas, só a diferença.'
-                : 'O app junta tudo e faz o menor número de Pix. O dinheiro pode ir para outra pessoa, mas o total de cada um é o mesmo.'}
-            </p>
+            <p className="hint">Cada um paga para quem pagou a nota. Entre duas pessoas, só a diferença.</p>
           </>
         )}
         {rows.length > 0 ? (

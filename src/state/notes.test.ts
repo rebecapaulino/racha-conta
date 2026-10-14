@@ -191,23 +191,22 @@ describe('resumo do grupo: quem paga para quem', () => {
       { from: bruno, to: carla, cents: 2000 },
       { from: bruno, to: ana, cents: 1100 },
     ]);
-    // Menos Pix: o mínimo de pagamentos.
-    expect(groupSummary(run(s, { type: 'settleMode', mode: 'min' }).bill).transfers).toEqual([
-      { from: bruno, to: carla, cents: 2900 },
-      { from: bruno, to: ana, cents: 200 },
-    ]);
+    // "Menos Pix" saiu: mesmo uma conta antiga com ele guardado fica direto para quem pagou.
+    expect(groupSummary(run(s, { type: 'settleMode', mode: 'min' }).bill).transfers).toEqual(g.transfers);
   });
 
   it('acerto marcado sai do que falta, mas fica no plano marcado; desfazer volta', () => {
     const { s: s0, ana, bruno, carla } = festa();
-    const s = run(s0, { type: 'settleMode', mode: 'min' });
-    const paid = run(s, { type: 'settle', from: bruno, to: carla, cents: 2900 });
-    expect(groupSummary(paid.bill).transfers).toEqual([{ from: bruno, to: ana, cents: 200 }]);
-    expect(groupSummary(paid.bill).plan.min[0]).toEqual({ from: bruno, to: carla, cents: 2900, paid: 2900, remaining: 0 });
-    expect(paid.log.at(-1)!.text).toBe('Bruno pagou R$ 29,00 a Carla');
+    const paid = run(s0, { type: 'settle', from: bruno, to: carla, cents: 2000 });
+    expect(groupSummary(paid.bill).transfers).toEqual([
+      { from: ana, to: carla, cents: 900 },
+      { from: bruno, to: ana, cents: 1100 },
+    ]);
+    expect(groupSummary(paid.bill).plan.direct[1]).toEqual({ from: bruno, to: carla, cents: 2000, paid: 2000, remaining: 0 });
+    expect(paid.log.at(-1)!.text).toBe('Bruno pagou R$ 20,00 a Carla');
     const undone = run(paid, { type: 'unsettle', index: 0 });
-    expect(groupSummary(undone.bill).transfers.length).toBe(2);
-    expect(undone.log.at(-1)!.text).toBe('Desfez: Bruno pagou R$ 29,00 a Carla');
+    expect(groupSummary(undone.bill).transfers.length).toBe(3);
+    expect(undone.log.at(-1)!.text).toBe('Desfez: Bruno pagou R$ 20,00 a Carla');
     expect(isValidBill(paid.bill)).toBe(true);
   });
 
@@ -247,7 +246,7 @@ describe('texto do resumo do grupo', () => {
     const s0 = run(bar(), { type: 'title', title: 'Festa' });
     const [ana, bruno, carla] = ids(s0);
     let s = run(s0, { type: 'addNote', category: 'Doces', payerId: carla, people: [ana, bruno], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 });
-    s = run(s, { type: 'settleMode', mode: 'min' }, { type: 'settle', from: bruno, to: ana, cents: 200 });
+    s = run(s, { type: 'settle', from: bruno, to: ana, cents: 1100 });
     expect(groupSummaryText(s.bill)).toBe(
       [
         '*Racha Conta* - Festa',
@@ -263,8 +262,9 @@ describe('texto do resumo do grupo', () => {
         '- Carla: R$ 11,00',
         '',
         '*Quem paga para quem*',
-        '- Bruno paga R$ 29,00 para Carla',
-        '- Bruno pagou R$ 2,00 a Ana ✅',
+        '- Ana paga R$ 9,00 para Carla',
+        '- Bruno paga R$ 20,00 para Carla',
+        '- Bruno pagou R$ 11,00 a Ana ✅',
       ].join('\n'),
     );
   });
