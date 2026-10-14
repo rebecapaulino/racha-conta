@@ -202,5 +202,5 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 ## Viagem: nova despesa em etapas, sem "Por peso" e sem Hoje/Ontem
 
 - **Por quê:** a tela pedia tudo de uma vez, e "peso" não era claro para quem usa. Os botões Hoje/Ontem repetiam o calendário. A dica "quem paga a próxima" já aparece na caderneta.
-- **Etapas:** 1 Valor e nome · 2 Categoria · 3 Quem pagou, dia, à vista ou parcelado · 4 Quem participa e como dividir, com o valor de cada um, e Lançar. Dá para voltar e tocar numa etapa já vista. Editando, todas as etapas ficam abertas e "Salvar" funciona de qualquer uma.
+- **Etapas:** 1 Valor e nome · 2 Categoria · 3 Quem pagou, dia, à vista ou parcelado · 4 Alguém paga junto com quem pagou? (a etapa some se ninguém pode entrar) · 5 Quem participa · 6 Como dividir, com o valor de cada um, e Lançar. A etapa 4 muda quem paga a parte de quem na viagem toda (não só na despesa) e só grava ao lançar. Dá para voltar e tocar numa etapa já vista. Editando, todas as etapas ficam abertas e "Salvar" funciona de qualquer uma.
 - **Peso:** saiu da tela. As despesas antigas divididas por peso continuam com a mesma conta, e o peso só aparece (na despesa e em Pessoas) nas viagens que já usaram. Para famílias, use "quem paga a parte de quem".

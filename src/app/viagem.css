@@ -535,19 +535,17 @@ h3.field-label { margin: 0; }
 .history .new-bill { width: 100%; }
 
 /* ---------- nova despesa em etapas ---------- */
-.wizard-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.wizard-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
+.wizard-steps li { flex: 1 1 0; min-width: 0; }
+/* Só a barra: o nome da etapa vem no título ("Etapa 2 de 5") e no rótulo do botão. */
 .wizard-steps button {
-  width: 100%; min-width: 0; min-height: 44px; padding: 6px 0 0;
-  display: flex; flex-direction: column; gap: 6px;
-  border: 0; background: none; color: var(--muted); font: inherit; font-size: .76rem; font-weight: 600; text-align: left; cursor: pointer;
+  width: 100%; min-height: 44px; padding: 0; border: 0; background: none; cursor: pointer;
+  display: flex; align-items: center;
 }
-.wizard-steps button::before { content: ""; display: block; height: 4px; border-radius: 999px; background: var(--line); transition: background-color .2s; }
-.wizard-steps button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wizard-steps button::before { content: ""; display: block; width: 100%; height: 6px; border-radius: 999px; background: var(--line); transition: background-color .2s; }
 .wizard-steps button[data-done]::before, .wizard-steps button[aria-current]::before { background: var(--primary); }
-.wizard-steps button[aria-current] { color: var(--ink); }
+.wizard-steps button[aria-current]::before { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
 .wizard-steps button:disabled { cursor: default; }
-.wizard-steps button:not(:disabled):hover span { color: var(--ink); }
-@media (max-width: 360px) { .wizard-steps { gap: 4px; } .wizard-steps button { font-size: .68rem; letter-spacing: -0.01em; } }
 
 .wizard-recap { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: .88rem; min-width: 0; }
 .wizard-recap > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

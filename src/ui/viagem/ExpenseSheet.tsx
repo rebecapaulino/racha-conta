@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type Dispatch, type FormEvent } from 'react';
 import { formatBRL, parseBRL } from '../../core/money';
 import {
+  accountOf,
+  canCover,
   categoryLabel,
   findDuplicate,
   installmentInfo,
@@ -44,14 +46,17 @@ export function ExpenseSheet({ mode, onClose, ...rest }: Props) {
   );
 }
 
-/** As etapas, na ordem: o nome curto vai na barra do alto, a pergunta é o título da etapa. */
-const STEPS = [
-  { name: 'Valor', title: 'Quanto foi?' },
-  { name: 'Categoria', title: 'Qual a categoria?' },
-  { name: 'Pagamento', title: 'Quem pagou?' },
-  { name: 'Divisão', title: 'Quem participa?' },
-] as const;
-const LAST = STEPS.length - 1;
+type StepKey = 'valor' | 'categoria' | 'pagamento' | 'conta' | 'quem' | 'divisao';
+
+/** As etapas, na ordem: o nome vai no rótulo da barra do alto, a pergunta é o título da etapa. */
+const ALL_STEPS: { key: StepKey; name: string; title: string }[] = [
+  { key: 'valor', name: 'Valor', title: 'Quanto foi?' },
+  { key: 'categoria', name: 'Categoria', title: 'Qual a categoria?' },
+  { key: 'pagamento', name: 'Pagamento', title: 'Quem pagou?' },
+  { key: 'conta', name: 'Conta de quem pagou', title: 'Alguém paga junto?' },
+  { key: 'quem', name: 'Quem participa', title: 'Quem participa?' },
+  { key: 'divisao', name: 'Divisão', title: 'Como dividir?' },
+];
 
 /** "1.072,48": centavos no formato de digitar (sem o "R$"). */
 const typed = (cents: number) => formatBRL(cents).replace(/^R\$\s?/, '');
@@ -68,9 +73,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   const defaultPayer =
     (mode.kind === 'new' && mode.payerId) || (meId && people.some((p) => p.id === meId) ? meId : people[0]?.id ?? '');
 
-  // Editando, todas as etapas já estão abertas: dá para ir direto na que precisa mudar.
   const [step, setStep] = useState(0);
-  const [reached, setReached] = useState(editing ? LAST : 0);
   const [amount, setAmount] = useState(editing ? typed(editing.cents) : '');
   const [description, setDescription] = useState(editing?.description ?? '');
   const [category, setCategory] = useState<TripCategory>(editing?.category ?? lastCategory);
@@ -86,6 +89,24 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Conta de quem pagou: quem entra nela (o pai paga a parte da filha). É da viagem toda, não só desta
+  // despesa, e só é gravada ao lançar. Sem ninguém que possa entrar, a etapa nem aparece.
+  const root = accountOf(trip, payerId);
+  const rootPerson = people.find((p) => p.id === root);
+  const candidates = people.filter((p) => p.id !== root && canCover(trip, p.id, root) && (!p.coveredBy || p.coveredBy === root));
+  const currentMembers = candidates.filter((p) => p.coveredBy === root).map((p) => p.id);
+  const [pick, setPick] = useState<{ root: string; ids: string[] } | null>(null);
+  const joined = pick && pick.root === root ? pick.ids.filter((id) => candidates.some((p) => p.id === id)) : currentMembers;
+  const toggleJoin = (id: string) =>
+    setPick({ root, ids: joined.includes(id) ? joined.filter((x) => x !== id) : [...joined, id] });
+
+  const steps = ALL_STEPS.filter((s) => s.key !== 'conta' || candidates.length > 0);
+  const LAST = steps.length - 1;
+  const at = Math.min(step, LAST);
+  const key = steps[at].key;
+  // Editando, todas as etapas já estão abertas: dá para ir direto na que precisa mudar.
+  const [reached, setReached] = useState(editing ? 99 : 0);
+
   // Ao trocar de etapa, o foco vai para a pergunta (o leitor de tela anuncia onde está).
   const firstRender = useRef(true);
   useEffect(() => {
@@ -94,7 +115,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
       return;
     }
     titleRef.current?.focus();
-  }, [step]);
+  }, [at]);
 
   const cents = parseBRL(amount);
   const seq = editing?.seq ?? trip.nextSeq;
@@ -167,24 +188,33 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   }
 
   function next() {
-    if (step === 0 && needAmount()) return;
-    if (step === 0) setAmount(typed(cents!));
-    go(step + 1);
+    if (key === 'valor' && needAmount()) return;
+    if (key === 'valor') setAmount(typed(cents!));
+    if (key === 'quem' && who.length === 0) {
+      setError('Escolha pelo menos uma pessoa.');
+      return;
+    }
+    go(at + 1);
   }
 
   function save() {
     if (needAmount()) return;
     const r = splitExpense(input, people, seq);
     if (!r.ok) {
-      if (step !== LAST) go(LAST);
+      go(who.length === 0 ? steps.findIndex((x) => x.key === 'quem') : LAST);
       setError(r.error);
       return;
     }
     if (duplicate && !dupOk) {
-      if (step !== LAST) go(LAST);
+      if (at !== LAST) go(LAST);
       setDupOk(true);
       requestAnimationFrame(() => dupRef.current?.focus());
       return;
+    }
+    // Quem entrou ou saiu da conta de quem pagou, antes da despesa.
+    for (const p of candidates) {
+      const want = joined.includes(p.id);
+      if (want !== (p.coveredBy === root)) dispatch({ type: 'editTraveler', id: p.id, coveredBy: want ? root : null });
     }
     if (editing) {
       dispatch({ type: 'editExpense', id: editing.id, input });
@@ -199,7 +229,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (editing || step === LAST) save();
+    if (editing || at === LAST) save();
     else next();
   }
 
@@ -223,35 +253,35 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
       <h2 id="h-expense" tabIndex={-1}>{editing ? 'Editar despesa' : 'Nova despesa'}</h2>
 
       <ol className="wizard-steps" aria-label="Etapas">
-        {STEPS.map((s, i) => (
-          <li key={s.name}>
+        {steps.map((s, i) => (
+          <li key={s.key}>
             <button
               type="button"
               disabled={i > reached}
-              data-done={i < step || undefined}
-              aria-current={i === step ? 'step' : undefined}
+              data-done={i < at || undefined}
+              aria-current={i === at ? 'step' : undefined}
+              aria-label={`Etapa ${i + 1}: ${s.name}`}
+              title={s.name}
               onClick={() => go(i)}
-            >
-              <span>{s.name}</span>
-            </button>
+            />
           </li>
         ))}
       </ol>
 
-      {step > 0 && cents ? (
+      {at > 0 && cents ? (
         <p className="wizard-recap">
           <span className="cat-tile"><CategoryIcon category={category} size={16} /></span>
           <span><b>{input.description}</b> · <span className="num">{formatBRL(cents)}</span></span>
         </p>
       ) : null}
 
-      <div className={`wizard-step${step === 1 ? ' is-tight' : ''}`} key={step}>
-        <h3 className={`wizard-title${step === 1 ? ' wizard-title-sm' : ''}`} ref={titleRef} tabIndex={-1}>
-          <small>Etapa {step + 1} de {STEPS.length}</small>
-          {STEPS[step].title}
+      <div className={`wizard-step${key === 'categoria' ? ' is-tight' : ''}`} key={key}>
+        <h3 className={`wizard-title${key === 'categoria' ? ' wizard-title-sm' : ''}`} ref={titleRef} tabIndex={-1}>
+          <small>Etapa {at + 1} de {steps.length}</small>
+          {key === 'conta' ? `Alguém paga junto com ${rootPerson?.id === meId ? 'você' : rootPerson?.name}?` : steps[at].title}
         </h3>
 
-        {step === 0 && (
+        {key === 'valor' && (
           <>
             <div className="money big-money">
               <span aria-hidden="true">R$</span>
@@ -309,7 +339,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
           </>
         )}
 
-        {step === 1 && (
+        {key === 'categoria' && (
           <div className="cat-grid" role="group" aria-label="Categoria">
             {TRIP_CATEGORIES.map((c) => (
               <button key={c.id} type="button" className="cat-btn" aria-pressed={category === c.id} onClick={() => setCategory(c.id)}>
@@ -320,7 +350,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
           </div>
         )}
 
-        {step === 2 && (
+        {key === 'pagamento' && (
           <>
             <div className="picker" role="radiogroup" aria-label="Quem pagou">
               {people.map((p) => (
@@ -391,7 +421,37 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
           </>
         )}
 
-        {step === 3 && (
+        {key === 'conta' && (
+          <>
+            <p className="hint">
+              {rootPerson && rootPerson.id !== payerId
+                ? `${nameOf(payerId)} está na conta de ${nameOf(root)}. `
+                : ''}
+              {rootPerson?.id === meId ? 'Você paga' : `${rootPerson?.name} paga`} a parte de mais alguém (o pai paga a da filha)? Toque em quem. Se não, é só seguir.
+            </p>
+            <div className="chips" role="group" aria-label={`Quem entra na conta de ${rootPerson?.name}`}>
+              <button type="button" className="chip chip-self" aria-pressed={joined.length === 0} onClick={() => setPick({ root, ids: [] })}>
+                Ninguém
+              </button>
+              {candidates.map((p) => {
+                const on = joined.includes(p.id);
+                return (
+                  <button key={p.id} type="button" className="chip" style={personStyle(p)} aria-pressed={on} onClick={() => toggleJoin(p.id)}>
+                    <Avatar person={p} size="xs" checked={on} />
+                    {p.id === meId ? 'Você' : p.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="hint" aria-live="polite">
+              {joined.length > 0
+                ? `No acerto, a conta de ${people.filter((p) => joined.includes(p.id)).map((p) => p.name).join(', ')} entra na de ${rootPerson?.name}. Vale para a viagem toda, não só para esta despesa. As despesas continuam no nome de cada um.`
+                : 'Cada um paga a própria parte no acerto.'}
+            </p>
+          </>
+        )}
+
+        {key === 'quem' && (
           <>
             <div className="chips" role="group" aria-label="Quem participa">
               {people.map((p) => {
@@ -411,6 +471,11 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
               <p className="hint">{payerName} pagou e não participa: recebe tudo de volta.</p>
             )}
 
+          </>
+        )}
+
+        {key === 'divisao' && (
+          <>
             <div className="note-field">
               <h4 className="field-label" id="h-exp-split">Como dividir?</h4>
               <div className={`seg ${splits.length === 2 ? 'two' : 'split-seg'}`} role="group" aria-labelledby="h-exp-split">
