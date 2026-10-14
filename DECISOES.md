@@ -218,3 +218,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Despesa excluída:** os pagamentos de parcela registrados nela saem do acerto e do histórico junto com ela (voltam se a exclusão for desfeita). Pagamentos gerais continuam contando.
 - **Desmarcar pagamento → Desfazer:** voltava sem a ligação com a parcela; agora volta igual.
 - Testado em `trip.test.ts`.
+
+## Viagem: "Todos pagos" na despesa e pagamentos ligados às despesas
+
+- **Por quê:** um pagamento feito por uma despesa que depois foi excluída virava "dívida de volta" no painel, o que confunde.
+- **"Todos pagos":** botão na despesa (editar, primeira etapa). A despesa sai do acerto (saldos, quem paga quem, parcelas), mas continua na caderneta e no gasto total. Dá para voltar.
+- **Pagamento ligado:** ao marcar "Pago", o pagamento guarda as despesas das duas pessoas naquele momento (`expenseIds`). Se uma delas for excluída ou marcada "Todos pagos", o pagamento para de contar. Pagamentos de antes desta versão ligam às despesas das duas pessoas que existiam quando foram marcados.
+- Testado em `trip.test.ts`.

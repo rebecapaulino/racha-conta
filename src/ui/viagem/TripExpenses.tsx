@@ -179,7 +179,7 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                       type="button"
                       className="line"
                       onClick={() => onEdit(e)}
-                      aria-label={`${e.description}, ${formatBRL(e.cents)}, ${name(e.payerId)} pagou. Editar`}
+                      aria-label={`${e.description}, ${formatBRL(e.cents)}, ${name(e.payerId)} pagou${e.settled ? ', todos pagos' : ''}. Editar`}
                     >
                       <span className="cat-tile"><CategoryIcon category={e.category} /></span>
                       <span className="row-main">
@@ -190,6 +190,7 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                           <span>{everyone ? 'todos' : who.length === 1 ? `só ${who[0].id === meId ? 'você' : who[0].name}` : `${who.length} pessoas`}</span>
                           {tag && <> · <span>{tag}</span></>}
                           {installmentsOf(e) > 1 && <> · <span className="parts-tag">{installmentsOf(e)}x</span></>}
+                          {e.settled && <> · <span className="settled-tag">✓ todos pagos</span></>}
                         </small>
                       </span>
                       <span className="line-end">

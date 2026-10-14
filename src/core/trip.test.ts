@@ -17,6 +17,7 @@ import {
   personStatement,
   removeTraveler,
   setExpenseDeleted,
+  setExpenseSettled,
   splitExpense,
   tripBalancesText,
   tripSettleText,
@@ -812,12 +813,81 @@ describe('editar e excluir não deixam sobra nas contas', () => {
     expect(balances(back)).toEqual({ ana: 2000, bia: -2000 });
   });
 
-  it('pagamento geral continua contando mesmo com despesa excluída', () => {
+  it('pagamento da despesa excluída sai junto: ninguém fica devendo de volta', () => {
     let t = tripWith(['Ana', 'Bia']);
     t = add(t, { cents: 6000, payerId: 'ana' });
     const r = addSettlement(t, { from: 'bia', to: 'ana', cents: 3000 }, 's1', NOW);
     if (!r.ok) throw new Error(r.error);
+    expect(r.trip.settlements[0].expenseIds).toEqual([r.trip.expenses[0].id]);
     const gone = setExpenseDeleted(r.trip, r.trip.expenses[0].id, true, NOW);
-    expect(balances(gone)).toEqual({ ana: -3000, bia: 3000 });
+    expect(balances(gone)).toEqual({ ana: 0, bia: 0 });
+    expect(tripSummary(gone).plan.direct).toEqual([]);
+    expect(balances(setExpenseDeleted(gone, r.trip.expenses[0].id, false, NOW))).toEqual({ ana: 0, bia: 0 });
+  });
+});
+
+describe('despesa "Todos pagos"', () => {
+  // O caso da Rebeca: pagou R$ 433,32 ao Mauricio por despesas de exemplo, que depois excluiu.
+  // A única despesa que sobrou é o almoço de 200 (Mauricio pagou, 4 pessoas).
+  it('pagamentos de despesas excluídas não viram dívida de volta', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Ana', 'Bia']);
+    t = add(t, { description: 'Exemplo', cents: 173328, payerId: 'mauricio' });
+    let r = addSettlement(t, { from: 'rebeca', to: 'mauricio', cents: 43332 }, 's1', NOW);
+    if (!r.ok) throw new Error(r.error);
+    t = setExpenseDeleted(r.trip, t.expenses[0].id, true, NOW);
+    t = add(t, { description: 'Almoço', cents: 20000, payerId: 'mauricio' });
+    r = addSettlement(t, { from: 'rebeca', to: 'mauricio', cents: 5000 }, 's2', NOW);
+    if (!r.ok) throw new Error(r.error);
+    const rows = tripSummary(r.trip).plan.direct.filter((x) => x.from === 'rebeca' || x.to === 'rebeca');
+    expect(rows).toEqual([{ from: 'rebeca', to: 'mauricio', cents: 5000, paid: 5000, remaining: 0 }]);
+    expect(balances(r.trip).rebeca).toBe(0);
+  });
+
+  it('pagamento antigo (sem ligação) liga às despesas que existiam quando foi marcado', () => {
+    let t = tripWith(['Ana', 'Bia']);
+    t = add(t, { cents: 6000, payerId: 'ana' });
+    t = { ...t, expenses: t.expenses.map((e) => ({ ...e, createdAt: '2026-12-01T00:00:00.000Z' })) };
+    // Marcado depois, sem expenseIds (como os pagamentos de antes desta versão).
+    t = { ...t, settlements: [{ id: 's1', from: 'bia', to: 'ana', cents: 3000, at: '2026-12-02T00:00:00.000Z' }] };
+    expect(balances(t)).toEqual({ ana: 0, bia: 0 });
+    const gone = setExpenseDeleted(t, t.expenses[0].id, true, '2026-12-03T00:00:00.000Z');
+    expect(balances(gone)).toEqual({ ana: 0, bia: 0 });
+    expect(tripSummary(gone).plan.direct).toEqual([]);
+  });
+
+  it('sai do acerto, mas continua no gasto total', () => {
+    let t = tripWith(['Ana', 'Bia']);
+    t = add(t, { cents: 6000, payerId: 'ana' });
+    t = add(t, { cents: 2000, payerId: 'bia' });
+    t = setExpenseSettled(t, t.expenses[0].id, true, NOW);
+    expect(tripSummary(t).total).toBe(8000);
+    expect(balances(t)).toEqual({ ana: -1000, bia: 1000 });
+    expect(directTransfers(t)).toEqual([{ from: 'ana', to: 'bia', cents: 1000 }]);
+    expect(personStatement(t, 'ana').balance).toBe(-1000);
+    t = setExpenseSettled(t, t.expenses[0].id, false, NOW);
+    expect(balances(t)).toEqual({ ana: 2000, bia: -2000 });
+  });
+
+  it('parcelada marcada "Todos pagos" some das parcelas, com os pagamentos dela', () => {
+    let t = tripWith(['Ana', 'Bia']);
+    t = add(t, { cents: 6000, payerId: 'ana', installments: 3 });
+    const r = addSettlement(t, { from: 'bia', to: 'ana', cents: 1000, expenseId: t.expenses[0].id }, 's1', NOW);
+    if (!r.ok) throw new Error(r.error);
+    const done = setExpenseSettled(r.trip, t.expenses[0].id, true, NOW);
+    expect(tripSummary(done).plan.direct).toEqual([]);
+    expect(tripSummary(done).plan.min).toEqual([]);
+    expect(balances(done)).toEqual({ ana: 0, bia: 0 });
+  });
+
+  it('pagamento só conta enquanto as despesas que ele acertou estão no acerto', () => {
+    let t = tripWith(['Ana', 'Bia']);
+    t = add(t, { description: 'A', cents: 2000, payerId: 'ana' });
+    t = add(t, { description: 'B', cents: 4000, payerId: 'ana' });
+    const r = addSettlement(t, { from: 'bia', to: 'ana', cents: 3000 }, 's1', NOW);
+    if (!r.ok) throw new Error(r.error);
+    expect(balances(r.trip)).toEqual({ ana: 0, bia: 0 });
+    // Marcou A como "Todos pagos": o pagamento (que acertava A e B) sai; B volta a aparecer.
+    const a = setExpenseSettled(r.trip, t.expenses[0].id, true, NOW);
+    expect(balances(a)).toEqual({ ana: 2000, bia: -2000 });
   });
 });

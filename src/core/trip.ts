@@ -95,6 +95,11 @@ export interface Expense extends ExpenseInput {
   updatedAt?: string;
   /** Excluída: sai das contas, mas continua guardada (dá para desfazer). */
   deleted?: boolean;
+  /**
+   * "Todos pagos": todo mundo já acertou esta despesa. Sai do painel de acerto (saldos, quem
+   * paga quem, parcelas), mas continua na caderneta e no gasto total da viagem.
+   */
+  settled?: boolean;
 }
 
 /** Pagamento real entre duas pessoas para diminuir o saldo ("Caio pagou R$ 500,00 para Ana"). */
@@ -102,6 +107,11 @@ export interface Settlement extends Transfer {
   id: string;
   /** Pagamento de uma despesa parcelada (abate só dela, não do resto do acerto). */
   expenseId?: string;
+  /**
+   * As despesas que este pagamento acertou (as das duas pessoas, na hora de marcar). Se uma
+   * delas for excluída ou marcada "Todos pagos", o pagamento para de contar.
+   */
+  expenseIds?: string[];
   /** Quando foi registrado (ISO). */
   at: string;
 }
@@ -286,17 +296,70 @@ export function addSettlement(trip: Trip, t: Transfer & { expenseId?: string }, 
   if (!known(t.from) || !known(t.to)) return { ok: false, error: 'Escolha quem pagou e quem recebeu.' };
   const s: Settlement = { from: t.from, to: t.to, cents: t.cents, id, at: now };
   if (t.expenseId && trip.expenses.some((e) => e.id === t.expenseId)) s.expenseId = t.expenseId;
+  else {
+    const linked = linkedExpenses(trip, t.from, t.to);
+    if (linked.length) s.expenseIds = linked;
+  }
   return { ok: true, trip: { ...trip, settlements: [...trip.settlements, s] } };
 }
 
 export const activeExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.deleted);
 
+/** As que entram no acerto: nem excluídas nem marcadas "Todos pagos". */
+export const openExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.deleted && !e.settled);
+
+/** Marca (ou desmarca) "Todos pagos": a despesa sai (ou volta) do painel de acerto. */
+export function setExpenseSettled(trip: Trip, id: string, settled: boolean, now: string): Trip {
+  return {
+    ...trip,
+    expenses: trip.expenses.map((e) => {
+      if (e.id !== id) return e;
+      const next: Expense = { ...e, updatedAt: now };
+      if (settled) next.settled = true;
+      else delete next.settled;
+      return next;
+    }),
+  };
+}
+
 /**
- * Pagamentos que contam: os de parcela de uma despesa excluída saem junto com ela (e voltam
- * se a exclusão for desfeita). Os pagamentos gerais sempre contam.
+ * As despesas à vista que um pagamento de `from` para `to` acerta: as que envolvem as duas
+ * contas (uma pagou, a outra participou). Sem nenhuma (no modo de menos Pix o dinheiro pode ir
+ * para outra pessoa), as que envolvem qualquer uma das duas.
  */
-export const activeSettlements = (trip: Trip) =>
-  trip.settlements.filter((s) => !s.expenseId || !trip.expenses.some((e) => e.id === s.expenseId && e.deleted));
+function linkedExpenses(trip: Trip, from: string, to: string, pool = openExpenses(trip)): string[] {
+  const [fa, ta] = [accountOf(trip, from), accountOf(trip, to)];
+  const accs = (e: Expense) =>
+    new Set([accountOf(trip, e.payerId), ...Object.keys(e.shares).filter((pid) => e.shares[pid] > 0).map((pid) => accountOf(trip, chargedTo(e, pid)))]);
+  const cash = pool.filter((e) => installmentsOf(e) === 1);
+  const both = cash.filter((e) => {
+    const a = accs(e);
+    return a.has(fa) && a.has(ta);
+  });
+  const list = both.length ? both : cash.filter((e) => accs(e).has(fa) || accs(e).has(ta));
+  return list.map((e) => e.id);
+}
+
+/**
+ * Pagamentos que contam: só os das despesas que ainda estão no acerto. Se a despesa (ou uma
+ * das despesas que o pagamento acertou) foi excluída ou marcada "Todos pagos", o pagamento
+ * sai junto, e ninguém fica "devendo de volta". Desfazer traz tudo de volta.
+ */
+export function activeSettlements(trip: Trip): Settlement[] {
+  const open = new Set(openExpenses(trip).map((e) => e.id));
+  return trip.settlements.filter((s) =>
+    s.expenseId ? open.has(s.expenseId) : (s.expenseIds ?? legacyLinks(trip, s)).every((id) => open.has(id)),
+  );
+}
+
+/**
+ * Pagamento marcado antes de existir a ligação com as despesas: liga às despesas das duas
+ * pessoas que já existiam quando ele foi marcado (lançadas antes e ainda não excluídas).
+ */
+function legacyLinks(trip: Trip, s: Settlement): string[] {
+  const then = trip.expenses.filter((e) => e.createdAt <= s.at && !(e.deleted && (e.updatedAt ?? '') < s.at));
+  return linkedExpenses(trip, s.from, s.to, then);
+}
 
 /** Onde a pessoa aparece (contando despesas excluídas, que podem voltar). */
 export function travelerUsage(trip: Trip, id: string): { expenses: number; settlements: number } {
@@ -490,13 +553,15 @@ export function tripSummary(trip: Trip): TripSummary {
       continue;
     }
     total += e.cents;
+    byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.cents);
+    byDay.set(e.date, (byDay.get(e.date) ?? 0) + e.cents);
+    // "Todos pagos": conta no gasto, mas não no acerto.
+    if (e.settled) continue;
     row.get(e.payerId)!.paid += e.cents;
     for (const [pid, c] of entries) {
       row.get(pid)!.owes += c;
       row.get(chargedTo(e, pid))!.charged += c;
     }
-    byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.cents);
-    byDay.set(e.date, (byDay.get(e.date) ?? 0) + e.cents);
   }
   for (const s of activeSettlements(trip)) {
     if (!ids.has(s.from) || !ids.has(s.to) || s.cents <= 0) {
@@ -560,7 +625,7 @@ function settlePlans(trip: Trip, people: TravelerBalance[]): Record<SettleMode, 
 /** Uma linha por despesa parcelada e dupla de contas (quem deve → quem pagou). */
 function installmentRows(trip: Trip, acc: Map<string, string>): SettleRow[] {
   const rows: SettleRow[] = [];
-  for (const e of activeExpenses(trip)) {
+  for (const e of openExpenses(trip)) {
     const n = installmentsOf(e);
     const payer = acc.get(e.payerId);
     if (n === 1 || !payer) continue;
@@ -651,7 +716,7 @@ export function directTransfers(trip: Trip, withSettlements = true, skipInstallm
   const debt = new Map<string, number>();
   const key = (a: string, b: string) => `${a}\u0000${b}`;
   const addDebt = (a: string, b: string, c: number) => debt.set(key(a, b), (debt.get(key(a, b)) ?? 0) + c);
-  for (const e of activeExpenses(trip)) {
+  for (const e of openExpenses(trip)) {
     const payer = acc.get(e.payerId);
     if (!payer || (skipInstallments && installmentsOf(e) > 1)) continue;
     for (const [pid, c] of Object.entries(e.shares)) {
@@ -730,7 +795,7 @@ export function personStatement(trip: Trip, id: string): PersonStatement {
   const owed = new Map<string, StatementLine[]>();
   const push = (m: Map<string, StatementLine[]>, k: string, l: StatementLine) => m.set(k, [...(m.get(k) ?? []), l]);
   let ownShare = 0;
-  const expenses = [...activeExpenses(trip)].sort((a, b) => a.date.localeCompare(b.date) || a.seq - b.seq);
+  const expenses = [...openExpenses(trip)].sort((a, b) => a.date.localeCompare(b.date) || a.seq - b.seq);
   for (const e of expenses) {
     for (const [pid, c] of Object.entries(e.shares)) {
       const who = chargedTo(e, pid);

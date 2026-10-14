@@ -15,6 +15,7 @@ import {
   newTrip,
   removeTraveler,
   setExpenseDeleted,
+  setExpenseSettled,
   TRIP_CATEGORIES,
   updateExpense,
   type Expense,
@@ -49,6 +50,8 @@ export type TripAction =
   | { type: 'addExpense'; id: string; input: ExpenseInput }
   | { type: 'editExpense'; id: string; input: ExpenseInput }
   | { type: 'deleteExpense'; id: string; deleted: boolean }
+  /** "Todos pagos": a despesa sai (ou volta) do painel de acerto. */
+  | { type: 'settleExpense'; id: string; settled: boolean }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
   | { type: 'unsettle'; id: string };
 
@@ -178,6 +181,8 @@ export function tripsReducer(s: TripsState, a: TripAction): TripsState {
       });
     case 'deleteExpense':
       return onOpen(s, (t) => setExpenseDeleted(t, a.id, a.deleted, now()));
+    case 'settleExpense':
+      return onOpen(s, (t) => setExpenseSettled(t, a.id, a.settled, now()));
     case 'settle':
       return onOpen(s, (t) => {
         const r = addSettlement(t, { from: a.from, to: a.to, cents: a.cents, expenseId: a.expenseId }, a.id, now());
@@ -218,6 +223,7 @@ function isValidExpense(e: unknown): e is Expense {
     isObj(e.shares) && Object.values(e.shares).every((c) => isInt(c)) &&
     isInt(e.seq) && isStr(e.createdAt) && (e.updatedAt === undefined || isStr(e.updatedAt)) &&
     (e.deleted === undefined || e.deleted === true) &&
+    (e.settled === undefined || e.settled === true) &&
     (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
     (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr)))
   );
@@ -233,7 +239,7 @@ export function isValidTrip(t: unknown): t is Trip {
     t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy))) &&
     Array.isArray(t.expenses) && t.expenses.every(isValidExpense) &&
     Array.isArray(t.settlements) &&
-    t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId))) &&
+    t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId)) && (x.expenseIds === undefined || (Array.isArray(x.expenseIds) && x.expenseIds.every(isStr)))) &&
     isInt(t.nextSeq) &&
     (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr)))

@@ -575,3 +575,10 @@ h3.field-label { margin: 0; }
   .wizard-steps button::before { transition: none; }
 }
 .expense-form .exp-delete { align-self: flex-end; }
+/* Editar despesa: "Todos pagos" à esquerda, "Excluir despesa" à direita. */
+.exp-tools { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.exp-tools .btn { width: auto; padding-inline: 8px; }
+.exp-tools .exp-delete { margin-left: auto; }
+:root .exp-tools .exp-settled { color: var(--ok); }
+:root .exp-tools .exp-settled[aria-pressed="true"] { color: var(--muted); }
+.settled-tag { color: var(--ok); font-weight: 600; }
