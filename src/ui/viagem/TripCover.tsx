@@ -3,7 +3,8 @@ import { formatBRL } from '../../core/money';
 import { activeExpenses, tripSummary, type Trip } from '../../core/trip';
 import { AvatarStack } from '../Avatar';
 import { CoverPhoto } from '../CoverPhoto';
-import { IconPencil, IconShare } from '../icons';
+import { IconDots, IconPencil, IconShare, IconTrash } from '../icons';
+import { Sheet } from './Sheet';
 import type { Member } from '../../sync/groups';
 import { MemberDots } from './ShareSheet';
 import { Art } from '../illustrations';
@@ -78,10 +79,13 @@ interface ListProps {
   fluent: boolean;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  /** Exclui a viagem deste aparelho (pelos três pontinhos do cartão). */
+  onDelete?: (id: string) => void;
 }
 
 /** Suas viagens: cada uma é uma caderneta na estante. */
-export function TripList({ trips, groups = {}, fluent, onOpen, onCreate }: ListProps) {
+export function TripList({ trips, groups = {}, fluent, onOpen, onCreate, onDelete }: ListProps) {
+  const [menu, setMenu] = useState<Trip | null>(null);
   if (trips.length === 0) {
     return (
       <section className="card trip-welcome" aria-labelledby="h-welcome">
@@ -107,12 +111,46 @@ export function TripList({ trips, groups = {}, fluent, onOpen, onCreate }: ListP
       </div>
       <ul className="covers">
         {trips.map((t) => (
-          <li key={t.id}>
+          <li key={t.id} className="cover-item">
             <CoverCard trip={t} groupId={groups[t.id] ?? null} onOpen={onOpen} />
+            {onDelete && (
+              <button type="button" className="cover-more" onClick={() => setMenu(t)} aria-label={`Mais opções de ${t.name}`} title="Mais opções">
+                <IconDots size={18} />
+              </button>
+            )}
           </li>
         ))}
       </ul>
       <button type="button" className="btn secondary new-trip" onClick={onCreate}>+ Nova viagem</button>
+      {onDelete && (
+        <Sheet open={!!menu} onClose={() => setMenu(null)} labelledBy="h-trip-menu">
+          {menu && (
+            <div className="sheet-body">
+              <span className="sheet-grip" aria-hidden="true" />
+              <h2 id="h-trip-menu" tabIndex={-1}>{menu.name}</h2>
+              <div className="confirm" role="group" aria-labelledby="h-trip-menu-del">
+                <p id="h-trip-menu-del">
+                  <b>Excluir &quot;{menu.name}&quot;?</b> Todas as despesas e acertos saem deste celular.
+                  {groups[menu.id] ? ' Para quem está no grupo, a viagem continua.' : ''}
+                </p>
+                <div className="sheet-actions">
+                  <button type="button" className="btn secondary" onClick={() => setMenu(null)} autoFocus>Cancelar</button>
+                  <button
+                    type="button"
+                    className="btn primary danger"
+                    onClick={() => {
+                      onDelete(menu.id);
+                      setMenu(null);
+                    }}
+                  >
+                    <IconTrash /> Excluir viagem
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </Sheet>
+      )}
     </section>
   );
 }

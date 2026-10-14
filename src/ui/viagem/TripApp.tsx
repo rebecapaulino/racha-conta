@@ -167,7 +167,17 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
             </header>
             {areaSwitch}
             <PwaBars />
-            <TripList trips={state.trips} groups={Object.fromEntries(Object.entries(state.sync ?? {}).map(([id, e]) => [id, e.groupId]))} fluent={fluent} onOpen={openOne} onCreate={() => setTripMode({ kind: 'create' })} />
+            <TripList
+              trips={state.trips}
+              groups={Object.fromEntries(Object.entries(state.sync ?? {}).map(([id, e]) => [id, e.groupId]))}
+              fluent={fluent}
+              onOpen={openOne}
+              onCreate={() => setTripMode({ kind: 'create' })}
+              onDelete={(id) => {
+                dispatch({ type: 'deleteTrip', id });
+                toast('Viagem apagada');
+              }}
+            />
             <div className="app-link-row"><Link href="/privacidade">Política de Privacidade</Link></div>
           </div>
         </div>

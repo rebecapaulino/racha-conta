@@ -34,6 +34,12 @@ export const IconX = ({ size = 16 }: P) => (
 export const IconCheck = ({ size = 14 }: P) => (
   <svg {...stroke(size)} strokeWidth={3}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 );
+/** Três pontinhos (mais opções). */
+export const IconDots = ({ size = 20 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+    <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+  </svg>
+);
 export const IconTrash = ({ size = 18 }: P) => (
   <svg {...stroke(size)}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
 );

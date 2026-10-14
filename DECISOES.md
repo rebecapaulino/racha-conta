@@ -397,3 +397,8 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Defeito:** a foto era escolhida só pelo nome. Uma "Rebeca" criada à mão por outra pessoa podia pegar a foto da Rebeca de verdade; e quem marcava "Sou eu" na pessoa errada punha a própria foto nela.
 - **Agora:** a pessoa ligada a uma conta do grupo usa sempre a foto dessa conta. Pelo nome, só ganha foto quem não está ligado a ninguém, e só de uma conta que ainda não é de ninguém. A foto de "você" só vale numa pessoa sem conta ou ligada à sua. Vale para Viagem e Rolê (`core/faces.ts`, com testes).
 - Conferido no navegador com duas contas com foto: cada uma mantém a sua; a "Rebeca" criada à mão fica com a inicial, também depois de "Sou eu" na pessoa errada.
+
+## Estante: três pontinhos para excluir a viagem (14/10/2026)
+
+- Cada cartão de "Suas viagens" tem três pontinhos no canto superior direito. Tocar abre a confirmação "Excluir …? Todas as despesas e acertos saem deste celular." (viagem compartilhada: "Para quem está no grupo, a viagem continua."). Igual ao "Apagar viagem" de dentro da viagem, que continua lá.
+- Os pontinhos ficam por cima do cartão (que é um botão inteiro); o topo do cartão abre espaço para eles não cobrirem as datas. No cartão com foto, ficam brancos com fundo escuro.

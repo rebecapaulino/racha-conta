@@ -719,3 +719,18 @@ h3.field-label { margin: 0; }
 
 /* Pessoa: "Assumir despesas de outra pessoa" (acima do Remover, sem a cor de perigo). */
 .person-take { align-self: center; }
+
+/* Estante: três pontinhos no canto do cartão (excluir a viagem). Fica por cima do cartão,
+   que é um botão inteiro; o topo do cartão abre espaço para eles não cobrirem as datas. */
+.cover-item { position: relative; }
+.cover-item .cover-top { padding-right: 34px; }
+.cover-more {
+  position: absolute; top: 10px; right: 10px;
+  width: 36px; height: 36px; border: 0; border-radius: 999px;
+  display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--muted);
+}
+.cover-more:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.cover-more:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cover-item:has(.cover.has-photo) .cover-more { color: #FFFFFF; background: rgba(0, 0, 0, 0.32); }
+.cover-item:has(.cover.has-photo) .cover-more:hover { background: rgba(0, 0, 0, 0.5); }
