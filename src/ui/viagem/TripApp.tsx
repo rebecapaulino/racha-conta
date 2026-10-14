@@ -24,6 +24,9 @@ import { TripExpenses } from './TripExpenses';
 import { TripPeople } from './TripPeople';
 import { TripSheet, type TripMode } from './TripSheet';
 import { useTripSync } from './useTripSync';
+import { newId } from '../../state/billState';
+import { putPhoto } from '../../state/photos';
+import { rememberPhotoUrl } from '../usePhotoUrl';
 
 type Tab = 'pessoas' | 'despesas' | 'saldos';
 
@@ -38,9 +41,20 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const summary = useMemo(() => (trip ? tripSummary(trip) : null), [trip]);
   const fluent = activeVisual() === 'fluent';
   const { account } = useAccount();
-  const { members } = useTripSync(state, dispatch, account);
+  const { members } = useTripSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
   const entry = trip ? state.sync?.[trip.id] : undefined;
   const [sharing, setSharing] = useState(false);
+
+  /** Foto do "Ler nota fiscal": guarda no aparelho e abre a despesa nova com ela. */
+  async function scanned(blob: Blob) {
+    const id = newId();
+    if (!(await putPhoto(id, blob))) {
+      toast('Não deu para guardar a foto neste aparelho.');
+      return;
+    }
+    rememberPhotoUrl(id, blob);
+    setExpenseMode({ kind: 'new', scan: { id, blob } });
+  }
 
   async function share() {
     if (!trip || !account || entry) return;
@@ -229,6 +243,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
                 onEdit={(e: Expense) => setExpenseMode({ kind: 'edit', expense: e })}
                 onGoPeople={() => go('pessoas')}
                 groupId={entry?.groupId ?? null}
+                onScan={scanned}
               />
             )}
             {current === 'saldos' && balances}
@@ -268,6 +283,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         noun="viagem"
         title={trip.name}
         code={entry?.code ?? null}
+        pending={entry?.pending.length ?? 0}
         members={members}
         account={account}
         onCreate={share}

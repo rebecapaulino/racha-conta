@@ -690,3 +690,8 @@ h3.field-label { margin: 0; }
 .receipt-card-text b { font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .receipt-card-text small { color: var(--muted); font-size: .78rem; }
 .receipts-sheet { gap: 16px; }
+.sync-state { color: var(--ok); }
+.sync-state.is-pending { color: var(--warn-ink); }
+/* Rolê: dois filtros (Quem e Divisão), do mesmo jeito dos da Viagem. */
+.filters.role-filters { grid-template-columns: auto repeat(2, minmax(0, 1fr)); }
+@media (max-width: 374px) { .filters.role-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

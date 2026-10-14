@@ -3,11 +3,13 @@ import { computeSplit, noteBill, noteLabel, summaryText, type Bill, type Note } 
 import { formatBRL } from '../core/money';
 import { newId, type Action } from '../state/billState';
 import { getPhoto } from '../state/photos';
-import { IconImage, IconPencil, IconPlus, IconShare, IconX } from './icons';
+import { downloadUrl, fileName } from './download';
+import { IconDownload, IconImage, IconPencil, IconPlus, IconReceipt, IconShare, IconX } from './icons';
 import { Sheet } from './viagem/Sheet';
 import { categoryEmoji } from '../core/noteCategory';
 import { NoteSheet, type NoteSheetMode } from './NoteSheet';
 import { usePhotoUrl } from './usePhotoUrl';
+import { notesWithPhoto, RoleReceiptsSheet } from './RoleReceiptsSheet';
 
 interface Props {
   /** A conta inteira (com todas as notas). */
@@ -28,13 +30,14 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
   const [mode, setMode] = useState<NoteSheetMode | null>(null);
   // Nota a apagar (pelo X em cima dela), esperando a confirmação.
   const [deleting, setDeleting] = useState<{ id: string; label: string; items: number } | null>(null);
+  const [receiptsOpen, setReceiptsOpen] = useState(false);
   const photoRef = useRef<HTMLDialogElement>(null);
   const notes = bill.notes ?? [];
   // Conta de uma nota só: ela aparece como "Nota 1" e vira nota de verdade ao ser editada.
-  const shown: Note[] = notes.length
-    ? notes
-    : [{ id: '', category: '', servicePct: bill.servicePct, payerId: bill.payerId, people: bill.people.map((p) => p.id), photoId: null }];
-  const current = active ?? shown[0];
+  // Conta vazia (sem nota e sem item): não mostra "Nota 1 · R$ 0,00", só o "Adicionar nota".
+  const single: Note = { id: '', category: '', servicePct: bill.servicePct, payerId: bill.payerId, people: bill.people.map((p) => p.id), photoId: null };
+  const shown: Note[] = notes.length ? notes : bill.items.length ? [single] : [];
+  const current = active ?? shown[0] ?? single;
   const index = Math.max(0, shown.findIndex((n) => n.id === current.id));
   const label = noteLabel(current, index);
   // "Nota Doces", mas "Nota 2" (e não "Nota Nota 2").
@@ -115,7 +118,11 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
                 type="button"
                 className="note-chip"
                 aria-pressed={on}
-                onClick={() => !on && dispatch({ type: 'selectNote', id: n.id })}
+                onClick={() => {
+                  if (!on) dispatch({ type: 'selectNote', id: n.id });
+                  // Nota com foto: abre a nota fiscal (para ver, baixar ou compartilhar).
+                  if (n.photoId) photoRef.current?.showModal?.();
+                }}
               >
                 <span className="note-emoji" aria-hidden="true">{categoryEmoji(n.category)}</span>
                 <span className="note-chip-text">
@@ -137,11 +144,11 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
           );
         })}
         <button type="button" className="note-chip note-add" onClick={() => setMode({ kind: 'create' })}>
-          <IconPlus size={18} /> {notes.length > 1 ? 'Nota' : 'Outra nota'}
+          <IconPlus size={18} /> {shown.length === 0 ? 'Adicionar nota' : notes.length > 1 ? 'Nota' : 'Outra nota'}
         </button>
       </div>
 
-      <div className="notes-meta">
+      {shown.length > 0 && <div className="notes-meta">
         <span className="notes-meta-text">{meta.join(' · ')}</span>
         {photoUrl && (
           <button type="button" className="note-thumb" onClick={() => photoRef.current?.showModal?.()} aria-label={`Ver a foto: ${named}`}>
@@ -152,7 +159,12 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
         <button type="button" className="link-btn notes-edit" onClick={() => edit()} aria-label={`Editar ${named}`}>
           <IconPencil size={16} /> Editar
         </button>
-      </div>
+      </div>}
+
+      <button type="button" className="btn secondary receipts-btn" onClick={() => setReceiptsOpen(true)}>
+        <IconReceipt size={18} /> Notas fiscais ({notesWithPhoto(bill).length})
+      </button>
+      <RoleReceiptsSheet bill={bill} open={receiptsOpen} onClose={() => setReceiptsOpen(false)} />
 
       <NoteSheet
         mode={mode}
@@ -202,9 +214,16 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
           <h2 id="h-note-photo"><IconImage size={20} /> {named}</h2>
           {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
           {photoUrl && <img className="note-photo-big" src={photoUrl} alt={`Foto da ${named.toLowerCase()}`} />}
-          <button type="button" className="btn primary" onClick={share}>
-            <IconShare /> Compartilhar nota
-          </button>
+          <div className="sheet-actions">
+            {photoUrl && (
+              <button type="button" className="btn secondary" onClick={() => downloadUrl(photoUrl, fileName(label))}>
+                <IconDownload /> Baixar
+              </button>
+            )}
+            <button type="button" className="btn primary" onClick={share}>
+              <IconShare /> Compartilhar
+            </button>
+          </div>
           <p className="hint">Vai a foto e quanto cada um paga nesta nota.</p>
           <button type="button" className="btn ghost" onClick={() => photoRef.current?.close()}>Fechar</button>
         </div>

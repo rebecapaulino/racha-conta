@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { formatBRL } from '../../core/money';
 import { activeExpenses, categoryLabel, TRIP_CATEGORIES, type Expense, type Trip } from '../../core/trip';
-import { IconReceipt } from '../icons';
+import { downloadUrl, fileName } from '../download';
+import { IconDownload, IconReceipt } from '../icons';
 import { CategoryIcon } from './CategoryIcon';
 import { Sheet } from './Sheet';
 import { dayLabel } from './tripDates';
@@ -28,8 +29,16 @@ function Thumb({ expense, groupId, onOpen }: { expense: Expense; groupId: string
 
 function Big({ expense, groupId }: { expense: Expense; groupId: string | null }) {
   const url = useReceiptUrl(expense.receipt ?? null, groupId);
-  // eslint-disable-next-line @next/next/no-img-element -- foto da nota no aparelho
-  return url ? <img className="note-photo-big" src={url} alt={`Nota fiscal de ${expense.description}`} /> : <p className="hint">Baixando a foto…</p>;
+  if (!url) return <p className="hint">Baixando a foto…</p>;
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- foto da nota no aparelho */}
+      <img className="note-photo-big" src={url} alt={`Nota fiscal de ${expense.description}`} />
+      <button type="button" className="btn primary" onClick={() => downloadUrl(url, fileName(expense.description))}>
+        <IconDownload /> Baixar nota
+      </button>
+    </>
+  );
 }
 
 /** Todas as notas fiscais da viagem num bloco só, separadas por categoria. */

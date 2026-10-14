@@ -121,3 +121,6 @@ export const IconSun = ({ size = 20 }: P) => (
 export const IconMoon = ({ size = 20 }: P) => (
   <svg {...stroke(size)}><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z" /></svg>
 );
+export const IconDownload = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+);

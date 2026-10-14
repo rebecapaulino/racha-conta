@@ -25,7 +25,9 @@ import { ReceiptField, totalText } from './ReceiptField';
 import { Sheet } from './Sheet';
 import { dayLabel } from './tripDates';
 
-export type ExpenseMode = { kind: 'new'; payerId?: string } | { kind: 'edit'; expense: Expense };
+export type ExpenseMode =
+  | { kind: 'new'; payerId?: string; /** Foto da nota tirada no "Ler nota fiscal" (já guardada). */ scan?: { id: string; blob: Blob } }
+  | { kind: 'edit'; expense: Expense };
 
 interface Props {
   trip: Trip;
@@ -79,7 +81,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState(editing ? typed(editing.cents) : '');
   const [description, setDescription] = useState(editing?.description ?? '');
-  const [receipt, setReceipt] = useState<string | null>(editing?.receipt ?? null);
+  const scan = mode.kind === 'new' ? mode.scan ?? null : null;
+  const [receipt, setReceipt] = useState<string | null>(editing?.receipt ?? scan?.id ?? null);
   // Total lido na foto da nota: preenche o valor (se vazio) ou oferece "Usar".
   const [readTotal, setReadTotal] = useState<{ cents: number | null } | null>(null);
   const [category, setCategory] = useState<TripCategory>(editing?.category ?? lastCategory);
@@ -318,6 +321,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
                 }
               }}
               toast={toast}
+              autoRead={scan?.blob ?? null}
             />
             {readTotal && (
               <p className="hint receipt-read" aria-live="polite">

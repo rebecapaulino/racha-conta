@@ -30,6 +30,8 @@ interface Props {
   title: string;
   /** Código do convite (null: ainda não compartilhou). */
   code: string | null;
+  /** Mudanças feitas aqui que ainda não chegaram ao grupo. */
+  pending?: number;
   members: Member[];
   account: Account | null;
   /** Cria o grupo e o link (só quem ainda não compartilhou). */
@@ -39,7 +41,7 @@ interface Props {
 }
 
 /** Compartilhar a viagem (ou o rolê): cria o link de convite e mostra quem já está no grupo. */
-export function ShareSheet({ open, noun, title, code, members, account, onCreate, toast, onClose }: Props) {
+export function ShareSheet({ open, noun, title, code, pending = 0, members, account, onCreate, toast, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const url = code ? inviteUrl(code) : '';
@@ -98,6 +100,11 @@ export function ShareSheet({ open, noun, title, code, members, account, onCreate
                 <IconChat /> WhatsApp
               </a>
             </div>
+            <p className={`hint sync-state${pending ? ' is-pending' : ''}`} aria-live="polite">
+              {pending
+                ? `${pending === 1 ? '1 mudança sua ainda não foi enviada' : `${pending} mudanças suas ainda não foram enviadas`}. Vai assim que tiver internet.`
+                : '✓ Tudo enviado para o grupo.'}
+            </p>
             <h3 className="field-label">No grupo ({members.length})</h3>
             {members.length === 0 ? (
               <p className="hint">Carregando quem está no grupo…</p>

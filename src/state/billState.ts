@@ -335,11 +335,13 @@ function apply(state: AppState, action: Action): AppState {
     }
 
     case 'addNote': {
-      const base = withNotes(bill, newId());
+      // Conta vazia (sem notas e sem itens): a nota nova é a primeira, sem criar uma "Nota 1" vazia.
+      const empty = !bill.notes?.length && bill.items.length === 0;
+      const base = empty ? { ...bill, notes: [] } : withNotes(bill, newId());
       const created: Note = {
         id: newId(),
         category: cleanCategory(action.category),
-        servicePct: 0,
+        servicePct: empty ? bill.servicePct : 0,
         payerId: action.payerId && bill.people.some((p) => p.id === action.payerId) ? action.payerId : null,
         people: valid(action.people),
         photoId: action.photoId,

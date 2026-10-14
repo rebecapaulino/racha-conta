@@ -300,3 +300,12 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Viagem compartilhada:** a foto vai para o Supabase Storage (balde privado `notas`, pasta do grupo; só quem é do grupo vê e envia — `supabase/migrations/20261015_notas.sql`). Quem não tirou baixa uma vez e guarda no aparelho. Sem internet, a foto sobe depois.
 - **Bloco "Notas fiscais (N)"** na caderneta: todas as notas da viagem, separadas por categoria (com o total de cada uma); tocar abre a nota grande.
 - Na lista de despesas, a que tem nota mostra "nota".
+
+## Ajustes de notas, filtros e grupo — 14/10/2026
+
+- **Rolê, conta vazia:** sem "Nota 1 · R$ 0,00"; só o botão "Adicionar nota". Com uma nota, ele vira "Outra nota". A primeira nota numa conta vazia não cria mais uma nota vazia antes dela (e pega o serviço da conta).
+- **Rolê, tocar numa nota com foto:** abre a nota fiscal, com **Baixar** e **Compartilhar**. "Baixar nota" também nas notas da Viagem.
+- **Notas fiscais (N)** também no Rolê (em Pedidos, abaixo da faixa de notas), por categoria. As fotos do Rolê continuam só no aparelho de quem tirou.
+- **Viagem:** cartão "Ler nota fiscal" na caderneta (também com ela vazia), que abre a despesa nova já com a nota e o total lido.
+- **Rolê, filtros** nos itens (como na Viagem): Quem e Divisão (Individual, Dividido, Sem ninguém), com total e "Limpar filtros".
+- **Grupo:** além do tempo real, o app confere o grupo a cada 15 s e ao voltar para ele; avisa "Fulano entrou no grupo"; a janela de compartilhar mostra se há mudanças suas esperando para enviar.

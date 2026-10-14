@@ -3,7 +3,7 @@ import { MAX_ITEM_NAME, MAX_QTY, SERVICE_OPTIONS, itemTotal, type Bill, type Ite
 import { formatBRL, parseBRL } from '../core/money';
 import type { Action } from '../state/billState';
 import { Avatar, personStyle } from './Avatar';
-import { IconAlert, IconMinus, IconPlus, IconTrash } from './icons';
+import { IconAlert, IconFilter, IconMinus, IconPlus, IconTrash } from './icons';
 import { Art, artForItem } from './illustrations';
 import { itemEmoji, itemKind } from './itemEmoji';
 import { ReceiptScan } from './ReceiptScan';
@@ -31,6 +31,16 @@ export function PedidosStep({ bill, title, result, example, notePhotoId, notesBa
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [error, setError] = useState('');
+  // Filtros da lista (como na caderneta da Viagem): de quem é o item e como foi dividido.
+  const [who, setWho] = useState('');
+  const [kind, setKind] = useState<'' | 'sozinho' | 'dividido' | 'sem'>('');
+  const validWho = who && bill.people.some((p) => p.id === who) ? who : '';
+  const filtering = !!(validWho || kind);
+  const shownItems = bill.items.filter(
+    (it) =>
+      (!validWho || it.who.includes(validWho)) &&
+      (!kind || (kind === 'sem' ? it.who.length === 0 : kind === 'sozinho' ? it.who.length === 1 : it.who.length > 1)),
+  );
   const nameRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
@@ -128,11 +138,46 @@ export function PedidosStep({ bill, title, result, example, notePhotoId, notesBa
             <p><b>Nenhum item ainda.</b><br />Leia a nota fiscal ou lance o que foi pedido acima.</p>
           </div>
         ) : (
-          <ul className="items">
-            {bill.items.map((it) => (
-              <ItemCard key={it.id} item={it} people={bill.people} dispatch={dispatch} />
-            ))}
-          </ul>
+          <>
+            {bill.items.length > 1 && (
+              <div className="filters role-filters" role="group" aria-label="Filtrar itens">
+                <span className="filters-icon" aria-hidden="true"><IconFilter size={18} /></span>
+                <label className="filter" data-on={!!validWho || undefined}>
+                  <span className="sr">Pessoa</span>
+                  <select value={validWho} onChange={(e) => setWho(e.target.value)}>
+                    <option value="">Quem</option>
+                    {bill.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <label className="filter" data-on={!!kind || undefined}>
+                  <span className="sr">Divisão</span>
+                  <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+                    <option value="">Divisão</option>
+                    <option value="sozinho">Individual</option>
+                    <option value="dividido">Dividido</option>
+                    <option value="sem">Sem ninguém</option>
+                  </select>
+                </label>
+              </div>
+            )}
+            {filtering && (
+              <p className="filter-result" aria-live="polite">
+                <span>
+                  {shownItems.length} {shownItems.length === 1 ? 'item' : 'itens'} · <b className="num">{formatBRL(shownItems.reduce((a, it) => a + itemTotal(it), 0))}</b>
+                </span>
+                <button type="button" className="link-btn" onClick={() => { setWho(''); setKind(''); }}>Limpar filtros</button>
+              </p>
+            )}
+            {shownItems.length === 0 ? (
+              <section className="card empty"><p>Nenhum item com esses filtros.</p></section>
+            ) : (
+              <ul className="items">
+                {shownItems.map((it) => (
+                  <ItemCard key={it.id} item={it} people={bill.people} dispatch={dispatch} />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
 

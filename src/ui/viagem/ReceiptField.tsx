@@ -4,7 +4,8 @@ import { expectedItemsTotal, sumItems } from '../../receipt/parse';
 import { defaultReader } from '../../receipt/reader';
 import { newId } from '../../state/billState';
 import { putPhoto, shrinkPhoto } from '../../state/photos';
-import { IconCamera, IconImage, IconReceipt, IconX } from '../icons';
+import { downloadUrl, fileName } from '../download';
+import { IconCamera, IconDownload, IconImage, IconReceipt, IconX } from '../icons';
 import { rememberPhotoUrl } from '../usePhotoUrl';
 import { Sheet } from './Sheet';
 import { useReceiptUrl } from './useReceiptUrl';
@@ -18,13 +19,15 @@ interface Props {
   /** Total lido na nota (null: não deu para ler). */
   onTotal: (cents: number | null) => void;
   toast: (msg: string) => void;
+  /** Foto que acabou de chegar pelo "Ler nota fiscal": lê o total assim que abre. */
+  autoRead?: Blob | null;
 }
 
 /**
  * Foto da nota fiscal na despesa: tira (ou escolhe) a foto, o app lê o total e a nota fica
  * guardada na despesa. Na viagem compartilhada, o grupo todo vê.
  */
-export function ReceiptField({ receipt, groupId, onChange, onTotal, toast }: Props) {
+export function ReceiptField({ receipt, groupId, onChange, onTotal, toast, autoRead = null }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState<string | null>(null);
@@ -51,7 +54,11 @@ export function ReceiptField({ receipt, groupId, onChange, onTotal, toast }: Pro
     }
     rememberPhotoUrl(id, blob);
     onChange(id);
-    // Lê o total da nota (no próprio celular).
+    void read(blob);
+  }
+
+  /** Lê o total da nota (no próprio celular). */
+  async function read(blob: Blob) {
     abort.current?.abort();
     const ctrl = new AbortController();
     abort.current = ctrl;
@@ -67,6 +74,14 @@ export function ReceiptField({ receipt, groupId, onChange, onTotal, toast }: Pro
       if (!ctrl.signal.aborted) setReading(null);
     }
   }
+
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoRead || started.current) return;
+    started.current = true;
+    void read(autoRead);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lê uma vez, ao abrir
+  }, [autoRead]);
 
   return (
     <div className="receipt-field">
@@ -119,6 +134,11 @@ export function ReceiptField({ receipt, groupId, onChange, onTotal, toast }: Pro
           <h2 id="h-receipt-view" tabIndex={-1}>Nota fiscal</h2>
           {/* eslint-disable-next-line @next/next/no-img-element -- foto da nota no aparelho */}
           {url ? <img className="note-photo-big" src={url} alt="Foto da nota fiscal" /> : <p className="hint">Baixando a foto…</p>}
+          {url && (
+            <button type="button" className="btn secondary" onClick={() => downloadUrl(url, fileName('fiscal'))}>
+              <IconDownload /> Baixar nota
+            </button>
+          )}
           <button type="button" className="btn ghost" onClick={() => setViewing(false)}>Fechar</button>
         </div>
       </Sheet>

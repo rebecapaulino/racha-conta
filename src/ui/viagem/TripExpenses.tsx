@@ -5,6 +5,7 @@ import type { TripAction } from '../../state/tripState';
 import { Avatar, AvatarStack } from '../Avatar';
 import { IconBulb, IconCheck, IconFilter, IconReceipt, IconX } from '../icons';
 import { ReceiptsSheet, withReceipt } from './ReceiptsSheet';
+import { TripScanCard } from './TripScanCard';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { dayLabel, dayNumber } from './tripDates';
@@ -20,6 +21,8 @@ interface Props {
   onGoPeople: () => void;
   /** Grupo da viagem compartilhada (fotos das notas que outras pessoas tiraram). */
   groupId?: string | null;
+  /** Foto tirada no "Ler nota fiscal": abre a despesa nova com ela. */
+  onScan?: (blob: Blob) => void;
 }
 
 const SPLIT_TAG = { equal: '', weight: 'por peso', exact: 'valores exatos' } as const;
@@ -43,7 +46,7 @@ function setTipHidden(tripId: string, hidden: boolean) {
 }
 
 /** Caderneta: as despesas em páginas, uma por dia (a mais recente primeiro). */
-export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onGoPeople, groupId = null }: Props) {
+export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onGoPeople, groupId = null, onScan }: Props) {
   const [receiptsOpen, setReceiptsOpen] = useState(false);
   const receiptCount = withReceipt(trip).length;
   const [person, setPerson] = useState('');
@@ -88,10 +91,13 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
 
   if (all.length === 0 && deleted.length === 0) {
     return (
-      <section className="card empty">
-        <span className="empty-icon">{fluent ? <Art kind="notebook" size={36} /> : '📒'}</span>
-        <p><b>Caderneta em branco.</b><br />Lance o primeiro gasto: hospedagem, mercado, combustível…</p>
-      </section>
+      <div className="stack-y">
+        {onScan && <TripScanCard onPhoto={onScan} toast={toast} />}
+        <section className="card empty">
+          <span className="empty-icon">{fluent ? <Art kind="notebook" size={36} /> : '📒'}</span>
+          <p><b>Caderneta em branco.</b><br />Lance o primeiro gasto: hospedagem, mercado, combustível…</p>
+        </section>
+      </div>
     );
   }
 
@@ -130,11 +136,10 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
         </section>
       )}
 
-      {receiptCount > 0 && (
-        <button type="button" className="btn secondary receipts-btn" onClick={() => setReceiptsOpen(true)}>
-          <IconReceipt size={18} /> Notas fiscais ({receiptCount})
-        </button>
-      )}
+      {onScan && <TripScanCard onPhoto={onScan} toast={toast} />}
+      <button type="button" className="btn secondary receipts-btn" onClick={() => setReceiptsOpen(true)}>
+        <IconReceipt size={18} /> Notas fiscais ({receiptCount})
+      </button>
       <ReceiptsSheet trip={trip} groupId={groupId} open={receiptsOpen} onClose={() => setReceiptsOpen(false)} />
 
       {all.length > 1 && (

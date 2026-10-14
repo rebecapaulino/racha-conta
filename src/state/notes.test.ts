@@ -406,3 +406,14 @@ describe('apagar nota pelo X', () => {
     expect(s.bill.notes).toBeUndefined();
   });
 });
+
+describe('primeira nota numa conta vazia', () => {
+  it('cria só a nota pedida (sem uma "Nota 1" vazia antes), com o serviço da conta', () => {
+    const s0 = run(blankState(), { type: 'addPerson', name: 'Ana' });
+    const [ana] = ids(s0);
+    const s = run(s0, { type: 'addNote', category: 'Pizza', payerId: ana, people: [ana], photoId: null });
+    expect(s.bill.notes!.map((n) => n.category)).toEqual(['Pizza']);
+    expect(s.bill.notes![0].servicePct).toBe(s0.bill.servicePct);
+    expect(isValidBill(s.bill)).toBe(true);
+  });
+});
