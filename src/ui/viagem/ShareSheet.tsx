@@ -6,7 +6,15 @@ import { inviteUrl, type Member, type SyncStatus } from '../../sync/groups';
 import { IconChat, IconCopy } from '../icons';
 import { Sheet } from './Sheet';
 
-/** Bolinhas com as iniciais de quem está no grupo (como no Excel). */
+/** Foto da conta da pessoa (Google); sem foto, ou se ela não carregar, as iniciais. */
+function Face({ photo, text }: { photo: string | null; text: string }) {
+  const [broken, setBroken] = useState(false);
+  if (!photo || broken || !/^https:\/\//.test(photo)) return <>{text}</>;
+  // eslint-disable-next-line @next/next/no-img-element -- foto da conta, vem do Google
+  return <img src={photo} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+}
+
+/** Bolinhas de quem está no grupo: a foto da conta, ou as iniciais (como no Excel). */
 export function MemberDots({ members, accountId, max = 4 }: { members: Member[]; accountId: string | null; max?: number }) {
   const initials = memberInitials(members.map((m) => m.name));
   const shown = members.slice(0, max);
@@ -15,7 +23,7 @@ export function MemberDots({ members, accountId, max = 4 }: { members: Member[];
     <span className="member-dots" aria-label={`No grupo: ${members.map((m) => (m.userId === accountId ? `${m.name} (você)` : m.name)).join(', ')}`}>
       {shown.map((m, i) => (
         <span key={m.userId} className="member-dot" style={{ '--pc': `var(--p${(i % 6) + 1})` } as React.CSSProperties} title={m.name} aria-hidden="true">
-          {initials[i]}
+          <Face photo={m.photo} text={initials[i]} />
         </span>
       ))}
       {rest > 0 && <span className="member-dot member-more" aria-hidden="true">+{rest}</span>}
@@ -132,7 +140,7 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
                 {members.map((m, i) => (
                   <li key={m.userId} className="row">
                     <span className="member-dot member-dot-lg" style={{ '--pc': `var(--p${(i % 6) + 1})` } as React.CSSProperties} aria-hidden="true">
-                      {initials[i]}
+                      <Face photo={m.photo} text={initials[i]} />
                     </span>
                     <span className="row-main">
                       <b>

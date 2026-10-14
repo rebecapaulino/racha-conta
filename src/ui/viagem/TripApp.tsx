@@ -143,7 +143,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       )}
     </div>
   );
-  const tripSheet = <TripSheet mode={tripMode} dispatch={dispatch} toast={toast} onClose={() => setTripMode(null)} />;
+  const tripSheet = <TripSheet mode={tripMode} dispatch={dispatch} toast={toast} accountName={account?.name ?? null} onClose={() => setTripMode(null)} />;
   const inviteSheet = <InviteSheet invite={invite} noun="viagem" onJoin={join} onClose={closeInvite} />;
 
 
@@ -161,7 +161,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
             </header>
             {areaSwitch}
             <PwaBars />
-            <TripList trips={state.trips} fluent={fluent} onOpen={openOne} onCreate={() => setTripMode({ kind: 'create' })} />
+            <TripList trips={state.trips} groups={Object.fromEntries(Object.entries(state.sync ?? {}).map(([id, e]) => [id, e.groupId]))} fluent={fluent} onOpen={openOne} onCreate={() => setTripMode({ kind: 'create' })} />
             <div className="app-link-row"><Link href="/privacidade">Política de Privacidade</Link></div>
           </div>
         </div>

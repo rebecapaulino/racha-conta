@@ -14,6 +14,8 @@ interface Props {
   dispatch: Dispatch<TripAction>;
   toast: (msg: string) => void;
   onClose: () => void;
+  /** Nome da conta (logado): entra como "você" na viagem nova, sem perguntar. */
+  accountName?: string | null;
 }
 
 /** Criar viagem (nome, datas e quem é você) ou editar (nome, datas, nomes das categorias, apagar). */
@@ -25,7 +27,9 @@ export function TripSheet({ mode, onClose, ...rest }: Props) {
   );
 }
 
-function TripForm({ mode, dispatch, toast, onClose }: Props & { mode: TripMode }) {
+function TripForm({ mode, dispatch, toast, onClose, accountName }: Props & { mode: TripMode }) {
+  // Logado: usa o primeiro nome da conta ("Rebeca Oliveira" → "Rebeca"), como os outros da lista.
+  const fromAccount = accountName?.trim().split(/\s+/)[0] ?? '';
   const trip = mode.kind === 'edit' ? mode.trip : null;
   const [name, setName] = useState(trip?.name ?? '');
   const [start, setStart] = useState(trip?.start ?? '');
@@ -47,7 +51,7 @@ function TripForm({ mode, dispatch, toast, onClose }: Props & { mode: TripMode }
       dispatch({ type: 'editTrip', name, start: start || null, end: end || null, categoryNames: cats });
       toast('Viagem salva');
     } else {
-      dispatch({ type: 'createTrip', id: newId(), name, start: start || undefined, end: end || undefined, meName: me });
+      dispatch({ type: 'createTrip', id: newId(), name, start: start || undefined, end: end || undefined, meName: fromAccount || me });
       toast('Caderneta criada. Boa viagem!');
     }
     onClose();
@@ -94,7 +98,7 @@ function TripForm({ mode, dispatch, toast, onClose }: Props & { mode: TripMode }
         </div>
       </fieldset>
 
-      {!trip && (
+      {!trip && !fromAccount && (
         <div className="note-field">
           <label className="field-label" htmlFor="trip-me">Seu nome</label>
           <input

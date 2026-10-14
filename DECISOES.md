@@ -356,3 +356,11 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 - Defeito: o aparelho tentava baixar a foto do grupo uma vez só. Se a outra pessoa ainda estava enviando, a foto nunca aparecia (até reabrir o app). Agora tenta de novo: 0,4 s, 5 s, 15 s, 30 s, 1 min e 2 min.
 - Do lado de quem tirou: se o envio da foto falhar (sinal fraco), tenta de novo em 8 s, em vez de esperar outra mudança.
+
+## Grupo que "soltou", nome da conta, foto na estante e nas bolinhas (14/10/2026)
+
+- Investigação do celular que parou de receber as mudanças: na versão atual, sair e entrar na conta, sessão negada por um tempo e abrir o link de novo mantêm a viagem ligada ao grupo (teste com dois aparelhos). Também 300 sequências sorteadas de ações não quebram a viagem ao fechar e abrir o app (teste automático `tripReload.test.ts`). A causa mais provável é a versão antiga no celular dele (antes da correção que parou de desligar a viagem quando o grupo não respondia).
+- Achado no caminho: quem entrava pelo convite ia para a área certa (Viagem), mas o app não guardava; na próxima abertura voltava para o Rolê e parecia que a viagem tinha sumido. Agora guarda.
+- Criar viagem logado: não pergunta mais "Seu nome"; usa o primeiro nome da conta. Sem login, o campo continua.
+- Estante "Suas viagens": o cartão mostra a foto da viagem (inclusive a que outra pessoa do grupo pôs).
+- Bolinhas do grupo: mostram a foto da conta (Google) de cada pessoa; sem foto, ou se não carregar, as iniciais.

@@ -73,13 +73,15 @@ export function TripCover({ trip, fluent, onEdit, onPhoto, toast, groupId = null
 
 interface ListProps {
   trips: Trip[];
+  /** Grupo de cada viagem compartilhada (a foto do cartão pode vir de lá). */
+  groups?: Record<string, string>;
   fluent: boolean;
   onOpen: (id: string) => void;
   onCreate: () => void;
 }
 
 /** Suas viagens: cada uma é uma caderneta na estante. */
-export function TripList({ trips, fluent, onOpen, onCreate }: ListProps) {
+export function TripList({ trips, groups = {}, fluent, onOpen, onCreate }: ListProps) {
   if (trips.length === 0) {
     return (
       <section className="card trip-welcome" aria-labelledby="h-welcome">
@@ -104,40 +106,48 @@ export function TripList({ trips, fluent, onOpen, onCreate }: ListProps) {
         <span className="muted">{trips.length} {trips.length === 1 ? 'caderneta' : 'cadernetas'}</span>
       </div>
       <ul className="covers">
-        {trips.map((t) => {
-          const s = tripSummary(t);
-          const dates = tripDates(t.start, t.end);
-          const count = activeExpenses(t).length;
-          return (
-            <li key={t.id}>
-              <button
-                type="button"
-                className="cover"
-                onClick={() => onOpen(t.id)}
-                aria-label={`${t.name}${dates ? `, ${dates}` : ''}, ${formatBRL(s.total)}, ${t.people.length} pessoas`}
-              >
-                          <span className="cover-body">
-                  <span className="cover-top">
-                    <b className="cover-name">{t.name}</b>
-                    {dates && <span className="hero-date">{dates}</span>}
-                  </span>
-                  <span className="cover-sum">
-                    <small>Gasto total</small>
-                    <b className="cover-total num">{formatBRL(s.total)}</b>
-                  </span>
-                  <span className="cover-people">
-                    {t.people.length > 0 && <AvatarStack people={t.people} />}
-                    <span>
-                      {t.people.length} {t.people.length === 1 ? 'pessoa' : 'pessoas'} · {count} {count === 1 ? 'despesa' : 'despesas'}
-                    </span>
-                  </span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {trips.map((t) => (
+          <li key={t.id}>
+            <CoverCard trip={t} groupId={groups[t.id] ?? null} onOpen={onOpen} />
+          </li>
+        ))}
       </ul>
       <button type="button" className="btn secondary new-trip" onClick={onCreate}>+ Nova viagem</button>
     </section>
+  );
+}
+
+/** Uma caderneta da estante. Com foto da viagem, a foto vira o fundo (como no cartão de dentro). */
+function CoverCard({ trip: t, groupId, onOpen }: { trip: Trip; groupId: string | null; onOpen: (id: string) => void }) {
+  const s = tripSummary(t);
+  const dates = tripDates(t.start, t.end);
+  const count = activeExpenses(t).length;
+  const photoUrl = useReceiptUrl(t.photoId ?? null, groupId);
+  const style = photoUrl ? ({ '--photo': `url("${photoUrl}")` } as CSSProperties) : undefined;
+  return (
+    <button
+      type="button"
+      className={`cover${photoUrl ? ' has-photo' : ''}`}
+      style={style}
+      onClick={() => onOpen(t.id)}
+      aria-label={`${t.name}${dates ? `, ${dates}` : ''}, ${formatBRL(s.total)}, ${t.people.length} pessoas`}
+    >
+      <span className="cover-body">
+        <span className="cover-top">
+          <b className="cover-name">{t.name}</b>
+          {dates && <span className="hero-date">{dates}</span>}
+        </span>
+        <span className="cover-sum">
+          <small>Gasto total</small>
+          <b className="cover-total num">{formatBRL(s.total)}</b>
+        </span>
+        <span className="cover-people">
+          {t.people.length > 0 && <AvatarStack people={t.people} />}
+          <span>
+            {t.people.length} {t.people.length === 1 ? 'pessoa' : 'pessoas'} · {count} {count === 1 ? 'despesa' : 'despesas'}
+          </span>
+        </span>
+      </span>
+    </button>
   );
 }

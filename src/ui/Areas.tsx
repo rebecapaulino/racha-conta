@@ -18,7 +18,13 @@ export default function Areas() {
     const code = inviteCodeInUrl();
     if (!code || !signedIn) return;
     previewInvite(code).then(
-      (p) => p && setArea(p.kind === 'role' ? 'role' : 'viagem'),
+      (p) => {
+        if (!p) return;
+        // Guarda também: da próxima vez, o app abre direto onde está o grupo.
+        const next = p.kind === 'role' ? 'role' : 'viagem';
+        setArea(next);
+        saveArea(next);
+      },
       () => {},
     );
   }, [signedIn]);
