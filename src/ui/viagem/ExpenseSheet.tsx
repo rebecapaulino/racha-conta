@@ -93,8 +93,13 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   // como a pessoa escolher. Quem já está na conta de quem pagou na viagem toda não aparece.
   // Só é gravado ao lançar. Sem ninguém para escolher, a etapa nem aparece.
   const payerAccount = accountOf(trip, payerId);
-  const candidates = people.filter((p) => accountOf(trip, p.id) !== payerAccount);
-  const inTripAccount = people.filter((p) => p.id !== payerId && accountOf(trip, p.id) === payerAccount);
+  // Quem já está na conta de quem pagou na viagem toda: aparece marcado, e dá para desativar
+  // (a pessoa volta a pagar a própria parte; aí dá para escolher "Só nesta despesa").
+  const tripMembers = people.filter((p) => p.coveredBy === payerId);
+  const [dropTrip, setDropTrip] = useState<string[]>([]);
+  const dropped = dropTrip.filter((id) => tripMembers.some((p) => p.id === id));
+  const keptTrip = tripMembers.filter((p) => !dropped.includes(p.id));
+  const candidates = people.filter((p) => accountOf(trip, p.id) !== payerAccount || dropped.includes(p.id));
   const fromEditing = editing ? Object.keys(editing.coveredBy ?? {}).filter((id) => editing.coveredBy![id] === payerId) : [];
   const [pick, setPick] = useState<{ payer: string; ids: string[]; scope: 'expense' | 'trip' } | null>(null);
   const cover =
@@ -104,7 +109,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   const toggleCover = (id: string) =>
     setPick({ ...cover, ids: cover.ids.includes(id) ? cover.ids.filter((x) => x !== id) : [...cover.ids, id] });
 
-  const steps = ALL_STEPS.filter((s) => s.key !== 'conta' || candidates.length > 0);
+  const steps = ALL_STEPS.filter((s) => s.key !== 'conta' || candidates.length > 0 || tripMembers.length > 0);
   const LAST = steps.length - 1;
   const at = Math.min(step, LAST);
   const key = steps[at].key;
@@ -219,6 +224,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
       return;
     }
     // Na viagem toda: a pessoa entra na conta de quem pagou (como em Pessoas), antes da despesa.
+    for (const id of dropped) dispatch({ type: 'editTraveler', id, coveredBy: null });
     if (cover.scope === 'trip') {
       for (const id of cover.ids) dispatch({ type: 'editTraveler', id, coveredBy: payerId });
     }
@@ -425,9 +431,31 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
         {key === 'conta' && (
           <>
             <div className="chips" role="group" aria-label={`De quem ${nameOf(payerId)} paga a parte`}>
-              <button type="button" className="chip chip-self" aria-pressed={cover.ids.length === 0} onClick={() => setPick({ ...cover, ids: [] })}>
+              <button
+                type="button"
+                className="chip chip-self"
+                aria-pressed={cover.ids.length === 0 && keptTrip.length === 0}
+                onClick={() => {
+                  setPick({ ...cover, ids: [] });
+                  setDropTrip(tripMembers.map((p) => p.id));
+                }}
+              >
                 Ninguém
               </button>
+              {keptTrip.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="chip"
+                  style={personStyle(p)}
+                  aria-pressed="true"
+                  aria-label={`${p.name}, a viagem toda. Toque para desativar`}
+                  onClick={() => setDropTrip((d) => [...d, p.id])}
+                >
+                  <Avatar person={p} size="xs" checked />
+                  {p.id === meId ? 'Você' : p.name} <small className="chip-note">· viagem toda</small>
+                </button>
+              ))}
               {candidates.map((p) => {
                 const on = cover.ids.includes(p.id);
                 return (
@@ -438,9 +466,10 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
                 );
               })}
             </div>
-            {inTripAccount.length > 0 && (
-              <p className="hint">
-                Já paga a de {inTripAccount.map((p) => (p.id === meId ? 'você' : p.name)).join(', ')} na viagem toda.
+            {keptTrip.length > 0 && <p className="hint">“Viagem toda” vale para todas as despesas. Toque no nome para desativar.</p>}
+            {dropped.length > 0 && (
+              <p className="hint" aria-live="polite">
+                {dropped.map((id) => nameOf(id)).join(', ').replace(/^v/, 'V')} volta a pagar a própria parte nas despesas. Se for só nesta, toque no nome de novo e escolha “Só nesta despesa”.
               </p>
             )}
             {cover.ids.length > 0 && (

@@ -242,3 +242,8 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Formato de extrato:** linhas separadas por um traço, sem cards. À direita, o valor (verde recebe, vermelho paga) ou o status: "✓ pago", "✓ recebido", "(não incluso)" para quem não participa de nenhuma despesa, e "parte paga por X" para quem tem a parte paga por outra pessoa.
 - **Pago:** quem já pagou aparece como "pago" (não "quite"), e o card do acerto continua na tela, marcado em verde.
 - Lógica em `statementRows` (trip.ts), testada.
+
+## Desativar "viagem toda" na despesa
+
+- Na etapa "paga conta de alguém?", quem já está na conta de quem pagou na viagem toda aparece marcado ("· viagem toda"). Um toque desativa: a pessoa volta a pagar a própria parte em todas as despesas, e dá para escolher "Só nesta despesa" em seguida. "Ninguém" desativa todos. Só é gravado ao salvar.
+- "Todos pagos" na caderneta desceu, para não encostar no destaque da despesa ao passar o mouse.

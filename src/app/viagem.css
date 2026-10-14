@@ -576,7 +576,7 @@ h3.field-label { margin: 0; }
 }
 .expense-form .exp-delete { align-self: flex-end; }
 /* Caderneta: "Todos pagos" embaixo de cada despesa, alinhado com o texto. */
-.line-foot { display: flex; padding: 0 16px 10px 82px; margin-top: -4px; }
+.line-foot { display: flex; padding: 8px 16px 14px 82px; }
 :root .line-settled { min-height: 36px; padding: 0 12px; gap: 6px; font-size: .84rem; color: var(--muted); }
 :root .line-settled[aria-pressed="true"] { --pc: var(--ok); color: var(--ok); }
 .line-settled::after { content: ""; position: absolute; inset: -4px 0; }
@@ -611,3 +611,5 @@ h3.field-label { margin: 0; }
 .carousel-next:hover { color: var(--primary); }
 @keyframes slide-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .pay-slide { animation: none; } }
+
+.chip-note { color: var(--muted); font-weight: 500; }
