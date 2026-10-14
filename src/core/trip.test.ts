@@ -702,3 +702,86 @@ describe('despesa parcelada no cartão', () => {
     expect(tripSummary(t).plan.direct.every((r) => !r.expenseId)).toBe(true);
   });
 });
+
+describe('quem paga a parte de quem só numa despesa', () => {
+  // Rebeca pagou o jantar de 90 (30 cada). O Mauricio paga a parte da Lara só nesse jantar.
+  function jantar(): Trip {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Lara']);
+    t = add(t, { description: 'Jantar', cents: 9000, payerId: 'rebeca', coveredBy: { lara: 'mauricio' } });
+    return t;
+  }
+
+  it('a parte entra na conta de quem paga, e a Lara continua tendo consumido', () => {
+    const t = jantar();
+    expect(balances(t)).toEqual({ rebeca: 6000, mauricio: -6000, lara: 0 });
+    const lara = tripSummary(t).people.find((r) => r.person.id === 'lara')!;
+    expect(lara.owes).toBe(3000);
+    expect(lara.charged).toBe(0);
+    expect(directTransfers(t)).toEqual([{ from: 'mauricio', to: 'rebeca', cents: 6000 }]);
+    expect(tripSummary(t).transfers).toEqual([{ from: 'mauricio', to: 'rebeca', cents: 6000 }]);
+  });
+
+  it('não vale para as outras despesas', () => {
+    let t = jantar();
+    t = add(t, { description: 'Mercado', cents: 3000, payerId: 'rebeca' });
+    // Mercado: 10 cada. Mauricio deve 60 + 10, Lara deve só os 10 do mercado.
+    expect(balances(t)).toEqual({ rebeca: 8000, mauricio: -7000, lara: -1000 });
+    expect(sumOf(balances(t))).toBe(0);
+  });
+
+  it('conta de cada um: a parte da Lara aparece na do Mauricio, marcada', () => {
+    const t = jantar();
+    const m = personStatement(t, 'mauricio');
+    expect(m.owesTotal).toBe(6000);
+    expect(m.owesTo[0].lines.map((l) => [l.cents, l.for])).toEqual([[3000, undefined], [3000, 'lara']]);
+    expect(m.balance).toBe(-6000);
+    expect(personStatement(t, 'lara').balance).toBe(0);
+    const r = personStatement(t, 'rebeca');
+    expect(r.owedBy.map((d) => [d.other, d.cents])).toEqual([['mauricio', 6000]]);
+    expect(r.balance).toBe(6000);
+  });
+
+  it('quem pagou a despesa também pode pagar a parte de alguém: aí essa parte já está paga', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Lara']);
+    t = add(t, { cents: 9000, payerId: 'mauricio', coveredBy: { lara: 'mauricio' } });
+    expect(balances(t)).toEqual({ rebeca: -3000, mauricio: 3000, lara: 0 });
+    expect(personStatement(t, 'mauricio').ownShare).toBe(6000);
+  });
+
+  it('parcelado: a parcela da Lara sai do Mauricio', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Lara']);
+    t = add(t, { cents: 9000, payerId: 'rebeca', installments: 3, coveredBy: { lara: 'mauricio' } });
+    const rows = tripSummary(t).plan.direct;
+    expect(rows.map((r) => [r.from, r.to, r.cents, r.installments])).toEqual([['mauricio', 'rebeca', 6000, 3]]);
+  });
+
+  it('limpa o que não vale: quem não participa, a própria pessoa, gente fora da viagem', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Lara']);
+    t = add(t, { cents: 6000, payerId: 'rebeca', people: ['rebeca', 'mauricio'], coveredBy: { lara: 'mauricio', mauricio: 'mauricio', rebeca: 'zé' } });
+    expect(t.expenses[0].coveredBy).toBeUndefined();
+    const r = updateExpense(t, t.expenses[0].id, { ...input(t, { cents: 6000, payerId: 'rebeca' }), coveredBy: { lara: 'mauricio' } }, NOW);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.trip.expenses[0].coveredBy).toEqual({ lara: 'mauricio' });
+    // Editar sem o campo tira a cobertura.
+    const r2 = updateExpense(r.trip, t.expenses[0].id, input(t, { cents: 6000, payerId: 'rebeca' }), NOW);
+    if (!r2.ok) throw new Error(r2.error);
+    expect(r2.trip.expenses[0].coveredBy).toBeUndefined();
+  });
+
+  it('quem paga a parte de alguém numa despesa não pode ser removido direto', () => {
+    const t = jantar();
+    expect(canRemoveTraveler(t, 'mauricio')).toBe(false);
+  });
+
+  it('juntar pessoas: troca os nomes e nenhum valor muda', () => {
+    let t = jantar();
+    t = { ...t, people: [...t.people, { id: 'beto', name: 'Beto', color: 3, weight: 1 }] };
+    const before = balances(t);
+    const r = mergeTraveler(t, 'mauricio', 'beto');
+    if (!r.ok) throw new Error(r.error);
+    expect(r.trip.expenses[0].coveredBy).toEqual({ lara: 'beto' });
+    const after = balances(r.trip);
+    expect(after.beto).toBe(before.mauricio);
+    expect(after.rebeca).toBe(before.rebeca);
+  });
+});

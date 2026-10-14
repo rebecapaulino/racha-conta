@@ -539,12 +539,13 @@ h3.field-label { margin: 0; }
 /* Cada pedaço da barra tem a largura do nome (que cabe inteiro) e divide o espaço que sobra. */
 .wizard-steps li { flex: 1 1 auto; min-width: 0; }
 .wizard-steps button {
-  width: 100%; min-width: 0; min-height: 44px; padding: 6px 0 0;
-  display: flex; flex-direction: column; gap: 6px;
+  width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 0 0; -webkit-appearance: none; appearance: none;
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
   border: 0; background: none; color: var(--muted); font: inherit; font-size: .72rem; font-weight: 600; letter-spacing: -0.01em; text-align: left; cursor: pointer;
 }
-.wizard-steps button::before { content: ""; display: block; height: 4px; border-radius: 999px; background: var(--line); transition: background-color .2s; }
-.wizard-steps button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Ponta reta: o nome começa exatamente onde a barra começa. */
+.wizard-steps button::before { content: ""; display: block; height: 4px; border-radius: 1px; background: var(--line); transition: background-color .2s; }
+.wizard-steps button span { display: block; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wizard-steps button[data-done]::before, .wizard-steps button[aria-current]::before { background: var(--primary); }
 .wizard-steps button[aria-current] { color: var(--ink); }
 .wizard-steps button:disabled { cursor: default; }
@@ -557,7 +558,7 @@ h3.field-label { margin: 0; }
 .wizard-recap .cat-tile { width: 28px; height: 28px; border-radius: 8px; flex: none; }
 
 .wizard-step { display: flex; flex-direction: column; gap: 14px; animation: wizard-in .2s ease-out; }
-.wizard-title { margin: 0 0 -6px; display: flex; flex-direction: column; gap: 2px; font-size: .95rem; line-height: 1.25; }
+.wizard-title { margin: 0 0 -6px; display: flex; flex-direction: column; gap: 6px; font-size: .95rem; line-height: 1.25; }
 .wizard-title small { color: var(--muted); font-size: .78rem; font-weight: 600; }
 /* O título só recebe o foco para o leitor de tela anunciar a etapa: não é clicável, sem contorno. */
 .expense-form .wizard-title:focus, .expense-form .wizard-title:focus-visible { outline: none; }

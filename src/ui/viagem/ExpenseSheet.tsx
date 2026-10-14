@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type Dispatch, type FormEvent } from 'reac
 import { formatBRL, parseBRL } from '../../core/money';
 import {
   accountOf,
-  canCover,
   categoryLabel,
   findDuplicate,
   installmentInfo,
@@ -90,16 +89,20 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Conta de quem pagou: quem entra nela (o pai paga a parte da filha). É da viagem toda, não só desta
-  // despesa, e só é gravada ao lançar. Sem ninguém que possa entrar, a etapa nem aparece.
-  const root = accountOf(trip, payerId);
-  const rootPerson = people.find((p) => p.id === root);
-  const candidates = people.filter((p) => p.id !== root && canCover(trip, p.id, root) && (!p.coveredBy || p.coveredBy === root));
-  const currentMembers = candidates.filter((p) => p.coveredBy === root).map((p) => p.id);
-  const [pick, setPick] = useState<{ root: string; ids: string[] } | null>(null);
-  const joined = pick && pick.root === root ? pick.ids.filter((id) => candidates.some((p) => p.id === id)) : currentMembers;
-  const toggleJoin = (id: string) =>
-    setPick({ root, ids: joined.includes(id) ? joined.filter((x) => x !== id) : [...joined, id] });
+  // Quem pagou também paga a parte de alguém? Vale só nesta despesa (padrão) ou na viagem toda,
+  // como a pessoa escolher. Quem já está na conta de quem pagou na viagem toda não aparece.
+  // Só é gravado ao lançar. Sem ninguém para escolher, a etapa nem aparece.
+  const payerAccount = accountOf(trip, payerId);
+  const candidates = people.filter((p) => accountOf(trip, p.id) !== payerAccount);
+  const inTripAccount = people.filter((p) => p.id !== payerId && accountOf(trip, p.id) === payerAccount);
+  const fromEditing = editing ? Object.keys(editing.coveredBy ?? {}).filter((id) => editing.coveredBy![id] === payerId) : [];
+  const [pick, setPick] = useState<{ payer: string; ids: string[]; scope: 'expense' | 'trip' } | null>(null);
+  const cover =
+    pick && pick.payer === payerId
+      ? { ...pick, ids: pick.ids.filter((id) => candidates.some((p) => p.id === id)) }
+      : { payer: payerId, ids: fromEditing.filter((id) => candidates.some((p) => p.id === id)), scope: 'expense' as const };
+  const toggleCover = (id: string) =>
+    setPick({ ...cover, ids: cover.ids.includes(id) ? cover.ids.filter((x) => x !== id) : [...cover.ids, id] });
 
   const steps = ALL_STEPS.filter((s) => s.key !== 'conta' || candidates.length > 0);
   const LAST = steps.length - 1;
@@ -135,6 +138,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
     people: who,
     ...(split === 'exact' ? { exact: Object.fromEntries(who.map((id) => [id, exactCents(id) ?? -1])) } : {}),
     ...(parts > 1 ? { installments: parts } : {}),
+    ...(cover.scope === 'expense' && cover.ids.some((id) => who.includes(id))
+      ? { coveredBy: Object.fromEntries(cover.ids.filter((id) => who.includes(id)).map((id) => [id, payerId])) }
+      : {}),
   };
   // Exemplo de parcela: a parte de alguém que não pagou (de preferência quem usa o celular).
   function sampleInstallment() {
@@ -212,10 +218,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
       requestAnimationFrame(() => dupRef.current?.focus());
       return;
     }
-    // Quem entrou ou saiu da conta de quem pagou, antes da despesa.
-    for (const p of candidates) {
-      const want = joined.includes(p.id);
-      if (want !== (p.coveredBy === root)) dispatch({ type: 'editTraveler', id: p.id, coveredBy: want ? root : null });
+    // Na viagem toda: a pessoa entra na conta de quem pagou (como em Pessoas), antes da despesa.
+    if (cover.scope === 'trip') {
+      for (const id of cover.ids) dispatch({ type: 'editTraveler', id, coveredBy: payerId });
     }
     if (editing) {
       dispatch({ type: 'editExpense', id: editing.id, input });
@@ -279,7 +284,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
       <div className="wizard-step" key={key}>
         <h3 className="wizard-title" ref={titleRef} tabIndex={-1}>
           <small>Etapa {at + 1} de {steps.length}</small>
-          {key === 'conta' ? `Alguém paga junto com ${rootPerson?.id === meId ? 'você' : rootPerson?.name}?` : steps[at].title}
+          {key === 'conta' ? `${payerId === meId ? 'Você' : payerName} paga conta de alguém?` : steps[at].title}
         </h3>
 
         {key === 'valor' && (
@@ -424,31 +429,43 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
 
         {key === 'conta' && (
           <>
-            <p className="hint">
-              {rootPerson && rootPerson.id !== payerId
-                ? `${nameOf(payerId)} está na conta de ${nameOf(root)}. `
-                : ''}
-              {rootPerson?.id === meId ? 'Você paga' : `${rootPerson?.name} paga`} a parte de mais alguém (o pai paga a da filha)? Toque em quem. Se não, é só seguir.
-            </p>
-            <div className="chips" role="group" aria-label={`Quem entra na conta de ${rootPerson?.name}`}>
-              <button type="button" className="chip chip-self" aria-pressed={joined.length === 0} onClick={() => setPick({ root, ids: [] })}>
+            <div className="chips" role="group" aria-label={`De quem ${nameOf(payerId)} paga a parte`}>
+              <button type="button" className="chip chip-self" aria-pressed={cover.ids.length === 0} onClick={() => setPick({ ...cover, ids: [] })}>
                 Ninguém
               </button>
               {candidates.map((p) => {
-                const on = joined.includes(p.id);
+                const on = cover.ids.includes(p.id);
                 return (
-                  <button key={p.id} type="button" className="chip" style={personStyle(p)} aria-pressed={on} onClick={() => toggleJoin(p.id)}>
+                  <button key={p.id} type="button" className="chip" style={personStyle(p)} aria-pressed={on} onClick={() => toggleCover(p.id)}>
                     <Avatar person={p} size="xs" checked={on} />
                     {p.id === meId ? 'Você' : p.name}
                   </button>
                 );
               })}
             </div>
-            <p className="hint" aria-live="polite">
-              {joined.length > 0
-                ? `No acerto, a conta de ${people.filter((p) => joined.includes(p.id)).map((p) => p.name).join(', ')} entra na de ${rootPerson?.name}. Vale para a viagem toda, não só para esta despesa. As despesas continuam no nome de cada um.`
-                : 'Cada um paga a própria parte no acerto.'}
-            </p>
+            {inTripAccount.length > 0 && (
+              <p className="hint">
+                Já paga a de {inTripAccount.map((p) => (p.id === meId ? 'você' : p.name)).join(', ')} na viagem toda.
+              </p>
+            )}
+            {cover.ids.length > 0 && (
+              <div className="note-field">
+                <h4 className="field-label" id="h-exp-cover">Vale para</h4>
+                <div className="seg two" role="group" aria-labelledby="h-exp-cover">
+                  <button type="button" aria-pressed={cover.scope === 'expense'} onClick={() => setPick({ ...cover, scope: 'expense' })}>
+                    Só nesta despesa
+                  </button>
+                  <button type="button" aria-pressed={cover.scope === 'trip'} onClick={() => setPick({ ...cover, scope: 'trip' })}>
+                    A viagem toda
+                  </button>
+                </div>
+                <p className="hint" aria-live="polite">
+                  {cover.scope === 'expense'
+                    ? 'Nas outras despesas, cada um paga a própria parte.'
+                    : 'Entra em todas as despesas, também nas que já foram lançadas.'}
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -478,8 +495,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
         {key === 'divisao' && (
           <>
             <div className="note-field">
-              <h4 className="field-label" id="h-exp-split">Como dividir?</h4>
-              <div className={`seg ${splits.length === 2 ? 'two' : 'split-seg'}`} role="group" aria-labelledby="h-exp-split">
+              <div className={`seg ${splits.length === 2 ? 'two' : 'split-seg'}`} role="group" aria-label="Como dividir">
                 {splits.map((s) => (
                   <button key={s.id} type="button" aria-pressed={split === s.id} onClick={() => chooseSplit(s.id)}>{s.label}</button>
                 ))}

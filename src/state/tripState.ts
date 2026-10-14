@@ -196,6 +196,7 @@ function cleanInput(input: ExpenseInput): ExpenseInput {
   const out: ExpenseInput = { ...input, description: cleanName(input.description, MAX_DESCRIPTION) };
   if (input.split !== 'exact') delete out.exact;
   if (installmentsOf(input) === 1) delete out.installments;
+  if (!out.coveredBy || !Object.keys(out.coveredBy).length) delete out.coveredBy;
   return out;
 }
 
@@ -217,7 +218,8 @@ function isValidExpense(e: unknown): e is Expense {
     isObj(e.shares) && Object.values(e.shares).every((c) => isInt(c)) &&
     isInt(e.seq) && isStr(e.createdAt) && (e.updatedAt === undefined || isStr(e.updatedAt)) &&
     (e.deleted === undefined || e.deleted === true) &&
-    (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS))
+    (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
+    (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr)))
   );
 }
 

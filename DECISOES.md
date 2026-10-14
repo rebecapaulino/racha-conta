@@ -205,3 +205,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Etapas:** 1 Valor e nome · 2 Categoria · 3 Quem pagou, dia, à vista ou parcelado · 4 Alguém paga junto com quem pagou? (a etapa some se ninguém pode entrar) · 5 Quem participa · 6 Como dividir, com o valor de cada um, e Lançar. A etapa 4 muda quem paga a parte de quem na viagem toda (não só na despesa) e só grava ao lançar. Dá para voltar e tocar numa etapa já vista. Editando, todas as etapas ficam abertas e "Salvar" funciona de qualquer uma.
 - **Peso:** saiu só da escolha "Como dividir" (fica para quem edita uma despesa antiga que já usava). O peso em Pessoas continua como estava.
 - **Títulos das etapas** do tamanho do rótulo "Nome da despesa", e a barra mostra o nome de cada etapa.
+
+## Viagem: "paga conta de alguém?" só nesta despesa ou na viagem toda
+
+- **Por quê:** quem paga a parte de alguém num jantar não paga necessariamente nas outras despesas.
+- **Como fica:** na etapa "Mauricio paga conta de alguém?", a pessoa escolhe quem e se vale **só nesta despesa** (padrão) ou **a viagem toda** (o mesmo de Pessoas).
+- **Conta:** a despesa guarda `coveredBy` (quem participa → quem paga a parte dela). A pessoa continua tendo consumido (`owes`), mas a parte entra na conta de quem paga (`charged`), no saldo, no acerto direto, no de menos Pix, nas parcelas e na conta detalhada ("parte de Lara"). Testado em `trip.test.ts`.

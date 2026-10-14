@@ -53,15 +53,16 @@ export const PersonAccount = forwardRef<HTMLElement, Props>(function PersonAccou
                     <Avatar person={other} size="sm" />
                     <span className="acc-pair-text">
                       <span>{verb(d.other)}</span>
-                      <small>{d.lines.length} {d.lines.length === 1 ? 'despesa' : 'despesas'} · ver</small>
+                      <small>{new Set(d.lines.map((l) => l.expense.id)).size} {new Set(d.lines.map((l) => l.expense.id)).size === 1 ? 'despesa' : 'despesas'} · ver</small>
                     </span>
                     <Signed cents={sign * d.cents} />
                   </summary>
                   <ul className="acc-lines">
                     {d.lines.map((l) => (
-                      <li key={l.expense.id}>
+                      <li key={`${l.expense.id}-${l.for ?? ''}`}>
                         <span>
                           {l.expense.description}
+                          {l.for && <> · parte de {trip.people.find((p) => p.id === l.for)?.name}</>}
                           <small>{shortDay(l.expense.date)} · total {formatBRL(l.expense.cents)}</small>
                         </span>
                         <b className="num">{formatBRL(l.cents)}</b>

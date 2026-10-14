@@ -59,6 +59,27 @@ export interface ExpenseInput {
    * número de parcelas. No acerto, vira um pagamento separado ("Airbnb · parcela 2 de 6").
    */
   installments?: number;
+  /**
+   * Quem paga a parte de quem só nesta despesa (o Mauricio paga a da Lara só no jantar):
+   * participante → quem paga. A despesa continua no nome de quem consumiu; no acerto, essa
+   * parte entra na conta de quem paga. Para valer na viagem toda, é o `coveredBy` da pessoa.
+   */
+  coveredBy?: Record<string, string>;
+}
+
+/** Quem acerta a parte de `pid` nesta despesa: quem paga por ela aqui, ou ela mesma. */
+export function chargedTo(e: Pick<ExpenseInput, 'coveredBy'>, pid: string): string {
+  const by = e.coveredBy?.[pid];
+  return by && by !== pid ? by : pid;
+}
+
+/** Só fica quem participa e é pago por outra pessoa da viagem. Vazio: sem o campo. */
+function cleanCovered(covered: Record<string, string> | undefined, shares: Record<string, number>, people: Traveler[]) {
+  const out: Record<string, string> = {};
+  for (const [pid, by] of Object.entries(covered ?? {})) {
+    if (pid !== by && Object.hasOwn(shares, pid) && people.some((p) => p.id === by)) out[pid] = by;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface Expense extends ExpenseInput {
@@ -221,6 +242,9 @@ export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: str
   const r = splitExpense(input, trip.people, seq);
   if (!r.ok) return r;
   const expense: Expense = { ...input, id, seq, shares: r.shares, createdAt: now };
+  const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
+  if (covered) expense.coveredBy = covered;
+  else delete expense.coveredBy;
   return { ok: true, trip: { ...trip, expenses: [...trip.expenses, expense], nextSeq: seq + 1 } };
 }
 
@@ -232,6 +256,9 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   if (!r.ok) return r;
   const expense: Expense = { ...old, ...input, shares: r.shares, updatedAt: now };
   if (input.split !== 'exact') delete expense.exact;
+  const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
+  if (covered) expense.coveredBy = covered;
+  else delete expense.coveredBy;
   return { ok: true, trip: { ...trip, expenses: trip.expenses.map((e) => (e.id === id ? expense : e)) } };
 }
 
@@ -265,7 +292,9 @@ export const activeExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.del
 /** Onde a pessoa aparece (contando despesas excluídas, que podem voltar). */
 export function travelerUsage(trip: Trip, id: string): { expenses: number; settlements: number } {
   return {
-    expenses: trip.expenses.filter((e) => e.payerId === id || Object.hasOwn(e.shares, id) || e.people.includes(id)).length,
+    expenses: trip.expenses.filter(
+      (e) => e.payerId === id || Object.hasOwn(e.shares, id) || e.people.includes(id) || Object.values(e.coveredBy ?? {}).includes(id),
+    ).length,
     settlements: trip.settlements.filter((s) => s.from === id || s.to === id).length,
   };
 }
@@ -313,7 +342,24 @@ export function mergeTraveler(trip: Trip, fromId: string, toId: string): TripRes
   const swap = (pid: string) => (pid === fromId ? toId : pid);
   const expenses = trip.expenses.map((e): Expense => {
     const payerId = swap(e.payerId);
-    if (!e.people.includes(fromId) && !Object.hasOwn(e.shares, fromId)) return { ...e, payerId };
+    // Quem paga a parte de quem nesta despesa: troca os nomes. Se as duas participavam, fica
+    // como estava a de quem recebe (a parte somada é dela).
+    let coveredBy: Record<string, string> | undefined;
+    if (e.coveredBy) {
+      coveredBy = {};
+      for (const [pid, by] of Object.entries(e.coveredBy)) {
+        if (pid === fromId && Object.hasOwn(e.shares, toId)) continue;
+        if (swap(pid) !== swap(by)) coveredBy[swap(pid)] = swap(by);
+      }
+      if (!Object.keys(coveredBy).length) coveredBy = undefined;
+    }
+    const withCover = (x: Expense): Expense => {
+      if (coveredBy) return { ...x, coveredBy };
+      const y = { ...x };
+      delete y.coveredBy;
+      return y;
+    };
+    if (!e.people.includes(fromId) && !Object.hasOwn(e.shares, fromId)) return withCover({ ...e, payerId });
     const shares: Record<string, number> = {};
     for (const [pid, c] of Object.entries(e.shares)) shares[swap(pid)] = (shares[swap(pid)] ?? 0) + c;
     const people = [...new Set(e.people.map(swap))];
@@ -321,7 +367,7 @@ export function mergeTraveler(trip: Trip, fromId: string, toId: string): TripRes
     const next: Expense = { ...e, payerId, people, shares, split: keepRule ? 'equal' : 'exact' };
     if (keepRule) delete next.exact;
     else next.exact = { ...shares };
-    return next;
+    return withCover(next);
   });
   const settlements = trip.settlements
     .map((s) => ({ ...s, from: swap(s.from), to: swap(s.to) }))
@@ -346,10 +392,15 @@ export interface TravelerBalance {
   paid: number;
   /** Quanto consumiu: a soma das partes dele (tirou do caixa). */
   owes: number;
+  /**
+   * Quanto entra na conta dele no acerto: o que consumiu, menos as partes que outro paga
+   * numa despesa, mais as partes de outros que ele paga. Sem isso, é igual a `owes`.
+   */
+  charged: number;
   /** Acertos que já mandou e que já recebeu. */
   sent: number;
   received: number;
-  /** pagou − consumiu + mandou − recebeu. Positivo: recebe. Negativo: paga. */
+  /** pagou − na conta dele + mandou − recebeu. Positivo: recebe. Negativo: paga. */
   balance: number;
 }
 
@@ -413,7 +464,7 @@ export function accountName(trip: Trip, id: string): string {
 /** Saldos, totais e acerto da viagem. */
 export function tripSummary(trip: Trip): TripSummary {
   const ids = new Set(trip.people.map((p) => p.id));
-  const row = new Map(trip.people.map((p) => [p.id, { person: p, paid: 0, owes: 0, sent: 0, received: 0, balance: 0 }]));
+  const row = new Map(trip.people.map((p) => [p.id, { person: p, paid: 0, owes: 0, charged: 0, sent: 0, received: 0, balance: 0 }]));
   const byCategory = new Map<TripCategory, number>();
   const byDay = new Map<string, number>();
   let total = 0;
@@ -421,13 +472,20 @@ export function tripSummary(trip: Trip): TripSummary {
 
   for (const e of activeExpenses(trip)) {
     const entries = Object.entries(e.shares);
-    if (entries.reduce((a, [, c]) => a + c, 0) !== e.cents || !ids.has(e.payerId) || entries.some(([pid]) => !ids.has(pid))) {
+    if (
+      entries.reduce((a, [, c]) => a + c, 0) !== e.cents ||
+      !ids.has(e.payerId) ||
+      entries.some(([pid]) => !ids.has(pid) || !ids.has(chargedTo(e, pid)))
+    ) {
       ok = false;
       continue;
     }
     total += e.cents;
     row.get(e.payerId)!.paid += e.cents;
-    for (const [pid, c] of entries) row.get(pid)!.owes += c;
+    for (const [pid, c] of entries) {
+      row.get(pid)!.owes += c;
+      row.get(chargedTo(e, pid))!.charged += c;
+    }
     byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.cents);
     byDay.set(e.date, (byDay.get(e.date) ?? 0) + e.cents);
   }
@@ -442,7 +500,7 @@ export function tripSummary(trip: Trip): TripSummary {
 
   const people = trip.people.map((p) => {
     const r = row.get(p.id)!;
-    return { ...r, balance: r.paid - r.owes + r.sent - r.received };
+    return { ...r, balance: r.paid - r.charged + r.sent - r.received };
   });
   // A soma dos saldos é sempre zero: o que entrou no caixa é o que saiu.
   if (people.reduce((a, r) => a + r.balance, 0) !== 0) ok = false;
@@ -476,7 +534,7 @@ function settlePlans(trip: Trip, people: TravelerBalance[]): Record<SettleMode, 
   const now: Record<string, number> = { ...base };
   for (const r of people) {
     const a = acc.get(r.person.id)!;
-    base[a] += r.paid - r.owes;
+    base[a] += r.paid - r.charged;
     now[a] += r.balance;
   }
   const split = installmentRows(trip, acc);
@@ -499,7 +557,7 @@ function installmentRows(trip: Trip, acc: Map<string, string>): SettleRow[] {
     if (n === 1 || !payer) continue;
     for (const p of trip.people) {
       const c = Object.hasOwn(e.shares, p.id) ? e.shares[p.id] : 0;
-      const from = acc.get(p.id)!;
+      const from = acc.get(chargedTo(e, p.id))!;
       if (c <= 0 || from === payer) continue;
       const row = rows.find((r) => r.expenseId === e.id && r.from === from);
       if (row) row.cents += c;
@@ -588,7 +646,7 @@ export function directTransfers(trip: Trip, withSettlements = true, skipInstallm
     const payer = acc.get(e.payerId);
     if (!payer || (skipInstallments && installmentsOf(e) > 1)) continue;
     for (const [pid, c] of Object.entries(e.shares)) {
-      const who = acc.get(pid);
+      const who = acc.get(chargedTo(e, pid));
       if (who && who !== payer) addDebt(who, payer, c);
     }
   }
@@ -626,6 +684,8 @@ export function groupByPayer<T extends Transfer>(transfers: T[], trip: Trip): { 
 export interface StatementLine {
   expense: Expense;
   cents: number;
+  /** A parte é de outra pessoa, paga por esta só nesta despesa ("parte de Lara"). */
+  for?: string;
 }
 
 /** Tudo o que uma pessoa deve (ou tem a receber de) outra, despesa por despesa. */
@@ -663,13 +723,15 @@ export function personStatement(trip: Trip, id: string): PersonStatement {
   let ownShare = 0;
   const expenses = [...activeExpenses(trip)].sort((a, b) => a.date.localeCompare(b.date) || a.seq - b.seq);
   for (const e of expenses) {
-    if (e.payerId === id) {
-      for (const [pid, c] of Object.entries(e.shares)) {
-        if (pid === id) ownShare += c;
-        else if (c > 0) push(owed, pid, { expense: e, cents: c });
+    for (const [pid, c] of Object.entries(e.shares)) {
+      const who = chargedTo(e, pid);
+      const line: StatementLine = pid === who ? { expense: e, cents: c } : { expense: e, cents: c, for: pid };
+      if (e.payerId === id) {
+        if (who === id) ownShare += c;
+        else if (c > 0) push(owed, who, line);
+      } else if (who === id && c > 0) {
+        push(owes, e.payerId, line);
       }
-    } else if (Object.hasOwn(e.shares, id) && e.shares[id] > 0) {
-      push(owes, e.payerId, { expense: e, cents: e.shares[id] });
     }
   }
   const pairs = (m: Map<string, StatementLine[]>): PairDebt[] =>
