@@ -13,11 +13,13 @@ import {
   MAX_WEIGHT,
   mergeTraveler,
   installmentsOf,
+  joinTraveler,
   newTrip,
   removeTraveler,
   setExpenseDeleted,
   setExpenseSettled,
   TRIP_CATEGORIES,
+  transferTraveler,
   updateExpense,
   type Expense,
   type ExpenseInput,
@@ -65,6 +67,14 @@ export type TripAction =
   | { type: 'editTraveler'; id: string; name?: string; weight?: number; coveredBy?: string | null }
   /** Remove a pessoa. Se ela tem despesas, `to` diz para quem elas passam. */
   | { type: 'removeTraveler'; id: string; to?: string }
+  /** Passa para `to` tudo o que está no nome de `from` (despesas, partes, acertos); `from` fica na viagem. */
+  | { type: 'transferTraveler'; from: string; to: string }
+  /**
+   * Alguém entrou no grupo: passa a participar da viagem (ver joinTraveler). `id` é o da pessoa
+   * nova, se precisar criar; `prefer`, a pessoa a ligar se estiver livre; `self`: é a conta
+   * deste aparelho (vira o "sou eu").
+   */
+  | { type: 'joinTraveler'; tripId: string; userId: string; name: string; id: string; prefer?: string; self?: boolean }
   | { type: 'setMe'; id: string | null }
   | { type: 'addExpense'; id: string; input: ExpenseInput }
   | { type: 'editExpense'; id: string; input: ExpenseInput }
@@ -77,7 +87,7 @@ export type TripAction =
   /** A viagem aberta virou um grupo (acabou de ser compartilhada). */
   | { type: 'syncLink'; tripId: string; groupId: string; code: string; version: number }
   /** Chegou do grupo uma versão mais nova (de outra pessoa ou buscada de novo). */
-  | { type: 'syncRemote'; tripId: string; trip: Trip; version: number }
+  | { type: 'syncRemote'; tripId: string; trip: Trip; version: number; code?: string }
   /** As primeiras `count` mudanças da fila foram salvas no grupo como `sent`. */
   | { type: 'syncSaved'; tripId: string; version: number; count: number; sent: Trip }
   /** Entrou num grupo pelo convite: a viagem chega e abre. */
@@ -108,6 +118,16 @@ function nextColor(trip: Trip): number {
 }
 
 export const openTrip = (s: TripsState) => s.trips.find((t) => t.id === s.openId) ?? null;
+
+/**
+ * Quem é a pessoa deste aparelho na viagem: o "sou eu" guardado (se ela ainda está na viagem)
+ * ou a pessoa ligada à conta logada.
+ */
+export function meOf(s: TripsState, trip: Trip, userId: string | null): string | null {
+  const saved = s.me[trip.id];
+  if (saved && trip.people.some((p) => p.id === saved)) return saved;
+  return (userId && trip.people.find((p) => p.userId === userId)?.id) || null;
+}
 
 /** Aplica uma mudança na viagem aberta. */
 function onOpen(s: TripsState, change: (t: Trip) => Trip | null): TripsState {
@@ -145,6 +165,13 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
         return n.coveredBy ? `${who(after, n.coveredBy)} paga a parte de ${n.name} na viagem toda` : `${n.name} volta a pagar a própria parte`;
       }
       return null;
+    }
+    case 'transferTraveler':
+      return `Passou para ${who(after, a.to)} as despesas de ${who(after, a.from)}`;
+    case 'joinTraveler': {
+      const n = after.people.find((p) => p.userId === a.userId);
+      if (!n) return null;
+      return before.people.some((p) => p.id === n.id) ? `${a.name} entrou no grupo como ${n.name}` : `${n.name} entrou na viagem`;
     }
     case 'removeTraveler':
       return a.to ? `Tirou ${who(before, a.id)} (as despesas passaram para ${who(after, a.to)})` : `Tirou ${who(before, a.id)}`;
@@ -219,7 +246,7 @@ function syncReducer(s: TripsState, a: TripAction): TripsState | null {
       const entry = s.sync?.[a.tripId];
       if (!entry || a.version <= entry.version || a.trip.id !== a.tripId) return s;
       const local = replay(a.trip, entry.pending, s.author ?? null);
-      return put(local, { ...entry, version: a.version, base: a.trip });
+      return put(local, { ...entry, version: a.version, base: a.trip, code: a.code || entry.code });
     }
     case 'syncSaved': {
       const entry = s.sync?.[a.tripId];
@@ -265,7 +292,8 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       const me = a.meName ? cleanName(a.meName) : '';
       const meId = a.meId ?? `${a.id}-eu`;
       if (me) trip = { ...trip, people: [{ id: meId, name: me, color: 0, weight: 1 }] };
-      return { trips: [trip, ...s.trips], openId: trip.id, me: me ? { ...s.me, [trip.id]: meId } : s.me };
+      // Mantém o resto (as outras viagens continuam ligadas aos grupos delas).
+      return { ...s, trips: [trip, ...s.trips], openId: trip.id, me: me ? { ...s.me, [trip.id]: meId } : s.me };
     }
     case 'openTrip':
       return a.id === null || s.trips.some((t) => t.id === a.id) ? { ...s, openId: a.id } : s;
@@ -299,7 +327,14 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
     case 'deleteTrip': {
       const me = { ...s.me };
       delete me[a.id];
-      return { trips: s.trips.filter((t) => t.id !== a.id), openId: s.openId === a.id ? null : s.openId, me };
+      const next: TripsState = { ...s, trips: s.trips.filter((t) => t.id !== a.id), openId: s.openId === a.id ? null : s.openId, me };
+      if (s.sync?.[a.id]) {
+        const sync = { ...s.sync };
+        delete sync[a.id];
+        if (Object.keys(sync).length) next.sync = sync;
+        else delete next.sync;
+      }
+      return next;
     }
     case 'addTraveler': {
       const name = cleanName(a.name);
@@ -332,6 +367,19 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       if (a.to) me[tripId] = a.to;
       else delete me[tripId];
       return { ...next, me };
+    }
+    case 'transferTraveler':
+      return onOpen(s, (t) => {
+        const r = transferTraveler(t, a.from, a.to);
+        return r.ok ? r.trip : null;
+      });
+    case 'joinTraveler': {
+      const trip = openTrip(s);
+      if (!trip || trip.id !== a.tripId || !a.userId) return s;
+      const r = joinTraveler(trip, a.userId, cleanName(a.name, 60), a.id, a.prefer);
+      if (r.trip === trip && !(a.self && r.id && s.me[trip.id] !== r.id)) return s;
+      const next = r.trip === trip ? s : { ...s, trips: s.trips.map((t) => (t.id === trip.id ? r.trip : t)) };
+      return a.self && r.id ? { ...next, me: { ...next.me, [trip.id]: r.id } } : next;
     }
     case 'setMe': {
       const trip = openTrip(s);
@@ -414,7 +462,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.start === undefined || (isStr(t.start) && DATE.test(t.start))) &&
     (t.end === undefined || (isStr(t.end) && DATE.test(t.end))) &&
     Array.isArray(t.people) &&
-    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy))) &&
+    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy)) && (p.userId === undefined || isStr(p.userId))) &&
     Array.isArray(t.expenses) && t.expenses.every(isValidExpense) &&
     Array.isArray(t.settlements) &&
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId)) && (x.expenseIds === undefined || (Array.isArray(x.expenseIds) && x.expenseIds.every(isStr)))) &&
@@ -422,6 +470,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr))) &&
     (t.photoId === undefined || (isStr(t.photoId) && PHOTO_ID.test(t.photoId))) &&
+    (t.joined === undefined || (Array.isArray(t.joined) && t.joined.every(isStr))) &&
     (t.log === undefined || (Array.isArray(t.log) && t.log.every((e) => isObj(e) && typeof e.at === 'number' && isStr(e.text))))
   );
 }

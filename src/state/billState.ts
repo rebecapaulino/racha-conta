@@ -8,6 +8,7 @@ import {
   MAX_NAME,
   MAX_QTY,
   itemTotal,
+  joinPerson,
   PERSON_COLORS,
   SERVICE_OPTIONS,
   noteBill,
@@ -93,6 +94,8 @@ export function isValidRoleDoc(d: unknown): d is RoleDoc {
 export type Action =
   | { type: 'title'; title: string }
   | { type: 'addPerson'; name: string }
+  /** Alguém entrou no grupo: passa a estar na mesa (ver joinPerson). `id`: o da pessoa nova, se precisar criar. */
+  | { type: 'joinPerson'; userId: string; name: string; id: string }
   | { type: 'removePerson'; id: string }
   | { type: 'addItem'; name: string; cents: number }
   /** Itens lidos da foto da nota: somam aos atuais ou trocam por eles; pode trazer o serviço da nota. */
@@ -236,6 +239,13 @@ function apply(state: AppState, action: Action): AppState {
         everyone.every((id) => n.people.includes(id)) ? { ...n, people: [...n.people, person.id] } : n,
       );
       return next({ people: [...bill.people, person], ...(notes ? { notes } : {}) }, { nextColor: state.nextColor + 1 });
+    }
+
+    case 'joinPerson': {
+      if (!action.userId) return state;
+      const r = joinPerson(bill, action.userId, action.name.slice(0, 60), action.id, state.nextColor);
+      if (r.bill === bill) return state;
+      return { ...state, example: false, bill: r.bill, nextColor: state.nextColor + (r.added ? 1 : 0) };
     }
 
     case 'removePerson':
@@ -562,6 +572,11 @@ function describe(before: AppState, after: AppState, action: Action): string | n
     }
     case 'unsettlePair':
       return `Desmarcou o pagamento de ${person(action.from)} para ${person(action.to)}`;
+    case 'joinPerson': {
+      const p = after.bill.people.find((x) => x.userId === action.userId);
+      if (!p) return null;
+      return bill.people.some((x) => x.id === p.id) ? `${action.name} entrou no grupo como ${p.name}` : `${p.name} entrou no rolê`;
+    }
     case 'cover':
       return action.by ? `${person(action.by)} paga a parte de ${person(action.id)}` : `${person(action.id)} volta a pagar a própria parte`;
     case 'removeNote':
@@ -643,7 +658,8 @@ export function isValidBill(b: unknown): b is Bill {
     Array.isArray(x.people) &&
     Array.isArray(x.items) &&
     (SERVICE_OPTIONS as readonly number[]).includes(x.servicePct) &&
-    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string')) &&
+    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string') && (p.userId === undefined || typeof p.userId === 'string')) &&
+    (x.joined === undefined || (Array.isArray(x.joined) && x.joined.every((u) => typeof u === 'string'))) &&
     (x.settleMode === undefined || x.settleMode === 'direct' || x.settleMode === 'min') &&
     x.items.every(
       (i) =>

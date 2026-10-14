@@ -5,6 +5,8 @@
 export interface Face {
   name: string;
   photo: string | null;
+  /** Conta do grupo (quando se sabe). */
+  userId?: string;
 }
 
 /** "  Rebéca   OLIVEIRA " → "rebeca oliveira" */
@@ -12,7 +14,7 @@ export const normalName = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 /** A pessoa e a conta são a mesma? Nome inteiro igual, ou o nome digitado é o primeiro nome da conta. */
-function same(person: string, account: string): boolean {
+export function sameName(person: string, account: string): boolean {
   const p = normalName(person);
   const a = normalName(account);
   if (!p || !a) return false;
@@ -20,19 +22,31 @@ function same(person: string, account: string): boolean {
 }
 
 /**
- * id da pessoa → foto da conta. Só entra quem combina com exatamente uma conta, e essa conta
+ * id da pessoa → foto da conta. Quem está ligada a uma conta do grupo (entrou pelo convite e
+ * é ela) usa a foto dessa conta, sempre. Quem não está ligada só ganha foto pelo nome, e só
+ * de uma conta que ainda não é de ninguém: assim uma "Rebeca" criada à mão nunca pega a foto
+ * da Rebeca de verdade. Pelo nome, só quem combina com exatamente uma conta, e essa conta
  * combina só com essa pessoa (duas "Ana" na mesa, ou duas contas "Ana …": nenhuma ganha foto).
  */
-export function facesByName(people: { id: string; name: string }[], accounts: Face[]): Record<string, string> {
-  const withPhoto = accounts.filter((a) => a.photo && /^https:\/\//.test(a.photo));
+export function facesByName(people: { id: string; name: string; userId?: string }[], accounts: Face[]): Record<string, string> {
+  const https = (photo: string | null | undefined): photo is string => !!photo && /^https:\/\//.test(photo);
   const out: Record<string, string> = {};
+  const linked = new Set(people.map((p) => p.userId).filter((u): u is string => !!u));
   for (const p of people) {
-    const found = withPhoto.filter((a) => same(p.name, a.name));
+    if (!p.userId) continue;
+    const photo = accounts.find((a) => a.userId === p.userId)?.photo;
+    if (https(photo)) out[p.id] = photo;
+  }
+  const free = people.filter((p) => !p.userId);
+  const open = accounts.filter((a) => !a.userId || !linked.has(a.userId));
+  const withPhoto = open.filter((a) => https(a.photo));
+  for (const p of free) {
+    const found = withPhoto.filter((a) => sameName(p.name, a.name));
     if (found.length !== 1) continue;
-    const rivals = people.filter((q) => same(q.name, found[0].name));
+    const rivals = free.filter((q) => sameName(q.name, found[0].name));
     if (rivals.length !== 1) continue;
     // Uma conta sem foto com o mesmo nome também deixa em dúvida.
-    if (accounts.filter((a) => same(p.name, a.name)).length !== 1) continue;
+    if (open.filter((a) => sameName(p.name, a.name)).length !== 1) continue;
     out[p.id] = found[0].photo!;
   }
   return out;

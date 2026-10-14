@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../core/trip';
 import { loginEnabled, useAccount } from '../../auth/account';
-import { isValidTrip, loadTrips, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
-import { createTripGroup, fetchTripGroup, joinGroup } from '../../sync/groups';
+import { loadTrips, meOf, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
+import { createTripGroup } from '../../sync/groups';
+import { joinByInvite, memberActions } from '../../sync/tripEngine';
 import { InviteSheet, useInvite } from '../useInvite';
 import { AccountButton } from '../AccountButton';
 import { ThemeButton } from '../ThemeButton';
@@ -25,7 +26,7 @@ import { facesByName } from '../../core/faces';
 import { TripExpenses } from './TripExpenses';
 import { TripPeople } from './TripPeople';
 import { TripSheet, type TripMode } from './TripSheet';
-import { useTripSync } from './useTripSync';
+import { supabaseTripApi, useTripSync } from './useTripSync';
 import { newId } from '../../state/billState';
 import { putPhoto } from '../../state/photos';
 import { rememberPhotoUrl } from '../usePhotoUrl';
@@ -39,12 +40,19 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const [state, dispatch] = useReducer(tripsReducer, undefined, loadTrips);
   useEffect(() => saveTrips(state), [state]);
   const trip = openTrip(state);
-  const meId = trip ? state.me[trip.id] ?? null : null;
+  const { account } = useAccount();
+  const meId = trip ? meOf(state, trip, account?.id ?? null) : null;
   const summary = useMemo(() => (trip ? tripSummary(trip) : null), [trip]);
   const fluent = activeVisual() === 'fluent';
-  const { account } = useAccount();
   const { members, status: syncStatus, refresh: syncRefresh } = useTripSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
   const entry = trip ? state.sync?.[trip.id] : undefined;
+
+  // Quem está no grupo participa da viagem: quem ainda não está em Pessoas entra (ou é ligado
+  // à pessoa com o nome dela). Cada conta uma vez só (ver joinTraveler).
+  useEffect(() => {
+    if (!trip || !entry || members.length === 0) return;
+    for (const a of memberActions(trip, members, account?.id ?? null, meId, newId)) dispatch(a);
+  }, [trip, entry, members, account?.id, meId]);
   const [sharing, setSharing] = useState(false);
 
   /** Foto do "Ler nota fiscal": guarda no aparelho e abre a despesa nova com ela. */
@@ -70,15 +78,11 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     if (!invite || !account) return;
     setInvite({ ...invite, status: 'joining' });
     try {
-      const groupId = await joinGroup(invite.code, account.name, account.photo);
-      const remote = await fetchTripGroup(groupId);
-      if (!remote || !isValidTrip(remote.trip)) throw new Error('viagem inválida');
-      // "Sou eu": a pessoa da viagem com o mesmo primeiro nome da conta.
-      const first = (n: string) => n.trim().split(/\s+/)[0].toLocaleLowerCase('pt-BR');
-      const meId = remote.trip.people.find((p) => first(p.name) === first(account.name))?.id;
-      dispatch({ type: 'syncJoin', groupId, code: remote.code, version: remote.version, trip: remote.trip, meId });
+      // A viagem chega e abre; você entra em Pessoas (ou vira a pessoa que já tinha o seu nome).
+      const { actions, trip: joined } = await joinByInvite(supabaseTripApi, invite.code, account, newId);
+      for (const a of actions) dispatch(a);
       closeInvite();
-      toast(`Você entrou na viagem ${remote.trip.name}`);
+      toast(`Você entrou na viagem ${joined.name}`);
     } catch {
       setInvite({ ...invite, status: 'error' });
     }
@@ -187,7 +191,9 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
 
   // Foto de cada pessoa: pelas contas do grupo; e "você" (deste aparelho) com a foto da sua conta.
   const faces = facesByName(trip.people, members);
-  if (meId && account?.photo && /^https:\/\//.test(account.photo)) faces[meId] = account.photo;
+  // Só se essa pessoa não for de outra conta (alguém marcou "Sou eu" na pessoa errada).
+  const mePerson = trip.people.find((p) => p.id === meId);
+  if (mePerson && (!mePerson.userId || mePerson.userId === account?.id) && account?.photo && /^https:\/\//.test(account.photo)) faces[mePerson.id] = account.photo;
 
   return (
     <FacesProvider value={faces}>

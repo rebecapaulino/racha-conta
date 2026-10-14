@@ -2,6 +2,7 @@
 // para poder ser testado sozinho e reaproveitado (ex.: app Capacitor depois).
 
 import { formatBRL, splitEven, splitWeighted } from './money';
+import { normalName, sameName } from './faces';
 import { categoryEmoji } from './noteCategory';
 import { accountIn, dropCoverage, minTransfers, netPairs, reconcilePlan, settleUp, type Balances, type PlanRow, type Transfer } from './settle';
 
@@ -26,6 +27,8 @@ export interface Person {
   color: number;
   /** Quem paga a parte desta pessoa (o pai paga a da filha). Sem o campo, paga a própria. */
   coveredBy?: string;
+  /** Conta do grupo ligada a esta pessoa (quem entrou pelo convite e é ela). */
+  userId?: string;
 }
 
 export interface Item {
@@ -80,6 +83,11 @@ export interface Bill {
   settled?: Transfer[];
   /** Como mostrar o acerto do resumo do grupo. Sem o campo, vale 'direct'. */
   settleMode?: SettleMode;
+  /**
+   * Contas do grupo que já ganharam o seu lugar na mesa (ligadas a alguém ou adicionadas).
+   * Quem está aqui não é adicionado de novo, nem se for tirado da mesa depois.
+   */
+  joined?: string[];
 }
 
 
@@ -430,6 +438,32 @@ export function groupSummary(bill: Bill): GroupSummary {
     plan,
     withoutPayer: notes.filter((n) => !n.payer && n.result.total > 0),
   };
+}
+
+/**
+ * Alguém entrou no grupo do rolê: passa a estar na mesa. Já ligada a alguém: nada muda. Senão,
+ * liga à única pessoa sem conta com o mesmo nome ("Bia" ↔ "Bia Souza"); sem ninguém assim,
+ * entra como pessoa nova (`id`, cor `color`) com o primeiro nome da conta (o nome inteiro, se
+ * o primeiro já está na mesa), nas notas que eram de todo mundo, como quem é adicionado à mão.
+ * Cada conta uma vez só (`joined`): quem foi tirado depois não volta sozinho.
+ */
+export function joinPerson(bill: Bill, userId: string, name: string, id: string, color: number): { bill: Bill; added: boolean } {
+  const joined = bill.joined ?? [];
+  if (joined.includes(userId)) return { bill, added: false };
+  const mark = (b: Bill): Bill => ({ ...b, joined: [...joined, userId] });
+  if (bill.people.some((p) => p.userId === userId)) return { bill: mark(bill), added: false };
+  const clean = name.replace(/\s+/g, ' ').trim();
+  const byName = bill.people.filter((p) => !p.userId && sameName(p.name, clean));
+  if (byName.length === 1) {
+    return { bill: mark({ ...bill, people: bill.people.map((p) => (p.id === byName[0].id ? { ...p, userId } : p)) }), added: false };
+  }
+  const first = clean.split(' ')[0] ?? '';
+  const taken = (n: string) => bill.people.some((p) => normalName(p.name) === normalName(n));
+  const label = (first && !taken(first) ? first : clean || 'Convidado').slice(0, MAX_NAME).trim();
+  const everyone = bill.people.map((p) => p.id);
+  const notes = bill.notes?.map((n) => (everyone.every((pid) => n.people.includes(pid)) ? { ...n, people: [...n.people, id] } : n));
+  const person: Person = { id, name: label, color: color % PERSON_COLORS, userId };
+  return { bill: mark({ ...bill, people: [...bill.people, person], ...(notes ? { notes } : {}) }), added: true };
 }
 
 /** Remove a pessoa da mesa, de todos os itens e, se for o caso, do pagador (também em cada nota). */

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Account } from '../../auth/account';
 import { whatsappUrl } from '../../core/bill';
 import { memberInitials } from '../../core/initials';
@@ -55,6 +55,7 @@ interface Props {
 export function ShareSheet({ open, noun, title, code, pending = 0, status, onRefresh, members, account, onCreate, toast, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const linkRef = useRef<HTMLInputElement>(null);
   const url = code ? inviteUrl(code) : '';
   const art = noun === 'viagem' ? 'na viagem' : 'no rolê';
   const message = `Entra ${art} "${title}" no Racha Conta, para a gente dividir as contas juntos: ${url}`;
@@ -72,13 +73,22 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
     }
   }
 
+  // Copia o link DESTA viagem. Se a área de transferência recusar (alguns celulares), copia
+  // pelo campo do link; se nem assim, avisa: o que estava copiado antes (o link de outra
+  // viagem, por exemplo) continua lá e não pode ir por engano.
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
-      toast('Link copiado');
+      toast(`Link de ${title} copiado`);
+      return;
     } catch {
-      toast('Não deu para copiar. Segure o link para copiar.');
+      /* tenta pelo campo */
     }
+    const field = linkRef.current;
+    field?.focus();
+    field?.select();
+    if (field && document.execCommand?.('copy')) toast(`Link de ${title} copiado`);
+    else toast('Não deu para copiar. Segure o link acima para copiar.');
   }
 
   return (
@@ -102,7 +112,7 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
         ) : (
           <>
             <label className="field-label" htmlFor="share-link">Link de convite</label>
-            <input id="share-link" className="input share-link" readOnly value={url} onFocus={(e) => e.target.select()} />
+            <input id="share-link" ref={linkRef} className="input share-link" readOnly value={url} onFocus={(e) => e.target.select()} />
             <div className="sheet-actions">
               <button type="button" className="btn secondary" onClick={copy}>
                 <IconCopy /> Copiar link

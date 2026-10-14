@@ -371,3 +371,29 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Como as pessoas da conta são nomes digitados, a ligação é pelo nome (`core/faces.ts`, com testes): "Rebeca" combina com a conta "Rebeca Oliveira" (primeiro nome ou nome inteiro, sem ligar para acento e maiúscula). Na dúvida (duas "Ana" na mesa, ou duas contas "Ana …"), fica a inicial: nunca a foto de outra pessoa.
 - Na Viagem, "você" (a pessoa deste aparelho) sempre ganha a foto da própria conta, mesmo sem grupo.
 - Só endereços https; se a foto não carregar, volta a inicial.
+
+## Viagem: convite certo, quem entra vira pessoa da viagem e "Assumir despesas" (14/10/2026)
+
+- **Defeito do convite errado:** criar (ou apagar) uma viagem apagava, neste aparelho, a ligação de **todas** as viagens com os grupos (e o nome de quem fez). A viagem anterior ficava solta: as mudanças dela não iam para ninguém, e compartilhar de novo criava outro grupo com outro link, deixando quem tinha o link antigo num grupo abandonado. Agora criar/apagar mexe só na viagem criada/apagada; cada viagem fica com o seu link. Teste: `state/tripShare.test.ts` e `sync/tripEngine.test.ts`.
+- **Copiar link:** se o celular recusar a área de transferência, copia pelo campo do link; se nem assim, avisa. O aviso diz de qual viagem é o link ("Link de Praia copiado"), para não colar por engano o de outra viagem que estava copiado antes.
+- **Quem entra no grupo participa da viagem:** ao entrar pelo convite, a pessoa vai para Pessoas (com o primeiro nome da conta) e vira "você" no celular dela. Se já havia alguém com o nome dela anotado antes ("Bia" ↔ conta "Bia Souza"), liga a essa pessoa em vez de duplicar. Na dúvida (duas "Ana"), entra como pessoa nova com o nome inteiro.
+- Quem entrou antes desta versão (está no topo, mas não em Pessoas) é adicionado quando o grupo é conferido. Quem criou o grupo só é ligado pelo próprio celular (só ele sabe qual pessoa é).
+- Cada conta ganha o seu lugar **uma vez só** (`joined` na viagem): se for tirada depois, não volta sozinha. A pessoa guarda a conta (`userId`); o "você" segue a conta se a pessoa guardada sair.
+- Quem chega depois pode ser marcado nas despesas de antes (editar a despesa) e já vem marcado nas novas.
+- **Assumir despesas de outra pessoa:** tocar numa pessoa → "Assumir despesas de outra pessoa" → escolher de quem. Tudo o que está no nome da outra (o que pagou, o que consumiu, acertos e de quem ela paga a parte) passa para esta; nenhum valor muda. "Tirar X da viagem" vem marcado quando X é só um nome anotado e desmarcado quando X tem conta no grupo. Ao juntar, se quem sai tinha conta e quem fica não, a conta passa para quem fica.
+- **Motor separado da tela:** `src/sync/tripEngine.ts` (enviar fila, buscar, entrar pelo convite, pôr membros na viagem). O `useTripSync` só chama ele. Testes de integração com um servidor de mentira que confere a versão como o `save_group`, com 3 celulares, sem internet, conflitos e sorteio de 40 sequências.
+- Versões antigas do app aceitam viagens com os campos novos (`userId`, `joined`): não precisa de SQL novo.
+
+## Rolê: quem entra no grupo vai para a mesa (14/10/2026)
+
+- Mesma regra da Viagem: ao entrar pelo convite, a pessoa vai para a mesa com o primeiro nome da conta (ou é ligada a quem já tinha o nome dela, sem duplicar). Entra nas notas que eram de todo mundo, como quem é adicionado à mão; nos itens de antes, só se alguém marcar.
+- Quem entrou antes desta versão é adicionado quando o grupo é conferido. Cada conta uma vez só (`joined` na conta): tirada da mesa, não volta sozinha.
+- Quem criou o rolê não é adicionado sozinho: no Rolê não há "sou eu", e quem cria normalmente já se pôs na mesa (às vezes com outro nome).
+- Motor separado da tela: `src/sync/roleEngine.ts` (enviar, buscar, quem entrou). Testes em `sync/roleEngine.test.ts`, com 3 celulares e conflito de versão.
+- Conferido no navegador (Supabase simulado, duas contas), na Viagem: quem entra aparece em Pessoas nos dois celulares, em "Quem pagou?" e "Quem participa?" da despesa nova, e a despesa divide com ela. Quem já estava no grupo sem estar em Pessoas é adicionado na conferência seguinte.
+
+## Foto da pessoa pela conta, não só pelo nome (14/10/2026)
+
+- **Defeito:** a foto era escolhida só pelo nome. Uma "Rebeca" criada à mão por outra pessoa podia pegar a foto da Rebeca de verdade; e quem marcava "Sou eu" na pessoa errada punha a própria foto nela.
+- **Agora:** a pessoa ligada a uma conta do grupo usa sempre a foto dessa conta. Pelo nome, só ganha foto quem não está ligado a ninguém, e só de uma conta que ainda não é de ninguém. A foto de "você" só vale numa pessoa sem conta ou ligada à sua. Vale para Viagem e Rolê (`core/faces.ts`, com testes).
+- Conferido no navegador com duas contas com foto: cada uma mantém a sua; a "Rebeca" criada à mão fica com a inicial, também depois de "Sou eu" na pessoa errada.

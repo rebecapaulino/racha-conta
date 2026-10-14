@@ -5,7 +5,8 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { loginEnabled, useAccount } from '../auth/account';
-import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, reducer, roleDoc, saveState, worthKeeping } from '../state/billState';
+import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, newId, reducer, roleDoc, saveState, worthKeeping } from '../state/billState';
+import { roleMemberActions } from '../sync/roleEngine';
 import { createGroup, fetchGroup, joinGroup } from '../sync/groups';
 import { useBillSync } from './useBillSync';
 import { InviteSheet, useInvite } from './useInvite';
@@ -55,6 +56,14 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     dispatch({ type: 'syncLink', groupId: g.groupId, code: g.code, version: g.version });
   }
   const { invite, setInvite, close: closeInvite } = useInvite('role', !!account);
+
+  // Quem está no grupo está na mesa: quem ainda não está entra (ou é ligado à pessoa com o
+  // nome dela). Cada conta uma vez só (ver joinPerson).
+  const shared = !!state.shared;
+  useEffect(() => {
+    if (!shared || members.length === 0) return;
+    for (const a of roleMemberActions(bill, members, newId)) dispatch(a);
+  }, [shared, bill, members]);
 
   // Rolês: contas anteriores, guardadas a cada "Nova conta".
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
@@ -165,6 +174,8 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         type: 'open',
         state: { ...blankState(), ...doc, photoId: doc.photoId ?? null, id, shared: { groupId, code: remote.code, version: remote.version, base: doc, pending: [] }, author: account.name },
       });
+      // Você entra na mesa (ou vira a pessoa que já tinha o seu nome); quem criou o rolê já está nela.
+      dispatch({ type: 'joinPerson', userId: account.id, name: account.name, id: newId() });
       setTab(doc.bill.people.length ? 'pedidos' : 'mesa');
       setScreen('conta');
       closeInvite();

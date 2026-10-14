@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../../auth/account';
-import { isValidTrip, openTrip, type TripAction, type TripsState } from '../../state/tripState';
+import { openTrip, type TripAction, type TripsState } from '../../state/tripState';
 import { getPhoto } from '../../state/photos';
-import { errorText, fetchMembers, fetchTripGroup, saveTripGroup, type Member, type SyncStatus } from '../../sync/groups';
+import { errorText, fetchMembers, fetchTripGroup, joinGroup, saveTripGroup, type Member, type SyncStatus } from '../../sync/groups';
+import { pullTrip, pushTrip, type TripApi } from '../../sync/tripEngine';
 import { uploadReceipt, wasSent } from '../../sync/receipts';
 
 const RETRY_MS = 8000;
 /** De quanto em quanto tempo confere o grupo (com o app aberto). */
 const POLL_MS = 20000;
+
+/** O servidor de verdade (Supabase), para o motor da viagem. */
+export const supabaseTripApi: TripApi = { save: saveTripGroup, fetch: fetchTripGroup, join: joinGroup };
 
 /**
  * Mantém as viagens compartilhadas em dia: envia a fila de mudanças (quando há internet),
@@ -46,20 +50,13 @@ export function useTripSync(
     if (!userId) return;
     for (const [tripId, entry] of Object.entries(state.sync ?? {})) {
       if (entry.pending.length === 0 || inflight.current.has(tripId) || navigator.onLine === false) continue;
-      const trip = state.trips.find((t) => t.id === tripId);
-      if (!trip) continue;
-      const count = entry.pending.length;
+      if (!state.trips.some((t) => t.id === tripId)) continue;
       inflight.current.add(tripId);
-      saveTripGroup(entry.groupId, trip, entry.version)
-        .then(async (version) => {
-          if (version > 0) {
-            dispatch({ type: 'syncSaved', tripId, version, count, sent: trip });
-            return;
-          }
-          // Outra pessoa salvou antes: busca a versão dela; a fila é refeita por cima.
-          const remote = await fetchTripGroup(entry.groupId);
-          if (!remote) setStatus((st) => ({ ...st, error: 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). A viagem continua ligada; tente Atualizar agora.' }));
-          else if (isValidTrip(remote.trip)) dispatch({ type: 'syncRemote', tripId, trip: remote.trip, version: remote.version });
+      // Salvou: confirma. Outra pessoa salvou antes: vem a versão dela e a fila é refeita por cima.
+      pushTrip(supabaseTripApi, { sync: state.sync, trips: state.trips }, tripId)
+        .then(({ action, error }) => {
+          if (action) dispatch(action);
+          if (error) setStatus((st) => ({ ...st, error }));
         })
         .catch((e) => {
           fail('Enviar')(e);
@@ -78,13 +75,11 @@ export function useTripSync(
     if (!groupId || !tripId || !userId) return;
     let alive = true;
     const loadTrip = () =>
-      fetchTripGroup(groupId)
-        .then((r) => {
+      pullTrip(supabaseTripApi, groupId, tripId)
+        .then(({ action, error }) => {
           if (!alive) return;
-          setStatus({ checkedAt: Date.now(), error: null });
-          if (!r) setStatus((st) => ({ ...st, error: 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). A viagem continua ligada; tente Atualizar agora.' }));
-          else if (isValidTrip(r.trip)) dispatch({ type: 'syncRemote', tripId, trip: r.trip, version: r.version });
-          else setStatus((st) => ({ ...st, error: 'A versão do grupo veio com algum dado que o app não reconhece.' }));
+          setStatus({ checkedAt: Date.now(), error: error ?? null });
+          if (action) dispatch(action);
         })
         .catch(fail('Buscar o grupo'));
     let known: Set<string> | null = null;

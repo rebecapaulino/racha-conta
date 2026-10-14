@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../auth/account';
-import { isValidRoleDoc, roleDoc, type Action, type AppState } from '../state/billState';
+import type { Action, AppState } from '../state/billState';
 import { getPhoto } from '../state/photos';
 import { errorText, fetchGroup, fetchMembers, saveGroup, type Member, type SyncStatus } from '../sync/groups';
+import { pullRole, pushRole, type RoleApi } from '../sync/roleEngine';
 import { uploadReceipt, wasSent } from '../sync/receipts';
 
 const RETRY_MS = 8000;
 /** De quanto em quanto tempo confere o grupo (com o app aberto). */
 const POLL_MS = 20000;
+
+/** O servidor de verdade (Supabase), para o motor do rolê. */
+const supabaseRoleApi: RoleApi = { save: saveGroup, fetch: fetchGroup };
 
 /** Igual ao da Viagem, para o rolê aberto: envia a fila, busca de novo no conflito e ouve o grupo. */
 export function useBillSync(
@@ -41,19 +45,12 @@ export function useBillSync(
   }, []);
   useEffect(() => {
     if (!userId || !sh || sh.pending.length === 0 || inflight.current || navigator.onLine === false) return;
-    const sent = roleDoc(state);
-    const count = sh.pending.length;
-    const gid = sh.groupId;
     inflight.current = true;
-    saveGroup(gid, sent, sh.version)
-      .then(async (version) => {
-        if (version > 0) {
-          dispatch({ type: 'syncSaved', version, count, sent });
-          return;
-        }
-        const remote = await fetchGroup(gid);
-        if (!remote) setStatus((st) => ({ ...st, error: 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). O rolê continua ligado; tente Atualizar agora.' }));
-        else if (isValidRoleDoc(remote.content)) dispatch({ type: 'syncRemote', doc: remote.content, version: remote.version });
+    // Salvou: confirma. Outra pessoa salvou antes: vem a versão dela e a fila é refeita por cima.
+    pushRole(supabaseRoleApi, state)
+      .then(({ action, error }) => {
+        if (action) dispatch(action);
+        if (error) setStatus((st) => ({ ...st, error }));
       })
       .catch((e) => {
           fail('Enviar')(e);
@@ -70,13 +67,11 @@ export function useBillSync(
     if (!groupId || !userId) return;
     let alive = true;
     const loadDoc = () =>
-      fetchGroup(groupId)
-        .then((r) => {
+      pullRole(supabaseRoleApi, groupId)
+        .then(({ action, error }) => {
           if (!alive) return;
-          setStatus({ checkedAt: Date.now(), error: null });
-          if (!r) setStatus((st) => ({ ...st, error: 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). O rolê continua ligado; tente Atualizar agora.' }));
-          else if (isValidRoleDoc(r.content)) dispatch({ type: 'syncRemote', doc: r.content, version: r.version });
-          else setStatus((st) => ({ ...st, error: 'A versão do grupo veio com algum dado que o app não reconhece.' }));
+          setStatus({ checkedAt: Date.now(), error: error ?? null });
+          if (action) dispatch(action);
         })
         .catch(fail('Buscar o grupo'));
     let known: Set<string> | null = null;

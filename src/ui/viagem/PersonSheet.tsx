@@ -16,7 +16,10 @@ interface Props {
 }
 
 
-/** Editar alguém da viagem: nome, quem paga a parte, "sou eu" e remover (sem apagar nada em silêncio). */
+/**
+ * Editar alguém da viagem: nome, quem paga a parte, "sou eu", assumir as despesas de outra
+ * pessoa e remover (sem apagar nada em silêncio).
+ */
 export function PersonSheet({ person, onClose, ...rest }: Props) {
   return (
     <Sheet open={!!person} onClose={onClose} labelledBy="h-person" className="person-sheet">
@@ -36,6 +39,29 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
   const [to, setTo] = useState(others[0]?.id ?? '');
   const usage = travelerUsage(trip, person.id);
   const used = usage.expenses + usage.settlements > 0;
+  // Assumir: quem tem alguma coisa no nome passa tudo para esta pessoa (ex.: a "Bia" anotada
+  // antes de a Bia entrar no grupo com a conta dela).
+  const [taking, setTaking] = useState(false);
+  const givers = others.filter((p) => {
+    const u = travelerUsage(trip, p.id);
+    return u.expenses + u.settlements > 0;
+  });
+  const [from, setFrom] = useState('');
+  const [dropFrom, setDropFrom] = useState(true);
+  const giver = others.find((p) => p.id === from);
+  function pickGiver(p: Traveler) {
+    setFrom(p.id);
+    // Sem conta no grupo (só um nome anotado): normalmente sai. Com conta: fica, a não ser que desmarque.
+    setDropFrom(!p.userId);
+  }
+
+  function take() {
+    if (!giver) return;
+    if (dropFrom) dispatch({ type: 'removeTraveler', id: giver.id, to: person.id });
+    else dispatch({ type: 'transferTraveler', from: giver.id, to: person.id });
+    toast(dropFrom ? `${person.name} ficou com as despesas de ${giver.name}, que saiu da viagem.` : `${person.name} ficou com as despesas de ${giver.name}.`);
+    onClose();
+  }
 
 
   function save() {
@@ -108,6 +134,45 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
         <input type="checkbox" checked={isMe} onChange={(e) => setIsMe(e.target.checked)} />
         <span>Sou eu <small className="muted">· neste celular, despesa nova já vem com você como quem pagou</small></span>
       </label>
+
+      {taking ? (
+        <div className="confirm" role="group" aria-labelledby="h-person-take">
+          <p id="h-person-take">
+            <b>Passar para {person.name} as despesas de quem?</b> Tudo o que está no nome da pessoa escolhida (o que pagou, o que
+            consumiu e os acertos) passa para {person.name}. Nenhum valor muda.
+          </p>
+          {givers.length === 0 ? (
+            <p className="hint">Ninguém mais tem despesas na viagem.</p>
+          ) : (
+            <div className="picker" role="radiogroup" aria-label="De quem são as despesas">
+              {givers.map((p) => (
+                <button key={p.id} type="button" role="radio" aria-checked={p.id === from} className="pick" style={personStyle(p)} onClick={() => pickGiver(p)}>
+                  <Avatar person={p} size="md" checked={p.id === from} />
+                  <span className="pick-name">{p.id === meId ? 'Você' : p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {giver && (
+            <label className="scan-option">
+              <input type="checkbox" checked={dropFrom} onChange={(e) => setDropFrom(e.target.checked)} />
+              <span>Tirar {giver.name} da viagem <small className="muted">· sem marcar, fica na viagem sem nenhuma despesa</small></span>
+            </label>
+          )}
+          <div className="sheet-actions">
+            <button type="button" className="btn secondary" onClick={() => setTaking(false)} autoFocus>Cancelar</button>
+            <button type="button" className="btn primary" onClick={take} disabled={!giver}>
+              Passar para {person.name}
+            </button>
+          </div>
+        </div>
+      ) : (
+        others.length > 0 && !removing && (
+          <button type="button" className="btn ghost person-take" onClick={() => setTaking(true)}>
+            Assumir despesas de outra pessoa
+          </button>
+        )
+      )}
 
       {removing ? (
         <div className="confirm" role="group" aria-labelledby="h-person-del">

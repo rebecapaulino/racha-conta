@@ -23,4 +23,29 @@ describe('foto de cada pessoa pelas contas do grupo', () => {
     expect(facesByName([{ id: 'a', name: 'Oliveira' }, { id: 'b', name: 'Rebe' }], [{ name: 'Rebeca Oliveira', photo: R }])).toEqual({});
     expect(facesByName([{ id: 'a', name: 'Rebeca' }], [{ name: 'Rebeca', photo: 'javascript:alert(1)' }])).toEqual({});
   });
+
+  it('pessoa ligada à conta usa a foto dessa conta, mesmo com outra pessoa de mesmo nome', () => {
+    const people = [{ id: 'reb', name: 'Rebeca', userId: 'u-reb' }, { id: 'falsa', name: 'Rebeca' }, { id: 'bia', name: 'Bia', userId: 'u-bia' }];
+    const accounts = [
+      { userId: 'u-reb', name: 'Rebeca Oliveira', photo: R },
+      { userId: 'u-bia', name: 'Beatriz Souza', photo: M },
+    ];
+    // A "Rebeca" criada à mão não pega a foto da Rebeca de verdade.
+    expect(facesByName(people, accounts)).toEqual({ reb: R, bia: M });
+  });
+
+  it('conta já ligada a alguém não empresta a foto pelo nome; conta livre ainda liga pelo nome', () => {
+    const people = [{ id: 'x', name: 'Beca', userId: 'u-reb' }, { id: 'y', name: 'Rebeca' }, { id: 'm', name: 'Mauricio' }];
+    const accounts = [
+      { userId: 'u-reb', name: 'Rebeca Oliveira', photo: R },
+      { userId: 'u-m', name: 'Mauricio Lima', photo: M },
+    ];
+    expect(facesByName(people, accounts)).toEqual({ x: R, m: M });
+  });
+
+  it('pessoa ligada a uma conta sem foto (ou com endereço estranho) fica com a inicial', () => {
+    const people = [{ id: 'a', name: 'Ana', userId: 'u-a' }];
+    expect(facesByName(people, [{ userId: 'u-a', name: 'Ana', photo: null }])).toEqual({});
+    expect(facesByName(people, [{ userId: 'u-a', name: 'Ana', photo: 'http://x/a.jpg' }])).toEqual({});
+  });
 });

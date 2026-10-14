@@ -5,6 +5,8 @@
 // tira. No fim, quem pôs mais do que tirou recebe; quem tirou mais do que pôs paga.
 
 import { formatBRL, splitEven, splitWeighted } from './money';
+import { MAX_NAME, PERSON_COLORS } from './bill';
+import { normalName, sameName } from './faces';
 import { accountIn, canCoverIn, minTransfers, type Transfer } from './settle';
 
 export const MAX_TRIP_NAME = 40;
@@ -24,6 +26,8 @@ export interface Traveler {
    * Rebeca). As despesas continuam no nome dela; só no acerto a conta entra na de quem paga.
    */
   coveredBy?: string;
+  /** Conta do grupo ligada a esta pessoa (quem entrou pelo convite e é ela). */
+  userId?: string;
 }
 
 export const TRIP_CATEGORIES = [
@@ -141,6 +145,11 @@ export interface Trip {
   log?: TripLogEntry[];
   /** Foto do fundo do cartão da viagem (no aparelho e, no compartilhado, na pasta do grupo). */
   photoId?: string;
+  /**
+   * Contas do grupo que já ganharam o seu lugar na viagem (ligadas a alguém ou adicionadas).
+   * Quem está aqui não é adicionado de novo, nem se a pessoa dela for tirada ou juntada a outra.
+   */
+  joined?: string[];
 }
 
 /** Uma linha do registro de alterações da viagem. */
@@ -441,12 +450,13 @@ function cleanCoverage(people: Traveler[]): Traveler[] {
 }
 
 /**
- * Passa tudo de uma pessoa para outra e a remove: despesas que pagou, partes e acertos.
- * Nenhum valor muda. Se as duas participavam da mesma despesa, as partes se somam e a
- * despesa passa a "valores exatos" (para continuar batendo ao centavo); o mesmo vale para
- * divisão por peso, já que o peso de quem recebe é outro. Acerto entre as duas some.
+ * Passa para `toId` tudo o que está no nome de `fromId`: despesas que pagou, partes, acertos e
+ * de quem ela paga a parte. Nenhum valor muda. `fromId` continua na viagem, sem nada no nome.
+ * Se as duas participavam da mesma despesa, as partes se somam e a despesa passa a "valores
+ * exatos" (para continuar batendo ao centavo); o mesmo vale para divisão por peso, já que o
+ * peso de quem recebe é outro. Acerto entre as duas some.
  */
-export function mergeTraveler(trip: Trip, fromId: string, toId: string): TripResult {
+export function transferTraveler(trip: Trip, fromId: string, toId: string): TripResult {
   if (fromId === toId || !trip.people.some((p) => p.id === toId) || !trip.people.some((p) => p.id === fromId)) {
     return { ok: false, error: 'Escolha outra pessoa para receber as despesas.' };
   }
@@ -483,10 +493,62 @@ export function mergeTraveler(trip: Trip, fromId: string, toId: string): TripRes
   const settlements = trip.settlements
     .map((s) => ({ ...s, from: swap(s.from), to: swap(s.to) }))
     .filter((s) => s.from !== s.to);
-  const people = cleanCoverage(
-    trip.people.filter((p) => p.id !== fromId).map((p) => (p.coveredBy === fromId ? { ...p, coveredBy: toId } : p)),
-  );
+  const people = cleanCoverage(trip.people.map((p) => (p.coveredBy === fromId && p.id !== fromId ? { ...p, coveredBy: toId } : p)));
   return { ok: true, trip: { ...trip, people, expenses, settlements } };
+}
+
+/**
+ * Passa tudo de uma pessoa para outra e a remove (ver transferTraveler). Se quem sai estava
+ * ligada a uma conta do grupo e quem fica não, a conta passa para quem fica.
+ */
+export function mergeTraveler(trip: Trip, fromId: string, toId: string): TripResult {
+  const r = transferTraveler(trip, fromId, toId);
+  if (!r.ok) return r;
+  const userId = trip.people.find((p) => p.id === fromId)?.userId;
+  const people = r.trip.people
+    .filter((p) => p.id !== fromId)
+    .map((p) => (p.id === toId && userId && !p.userId ? { ...p, userId } : p));
+  return { ok: true, trip: { ...r.trip, people: cleanCoverage(people) } };
+}
+
+export interface JoinResult {
+  trip: Trip;
+  /** A pessoa da viagem que é a conta (null: não mudou nada e ela não está na viagem). */
+  id: string | null;
+  /** O que aconteceu: ligou a alguém que já estava, adicionou, ou já estava. */
+  how: 'linked' | 'added' | 'already';
+}
+
+/**
+ * Alguém entrou no grupo: passa a participar da viagem. Se já tem uma pessoa ligada à conta,
+ * nada muda. Senão, liga à pessoa `prefer` (o "sou eu" do aparelho dela) ou à única pessoa
+ * sem conta com o mesmo nome ("Bia" ↔ "Bia Souza"); sem ninguém assim, entra como pessoa nova
+ * (`newId`) com o primeiro nome da conta (o nome inteiro, se o primeiro já existe na viagem).
+ * Cada conta faz isso uma vez só (`joined`): quem foi tirado depois não volta sozinho.
+ */
+export function joinTraveler(trip: Trip, userId: string, name: string, newId: string, prefer?: string): JoinResult {
+  const linked = trip.people.find((p) => p.userId === userId);
+  const joined = trip.joined ?? [];
+  const mark = (t: Trip): Trip => (joined.includes(userId) ? t : { ...t, joined: [...joined, userId] });
+  if (linked) return { trip: mark(trip), id: linked.id, how: joined.includes(userId) ? 'already' : 'linked' };
+  if (joined.includes(userId)) return { trip, id: null, how: 'already' };
+  const clean = name.replace(/\s+/g, ' ').trim();
+  const free = trip.people.filter((p) => !p.userId);
+  const preferred = prefer ? free.find((p) => p.id === prefer) : undefined;
+  const byName = free.filter((p) => sameName(p.name, clean));
+  const target = preferred ?? (byName.length === 1 ? byName[0] : undefined);
+  if (target) {
+    const people = trip.people.map((p) => (p.id === target.id ? { ...p, userId } : p));
+    return { trip: mark({ ...trip, people }), id: target.id, how: 'linked' };
+  }
+  const first = clean.split(' ')[0] ?? '';
+  const taken = (n: string) => trip.people.some((p) => normalName(p.name) === normalName(n));
+  const label = (first && !taken(first) ? first : clean || 'Convidado').slice(0, MAX_NAME).trim();
+  const used = new Set(trip.people.map((p) => p.color));
+  let color = trip.people.length % PERSON_COLORS;
+  for (let c = PERSON_COLORS - 1; c >= 0; c--) if (!used.has(c)) color = c;
+  const person: Traveler = { id: newId, name: label, color, weight: 1, userId };
+  return { trip: mark({ ...trip, people: [...trip.people, person] }), id: newId, how: 'added' };
 }
 
 /**

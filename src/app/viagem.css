@@ -716,3 +716,6 @@ h3.field-label { margin: 0; }
 .cover.has-photo .cover-sum small, .cover.has-photo .cover-people { color: rgba(255, 255, 255, 0.9); }
 .cover.has-photo .hero-date { background: rgba(0, 0, 0, 0.32); color: #FFFFFF; }
 .cover.has-photo .stack .avatar { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35); text-shadow: none; }
+
+/* Pessoa: "Assumir despesas de outra pessoa" (acima do Remover, sem a cor de perigo). */
+.person-take { align-self: center; }
