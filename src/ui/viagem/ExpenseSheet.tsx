@@ -336,7 +336,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
                   </div>
                 </div>
               ) : (
-                <button type="button" className="btn ghost note-delete" onClick={() => setConfirmDelete(true)}>
+                <button type="button" className="btn ghost note-delete exp-delete" onClick={() => setConfirmDelete(true)}>
                   <IconTrash /> Excluir despesa
                 </button>
               )
@@ -408,11 +408,6 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
                       <button type="button" onClick={() => setParts((n) => Math.min(MAX_INSTALLMENTS, n + 1))} disabled={parts >= MAX_INSTALLMENTS} aria-label="Mais parcelas">
                         <IconPlus size={18} />
                       </button>
-                    </div>
-                    <div className="chips weight-presets">
-                      {[2, 3, 4, 6, 10, 12].map((n) => (
-                        <button key={n} type="button" className="chip" aria-pressed={parts === n} onClick={() => setParts(n)}>{n}x</button>
-                      ))}
                     </div>
                   </div>
                   <p className="hint" aria-live="polite">

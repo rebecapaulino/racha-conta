@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch } from 'react';
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import { accountOf, activeExpenses, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
+import { accountOf, activeExpenses, activeSettlements, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
@@ -123,13 +123,13 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
 
   /** Desmarca um pagamento feito (com Desfazer, caso tenha sido sem querer). */
   function unpay(r: ListRow) {
-    const paid = trip.settlements.filter(
+    const paid = activeSettlements(trip).filter(
       (x) => accountOf(trip, x.from) === r.from && accountOf(trip, x.to) === r.to && (x.expenseId ?? '') === (r.expenseId ?? ''),
     );
     const to = r.to === meId ? 'você' : trip.people.find((p) => p.id === r.to)?.name;
     for (const x of paid) dispatch({ type: 'unsettle', id: x.id });
     toast(`Pagamento para ${to} desmarcado`, () => {
-      for (const x of paid) dispatch({ type: 'settle', id: x.id, from: x.from, to: x.to, cents: x.cents });
+      for (const x of paid) dispatch({ type: 'settle', id: x.id, from: x.from, to: x.to, cents: x.cents, expenseId: x.expenseId });
     });
   }
 
@@ -212,11 +212,11 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
           </>
         )}
 
-        {trip.settlements.length > 0 && (
+        {activeSettlements(trip).length > 0 && (
           <div className="settled">
             <h3 className="field-label">Histórico de pagamentos</h3>
             <ul className="list">
-              {[...trip.settlements].reverse().map((s) => (
+              {[...activeSettlements(trip)].reverse().map((s) => (
                 <li key={s.id} className="settled-row">
                   <span className="ok-dot" aria-hidden="true"><IconCheck size={12} /></span>
                   <span className="settled-text">

@@ -3,7 +3,7 @@ import { formatBRL } from '../../core/money';
 import { activeExpenses, categoryLabel, installmentsOf, nextPayer, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, AvatarStack } from '../Avatar';
-import { IconBulb, IconFilter } from '../icons';
+import { IconBulb, IconFilter, IconX } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { dayLabel, dayNumber } from './tripDates';
@@ -21,6 +21,24 @@ interface Props {
 
 const SPLIT_TAG = { equal: '', weight: 'por peso', exact: 'valores exatos' } as const;
 
+/** A dica "Quem paga a próxima" fechada no X, por viagem (só neste aparelho). */
+const tipKey = (tripId: string) => `racha-conta-sem-dica-proxima-${tripId}`;
+function tipHidden(tripId: string): boolean {
+  try {
+    return localStorage.getItem(tipKey(tripId)) === '1';
+  } catch {
+    return false;
+  }
+}
+function setTipHidden(tripId: string, hidden: boolean) {
+  try {
+    if (hidden) localStorage.setItem(tipKey(tripId), '1');
+    else localStorage.removeItem(tipKey(tripId));
+  } catch {
+    // Sem armazenamento (aba anônima): a dica só some até recarregar.
+  }
+}
+
 /** Caderneta: as despesas em páginas, uma por dia (a mais recente primeiro). */
 export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onGoPeople }: Props) {
   const [person, setPerson] = useState('');
@@ -30,7 +48,18 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
   const deleted = trip.expenses.filter((e) => e.deleted);
   const name = (id: string) => (id === meId ? 'Você' : trip.people.find((p) => p.id === id)?.name ?? '?');
   // Sem despesa ativa (todas excluídas), não há o que equilibrar: a dica some.
-  const tip = all.length > 0 ? nextPayer(summary) : null;
+  // Fechada no X, não volta nesta viagem (dá para desfazer logo depois).
+  const [closed, setClosed] = useState<string[]>([]);
+  const tip = all.length > 0 && !closed.includes(trip.id) && !tipHidden(trip.id) ? nextPayer(summary) : null;
+
+  function hideTip() {
+    setTipHidden(trip.id, true);
+    setClosed((c) => [...c, trip.id]);
+    toast('Dica escondida nesta viagem', () => {
+      setTipHidden(trip.id, false);
+      setClosed((c) => c.filter((id) => id !== trip.id));
+    });
+  }
 
   if (trip.people.length === 0) {
     return (
@@ -80,6 +109,9 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
               mais deve ao grupo ({formatBRL(-tip.balance)}), então sobra menos Pix para acertar no fim.
             </small>
           </p>
+          <button type="button" className="icon-btn next-close" aria-label="Fechar a dica Quem paga a próxima" onClick={hideTip}>
+            <IconX size={18} />
+          </button>
         </section>
       )}
 

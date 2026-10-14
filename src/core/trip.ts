@@ -256,6 +256,8 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   if (!r.ok) return r;
   const expense: Expense = { ...old, ...input, shares: r.shares, updatedAt: now };
   if (input.split !== 'exact') delete expense.exact;
+  // Voltou para à vista: deixa de ser parcelada (sem isso, a parcela antiga continuava no acerto).
+  if (installmentsOf(input) === 1) delete expense.installments;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
   else delete expense.coveredBy;
@@ -288,6 +290,13 @@ export function addSettlement(trip: Trip, t: Transfer & { expenseId?: string }, 
 }
 
 export const activeExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.deleted);
+
+/**
+ * Pagamentos que contam: os de parcela de uma despesa excluída saem junto com ela (e voltam
+ * se a exclusão for desfeita). Os pagamentos gerais sempre contam.
+ */
+export const activeSettlements = (trip: Trip) =>
+  trip.settlements.filter((s) => !s.expenseId || !trip.expenses.some((e) => e.id === s.expenseId && e.deleted));
 
 /** Onde a pessoa aparece (contando despesas excluídas, que podem voltar). */
 export function travelerUsage(trip: Trip, id: string): { expenses: number; settlements: number } {
@@ -489,7 +498,7 @@ export function tripSummary(trip: Trip): TripSummary {
     byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.cents);
     byDay.set(e.date, (byDay.get(e.date) ?? 0) + e.cents);
   }
-  for (const s of trip.settlements) {
+  for (const s of activeSettlements(trip)) {
     if (!ids.has(s.from) || !ids.has(s.to) || s.cents <= 0) {
       ok = false;
       continue;
@@ -578,7 +587,7 @@ function reconcile(
   const key = (a: string, b: string) => `${a}\u0000${b}`;
   const paidPair = new Map<string, number>();
   const paidSplit = new Map<string, number>();
-  for (const s of trip.settlements) {
+  for (const s of activeSettlements(trip)) {
     const [f, t] = [acc.get(s.from), acc.get(s.to)];
     if (!f || !t || f === t) continue;
     const own = s.expenseId && split.find((r) => r.expenseId === s.expenseId && r.from === f && r.to === t);
@@ -652,7 +661,7 @@ export function directTransfers(trip: Trip, withSettlements = true, skipInstallm
   }
   // Um pagamento de a para b diminui o que a deve para b (ou faz b passar a dever para a).
   if (withSettlements) {
-    for (const s of trip.settlements) {
+    for (const s of activeSettlements(trip)) {
       const [f, t] = [acc.get(s.from), acc.get(s.to)];
       if (f && t && f !== t) addDebt(t, f, s.cents);
     }
@@ -745,8 +754,8 @@ export function personStatement(trip: Trip, id: string): PersonStatement {
   const owedBy = pairs(owed);
   const owesTotal = owesTo.reduce((a, d) => a + d.cents, 0);
   const owedTotal = owedBy.reduce((a, d) => a + d.cents, 0);
-  const sent = trip.settlements.filter((s) => s.from === id).reduce((a, s) => a + s.cents, 0);
-  const received = trip.settlements.filter((s) => s.to === id).reduce((a, s) => a + s.cents, 0);
+  const sent = activeSettlements(trip).filter((s) => s.from === id).reduce((a, s) => a + s.cents, 0);
+  const received = activeSettlements(trip).filter((s) => s.to === id).reduce((a, s) => a + s.cents, 0);
   return { owesTo, owesTotal, owedBy, owedTotal, ownShare, sent, received, balance: owedTotal - owesTotal + sent - received };
 }
 

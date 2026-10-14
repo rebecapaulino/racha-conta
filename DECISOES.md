@@ -211,3 +211,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Por quê:** quem paga a parte de alguém num jantar não paga necessariamente nas outras despesas.
 - **Como fica:** na etapa "Mauricio paga conta de alguém?", a pessoa escolhe quem e se vale **só nesta despesa** (padrão) ou **a viagem toda** (o mesmo de Pessoas).
 - **Conta:** a despesa guarda `coveredBy` (quem participa → quem paga a parte dela). A pessoa continua tendo consumido (`owes`), mas a parte entra na conta de quem paga (`charged`), no saldo, no acerto direto, no de menos Pix, nas parcelas e na conta detalhada ("parte de Lara"). Testado em `trip.test.ts`.
+
+## Viagem: correções de conta (à vista e despesa excluída)
+
+- **Parcelada que volta para à vista:** a despesa ficava guardada como parcelada e o acerto continuava em parcelas. Agora deixa de ser parcelada.
+- **Despesa excluída:** os pagamentos de parcela registrados nela saem do acerto e do histórico junto com ela (voltam se a exclusão for desfeita). Pagamentos gerais continuam contando.
+- **Desmarcar pagamento → Desfazer:** voltava sem a ligação com a parcela; agora volta igual.
+- Testado em `trip.test.ts`.
