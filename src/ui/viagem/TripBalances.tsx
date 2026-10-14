@@ -3,6 +3,7 @@ import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
 import { accountOf, activeExpenses, activeSettlements, statementRows, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
+import { ActivityLog } from '../ActivityLog';
 import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
 import { Art } from '../illustrations';
@@ -27,6 +28,7 @@ interface Props {
 /** Saldos: quem paga quem para ficar quite, o saldo de cada um, os gastos por categoria e o resumo. */
 export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onSettle }: Props) {
   const [kind, setKind] = useState<'acerto' | 'saldos'>('acerto');
+  const [logOpen, setLogOpen] = useState(false);
   const person = (id: string) => trip.people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
   const hasExpenses = activeExpenses(trip).length > 0;
@@ -294,6 +296,28 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
           <IconImage /> Ver o resumo em imagem
         </button>
       </section>
+
+      <section className="card" aria-labelledby="h-trip-log">
+        <div className="card-head">
+          <h2 id="h-trip-log">Registro de alterações</h2>
+          {(trip.log?.length ?? 0) > 4 && (
+            <button type="button" className="link-btn" onClick={() => setLogOpen(true)}>
+              Ver tudo ({trip.log!.length})
+            </button>
+          )}
+        </div>
+        <ActivityLog log={trip.log ?? []} limit={4} />
+      </section>
+
+      <Sheet open={logOpen} onClose={() => setLogOpen(false)} labelledBy="h-trip-log-all">
+        <div className="sheet-body">
+          <span className="sheet-grip" aria-hidden="true" />
+          <h2 id="h-trip-log-all" tabIndex={-1}>Registro de alterações</h2>
+          <p>Tudo o que mudou nesta viagem, do mais novo para o mais antigo.</p>
+          <ActivityLog log={trip.log ?? []} />
+          <button type="button" className="btn ghost" onClick={() => setLogOpen(false)}>Fechar</button>
+        </div>
+      </Sheet>
 
       <div className="share-actions">
         <button type="button" className="btn secondary" onClick={copy}>

@@ -265,3 +265,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 ## Peso saiu de Pessoas
 
 - O ajuste de peso e o "peso 1" na lista saíram da tela de Pessoas. Despesas antigas divididas por peso continuam com a mesma conta (o peso guardado de cada pessoa não muda).
+
+## Registro de alterações na Viagem e base do compartilhamento — 14/10/2026
+
+- **Registro na Viagem:** na aba Saldos, as últimas 4 alterações e "Ver tudo" (igual ao Rolê): pessoa adicionada, renomeada ou tirada, quem paga a parte de quem, despesa lançada/editada (com o valor antigo → novo)/excluída, "todos pagos", pagamentos marcados e desmarcados, nome e datas da viagem. Guardado na própria viagem (`trip.log`, até 300 linhas), com o campo "quem fez" pronto para o compartilhado.
+- **Compartilhar (em andamento):** SQL das tabelas em `supabase/migrations/20261014_grupos.sql` (grupo com o conteúdo inteiro, membros, convite por código, salvar com conferência de versão, tempo real). Gravação só por funções que conferem quem é do grupo; leitura só para membros (RLS). Passo a passo em `docs/PASSO-A-PASSO-COMPARTILHAR.md`.
+- **Decidido agora:** todo mundo do grupo vê e edita tudo (substitui "editor mexe só no que lançou"); o registro mostra quem fez cada mudança.

@@ -1,6 +1,7 @@
 // Viagens guardadas no aparelho (modo solo): a lista de viagens, qual está aberta e quem
 // é a pessoa deste aparelho em cada uma. Os cálculos ficam em core/trip.ts.
 
+import { formatBRL } from '../core/money';
 import { MAX_NAME, PERSON_COLORS } from '../core/bill';
 import {
   addExpense,
@@ -24,6 +25,7 @@ import {
   type Traveler,
   type Trip,
   type TripCategory,
+  type TripLogEntry,
 } from '../core/trip';
 
 export const TRIPS_KEY = 'racha-viagem-v1';
@@ -86,7 +88,80 @@ function onOpen(s: TripsState, change: (t: Trip) => Trip | null): TripsState {
 
 const now = () => new Date().toISOString();
 
+const MAX_LOG = 300;
+
+/** O que mudou, em uma frase, para o registro. Ações sem efeito na viagem não entram. */
+function describe(before: Trip, after: Trip, a: TripAction): string | null {
+  const who = (t: Trip, id: string) => t.people.find((p) => p.id === id)?.name ?? '?';
+  const exp = (t: Trip, id: string) => t.expenses.find((e) => e.id === id);
+  switch (a.type) {
+    case 'editTrip': {
+      if (after.name !== before.name) return `Renomeou a viagem para ${after.name}`;
+      if (after.start !== before.start || after.end !== before.end) return 'Mudou as datas da viagem';
+      if (JSON.stringify(after.categoryNames ?? {}) !== JSON.stringify(before.categoryNames ?? {})) return 'Mudou o nome de uma categoria';
+      return null;
+    }
+    case 'addTraveler':
+      return `Adicionou ${who(after, a.id)}`;
+    case 'editTraveler': {
+      const b = before.people.find((p) => p.id === a.id);
+      const n = after.people.find((p) => p.id === a.id);
+      if (!b || !n) return null;
+      if (b.name !== n.name) return `Renomeou ${b.name} para ${n.name}`;
+      if (b.coveredBy !== n.coveredBy) {
+        return n.coveredBy ? `${who(after, n.coveredBy)} paga a parte de ${n.name} na viagem toda` : `${n.name} volta a pagar a própria parte`;
+      }
+      return null;
+    }
+    case 'removeTraveler':
+      return a.to ? `Tirou ${who(before, a.id)} (as despesas passaram para ${who(after, a.to)})` : `Tirou ${who(before, a.id)}`;
+    case 'addExpense': {
+      const e = exp(after, a.id);
+      return e ? `Lançou ${e.description} · ${formatBRL(e.cents)}, pago por ${who(after, e.payerId)}` : null;
+    }
+    case 'editExpense': {
+      const [b, e] = [exp(before, a.id), exp(after, a.id)];
+      if (!b || !e) return null;
+      return b.cents !== e.cents ? `Editou ${e.description}: ${formatBRL(b.cents)} → ${formatBRL(e.cents)}` : `Editou ${e.description}`;
+    }
+    case 'deleteExpense': {
+      const e = exp(after, a.id);
+      return e ? (a.deleted ? `Excluiu ${e.description}` : `Desfez a exclusão de ${e.description}`) : null;
+    }
+    case 'settleExpense': {
+      const e = exp(after, a.id);
+      return e ? (a.settled ? `Marcou ${e.description}: todos pagos` : `${e.description} voltou para o acerto`) : null;
+    }
+    case 'settle':
+      return `${who(after, a.from)} pagou ${formatBRL(a.cents)} para ${who(after, a.to)}`;
+    case 'unsettle': {
+      const x = before.settlements.find((y) => y.id === a.id);
+      return x ? `Desmarcou: ${who(before, x.from)} pagou ${formatBRL(x.cents)} para ${who(before, x.to)}` : null;
+    }
+    default:
+      return null;
+  }
+}
+
+/** Aplica a ação e, se a viagem aberta mudou, anota no registro dela (sem autor: modo solo). */
 export function tripsReducer(s: TripsState, a: TripAction): TripsState {
+  return reduceAs(s, a, null);
+}
+
+/** O mesmo, com o nome de quem fez (viagem compartilhada). */
+export function reduceAs(s: TripsState, a: TripAction, by: string | null): TripsState {
+  const after = applyTrip(s, a);
+  if (after === s || a.type === 'createTrip' || a.type === 'openTrip' || a.type === 'deleteTrip' || a.type === 'setMe') return after;
+  const [before, next] = [openTrip(s), openTrip(after)];
+  if (!before || !next || before === next) return after;
+  const text = describe(before, next, a);
+  if (!text) return after;
+  const entry: TripLogEntry = { at: Date.now(), by, kind: a.type, text };
+  const logged = { ...next, log: [...(next.log ?? []), entry].slice(-MAX_LOG) };
+  return { ...after, trips: after.trips.map((t) => (t.id === logged.id ? logged : t)) };
+}
+
+function applyTrip(s: TripsState, a: TripAction): TripsState {
   switch (a.type) {
     case 'createTrip': {
       let trip: Trip = { ...newTrip(a.id, cleanName(a.name, MAX_TRIP_NAME) || 'Viagem') };
@@ -242,7 +317,8 @@ export function isValidTrip(t: unknown): t is Trip {
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId)) && (x.expenseIds === undefined || (Array.isArray(x.expenseIds) && x.expenseIds.every(isStr)))) &&
     isInt(t.nextSeq) &&
     (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
-    (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr)))
+    (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr))) &&
+    (t.log === undefined || (Array.isArray(t.log) && t.log.every((e) => isObj(e) && typeof e.at === 'number' && isStr(e.text))))
   );
 }
 

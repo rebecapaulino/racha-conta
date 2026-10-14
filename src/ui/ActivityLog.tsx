@@ -1,9 +1,10 @@
-import type { LogEntry } from '../state/billState';
+// Registro de alterações: o que mudou na conta (ou na viagem), quando e (no modo
+// compartilhado) quem fez.
 
-// Registro de alterações: o que mudou na conta, quando e (no modo compartilhado) quem fez.
+type Entry = { at: number; by: string | null; kind: string; text: string };
 
-const ADDS = new Set<LogEntry['kind']>(['addPerson', 'addItem']);
-const REMOVES = new Set<LogEntry['kind']>(['removePerson', 'removeItem']);
+const ADDS = new Set(['addPerson', 'addItem', 'addTraveler', 'addExpense']);
+const REMOVES = new Set(['removePerson', 'removeItem', 'removeTraveler', 'deleteExpense']);
 
 function when(at: number, now: Date): string {
   const d = new Date(at);
@@ -14,7 +15,7 @@ function when(at: number, now: Date): string {
 }
 
 /** Lista do mais novo para o mais antigo. `limit` mostra só as últimas linhas. */
-export function ActivityLog({ log, limit }: { log: LogEntry[]; limit?: number }) {
+export function ActivityLog({ log, limit }: { log: Entry[]; limit?: number }) {
   const now = new Date();
   const rows = [...log].reverse().slice(0, limit ?? log.length);
   if (rows.length === 0) return <p className="hint">Nada alterado ainda.</p>;

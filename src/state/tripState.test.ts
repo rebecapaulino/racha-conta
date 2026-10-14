@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { tripSummary, type ExpenseInput } from '../core/trip';
-import { blankTrips, loadTrips, openTrip, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
+import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
 const store = new Map<string, string>();
@@ -157,5 +157,36 @@ describe('viagens no aparelho', () => {
 
   it('hoje no formato da despesa', () => {
     expect(todayISO(new Date(2026, 11, 3))).toBe('2026-12-03');
+  });
+});
+
+describe('registro de alterações da viagem', () => {
+  it('anota o que mudou, com o valor e quem pagou', () => {
+    const s0 = run(blankTrips(), { type: 'createTrip', id: 'v', name: 'Praia', meName: 'Rebeca', meId: 'r' }, { type: 'addTraveler', id: 'm', name: 'Mauricio' });
+    const input = { description: 'Almoço', cents: 20000, date: '2026-10-14', category: 'alimentacao' as const, payerId: 'm', split: 'equal' as const, people: ['r', 'm'] };
+    let s = run(s0, { type: 'addExpense', id: 'e1', input });
+    s = run(s, { type: 'editExpense', id: 'e1', input: { ...input, cents: 24000 } });
+    s = run(s, { type: 'settle', id: 's1', from: 'r', to: 'm', cents: 12000 });
+    s = run(s, { type: 'settleExpense', id: 'e1', settled: true });
+    s = run(s, { type: 'deleteExpense', id: 'e1', deleted: true });
+    s = run(s, { type: 'editTraveler', id: 'm', name: 'Maurício' });
+    s = run(s, { type: 'setMe', id: 'r' });
+    expect(openTrip(s)!.log!.map((e) => e.text)).toEqual([
+      'Adicionou Mauricio',
+      'Lançou Almoço · R$ 200,00, pago por Mauricio',
+      'Editou Almoço: R$ 200,00 → R$ 240,00',
+      'Rebeca pagou R$ 120,00 para Mauricio',
+      'Marcou Almoço: todos pagos',
+      'Excluiu Almoço',
+      'Renomeou Mauricio para Maurício',
+    ]);
+    expect(openTrip(s)!.log!.every((e) => e.by === null)).toBe(true);
+    expect(isValidTrip(openTrip(s))).toBe(true);
+  });
+
+  it('no compartilhado, guarda quem fez', () => {
+    const s0 = run(blankTrips(), { type: 'createTrip', id: 'v', name: 'Praia', meName: 'Rebeca', meId: 'r' });
+    const s = reduceAs(s0, { type: 'addTraveler', id: 'm', name: 'Mauricio' }, 'Rebeca');
+    expect(openTrip(s)!.log!.at(-1)).toMatchObject({ by: 'Rebeca', text: 'Adicionou Mauricio' });
   });
 });

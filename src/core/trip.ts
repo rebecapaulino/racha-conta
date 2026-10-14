@@ -132,6 +132,17 @@ export interface Trip {
   categoryNames?: Partial<Record<TripCategory, string>>;
   /** Como mostrar o acerto. Sem valor: 'direct'. */
   settleMode?: SettleMode;
+  /** Registro de alterações: o que mudou, quando e (no compartilhado) quem fez. */
+  log?: TripLogEntry[];
+}
+
+/** Uma linha do registro de alterações da viagem. */
+export interface TripLogEntry {
+  at: number;
+  /** Quem fez: vazio sozinho; no compartilhado, o nome da conta. */
+  by: string | null;
+  kind: string;
+  text: string;
 }
 
 export const MAX_INSTALLMENTS = 24;
