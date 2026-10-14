@@ -2,7 +2,8 @@
 // buscar a versão do grupo e pôr na mesa quem entrou no grupo. O useBillSync só chama estas
 // funções e despacha o que elas devolvem; os testes usam um servidor de mentira.
 
-import type { Bill } from '../core/bill';
+import { personUsed, type Bill, type Person } from '../core/bill';
+import { sameNameIds } from '../core/faces';
 import { isValidRoleDoc, roleDoc, type Action, type AppState, type RoleDoc } from '../state/billState';
 import type { Member } from './groups';
 
@@ -41,14 +42,38 @@ export async function pullRole(api: RoleApi, groupId: string): Promise<RoleStep>
   return { action: { type: 'syncRemote', doc: remote.content, version: remote.version } };
 }
 
+/** Quanto tempo quem entrou tem para dizer quem é, antes de outro aparelho pô-la como pessoa nova. */
+export const CHOOSE_MS = 10 * 60 * 1000;
+
 /**
- * Quem está no grupo e ainda não ganhou o seu lugar na mesa: uma ação para cada. Quem criou o
- * grupo fica de fora: no Rolê não há "sou eu", e ele normalmente já se pôs na mesa (talvez com
- * outro nome); adicionar de novo duplicaria.
+ * Quem está no grupo e ainda não ganhou o seu lugar na mesa: os outros aparelhos põem como
+ * pessoa nova (nunca ligam pelo nome), depois de `CHOOSE_MS`. Ficam de fora a conta deste
+ * aparelho (ver selfJoinRole) e quem criou o grupo (no Rolê não há "sou eu", e quem cria
+ * normalmente já se pôs na mesa, talvez com outro nome: adicionar de novo duplicaria).
  */
-export function roleMemberActions(bill: Bill, members: Member[], newId: () => string): Action[] {
+export function roleMemberActions(bill: Bill, members: Member[], accountId: string | null, newId: () => string, now = Date.now()): Action[] {
   const joined = new Set(bill.joined ?? []);
   return members
-    .filter((m) => m.role !== 'owner' && !joined.has(m.userId))
-    .map((m) => ({ type: 'joinPerson', userId: m.userId, name: m.name, id: newId() }));
+    .filter((m) => m.userId !== accountId && m.role !== 'owner' && !joined.has(m.userId))
+    .filter((m) => !m.joinedAt || now - Date.parse(m.joinedAt) >= CHOOSE_MS)
+    .map((m): Action => ({ type: 'joinPerson', userId: m.userId, name: m.name, id: newId(), auto: true }));
+}
+
+export type SelfJoinRole = { kind: 'none' } | { kind: 'auto'; action: Action } | { kind: 'ask'; free: Person[]; suggested: string[] };
+
+/** Como selfJoin da Viagem: quem entrou diz quem é na mesa ("Quem é você neste rolê?"). */
+export function selfJoinRole(bill: Bill, members: Member[], account: { id: string; name: string } | null, newId: () => string): SelfJoinRole {
+  const me = account && members.find((m) => m.userId === account.id);
+  if (!account || !me || me.role === 'owner') return { kind: 'none' };
+  const base: Action = { type: 'joinPerson', userId: account.id, name: account.name, id: newId(), claim: true };
+  const free = bill.people.filter((p) => !p.userId);
+  const linked = bill.people.find((p) => p.userId === account.id);
+  if (linked) {
+    if (!linked.auto) return { kind: 'none' };
+    if (free.length && !personUsed(bill, linked.id)) return { kind: 'ask', free, suggested: sameNameIds(free, account.name) };
+    return { kind: 'auto', action: base };
+  }
+  if ((bill.joined ?? []).includes(account.id)) return { kind: 'none' };
+  if (free.length === 0) return { kind: 'auto', action: base };
+  return { kind: 'ask', free, suggested: sameNameIds(free, account.name) };
 }

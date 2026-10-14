@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { computeSplit, joinPerson, removePerson, type Bill } from '../core/bill';
 import { blankState, isValidBill, reducer, roleDoc, type Action, type AppState, type RoleDoc } from '../state/billState';
 import type { Member } from './groups';
-import { pullRole, pushRole, roleMemberActions, type RoleApi } from './roleEngine';
+import { CHOOSE_MS, pullRole, pushRole, roleMemberActions, selfJoinRole, type RoleApi } from './roleEngine';
 
 const bill = (names: string[], extra: Partial<Bill> = {}): Bill => ({
   title: 'Bar do Zé',
@@ -33,16 +33,31 @@ describe('joinPerson (regra)', () => {
     expect(r.bill.joined).toEqual(['u-bia']);
   });
 
-  it('nome já na mesa: liga em vez de duplicar (sem acento/maiúscula)', () => {
-    const r = joinPerson(bill(['Rebeca', 'Lúcia']), 'u-l', 'LUCIA Mendes', 'nova', 2);
+  it('nome igual NÃO liga sozinho: outra Rebeca entra como "Rebeca O."', () => {
+    const r = joinPerson(bill(['Rebeca', 'Caio']), 'u-r', 'Rebeca Oliveira', 'nova', 2);
+    expect(r.added).toBe(true);
+    expect(r.bill.people.map((p) => p.name)).toEqual(['Rebeca', 'Caio', 'Rebeca O.']);
+    expect(r.bill.people[0].userId).toBeUndefined();
+  });
+
+  it('quem entra escolheu ser a pessoa da mesa: liga a ela', () => {
+    const r = joinPerson(bill(['Rebeca', 'Lúcia']), 'u-l', 'Lucia Mendes', 'nova', 2, { prefer: 'lúcia' });
     expect(r.added).toBe(false);
     expect(r.bill.people).toHaveLength(2);
     expect(r.bill.people[1].userId).toBe('u-l');
   });
 
-  it('duas pessoas com o nome: entra nova, com o nome inteiro', () => {
-    const b: Bill = { ...bill([]), people: [{ id: 'a1', name: 'Ana', color: 0 }, { id: 'a2', name: 'Ana', color: 1 }] };
-    expect(joinPerson(b, 'u', 'Ana Paula', 'nova', 2).bill.people.at(-1)!.name).toBe('Ana Paula');
+  it('posta como nova por outro aparelho: a escolha dela vale enquanto a nova não tem nada', () => {
+    const auto = joinPerson(bill(['Rebeca', 'Bia']), 'u-b', 'Bia Souza', 'n1', 2, { auto: true }).bill;
+    expect(auto.people.at(-1)).toMatchObject({ name: 'Bia S.', auto: true });
+    const chosen = joinPerson(auto, 'u-b', 'Bia Souza', 'n2', 3, { prefer: 'bia', claim: true }).bill;
+    expect(chosen.people.map((p) => p.id)).toEqual(['rebeca', 'bia']);
+    expect(chosen.people[1].userId).toBe('u-b');
+    // Já com item no nome: a escolha não troca, só confirma.
+    const used = { ...auto, items: [{ id: 'i1', name: 'Chopp', cents: 1000, who: ['n1'] }] };
+    const kept = joinPerson(used, 'u-b', 'Bia Souza', 'n2', 3, { prefer: 'bia', claim: true }).bill;
+    expect(kept.people.find((p) => p.id === 'n1')!.auto).toBeUndefined();
+    expect(kept.people.find((p) => p.id === 'bia')!.userId).toBeUndefined();
   });
 
   it('uma vez só; tirada da mesa não volta', () => {
@@ -79,6 +94,10 @@ describe('ação joinPerson no estado', () => {
 
 class Server {
   groups = new Map<string, { doc: RoleDoc; version: number; members: Member[] }>();
+  now = Date.parse('2026-12-28T12:00:00Z');
+  later() {
+    this.now += CHOOSE_MS + 1000;
+  }
   api(userId: string): RoleApi {
     return {
       save: async (groupId, doc, base) => {
@@ -112,17 +131,31 @@ class Phone {
   }
   /** "Criar link de convite". */
   share() {
-    this.server.groups.set('g1', { doc: JSON.parse(JSON.stringify(roleDoc(this.state))), version: 1, members: [{ userId: this.userId, name: this.name, photo: null, role: 'owner' }] });
+    this.server.groups.set('g1', { doc: JSON.parse(JSON.stringify(roleDoc(this.state))), version: 1, members: [{ userId: this.userId, name: this.name, photo: null, role: 'owner', joinedAt: new Date(this.server.now).toISOString() }] });
     this.do({ type: 'syncLink', groupId: 'g1', code: 'c', version: 1 });
   }
-  /** "Entrar no grupo" (o que o SoloApp faz). */
-  async join(newApp = true) {
+  /** Resposta a "Quem é você neste rolê?": nome da pessoa, null (pessoa nova) ou undefined (não respondeu). */
+  answer: string | null | undefined = null;
+  asked = false;
+  self() {
+    const r = selfJoinRole(this.state.bill, this.server.groups.get('g1')!.members, { id: this.userId, name: this.name }, newId);
+    this.asked = r.kind === 'ask';
+    if (r.kind === 'auto') this.do(r.action);
+    if (r.kind === 'ask' && this.answer !== undefined) {
+      const prefer = this.answer === null ? undefined : r.free.find((p) => p.name === this.answer)!.id;
+      this.do({ type: 'joinPerson', userId: this.userId, name: this.name, id: newId(), claim: true, ...(prefer ? { prefer } : {}) });
+      this.asked = false;
+    }
+  }
+  /** "Entrar no grupo" (o que o SoloApp faz) e a resposta à pergunta. newApp=false: app antigo. */
+  async join(newApp = true, answer: string | null | 'sem resposta' = null) {
     const g = this.server.groups.get('g1')!;
-    if (!g.members.some((m) => m.userId === this.userId)) g.members.push({ userId: this.userId, name: this.name, photo: null, role: 'editor' });
+    if (!g.members.some((m) => m.userId === this.userId)) g.members.push({ userId: this.userId, name: this.name, photo: null, role: 'editor', joinedAt: new Date(this.server.now).toISOString() });
     const remote = (await this.api.fetch('g1'))!;
     const doc = remote.content as RoleDoc;
     this.do({ type: 'open', state: { ...blankState(), ...doc, photoId: doc.photoId ?? null, id: 'grupo-g1', shared: { groupId: 'g1', code: 'c', version: remote.version, base: doc, pending: [] }, author: this.name } });
-    if (newApp) this.do({ type: 'joinPerson', userId: this.userId, name: this.name, id: newId() });
+    this.answer = answer === 'sem resposta' ? undefined : answer;
+    if (newApp) this.self();
   }
   async push() {
     for (let i = 0; i < 20 && this.state.shared?.pending.length; i++) {
@@ -133,7 +166,8 @@ class Phone {
   async pull() {
     const { action } = await pullRole(this.api, 'g1');
     if (action) this.do(action);
-    this.do(...roleMemberActions(this.state.bill, this.server.groups.get('g1')!.members, newId));
+    this.self();
+    this.do(...roleMemberActions(this.state.bill, this.server.groups.get('g1')!.members, this.userId, newId, this.server.now));
   }
   async sync() {
     await this.pull();
@@ -183,11 +217,38 @@ describe('rolê compartilhado: quem entra vai para a mesa', () => {
     expect(reb.names()).toHaveLength(3);
   });
 
-  it('entrou com o app antigo: é adicionada na próxima conferência, uma vez só, mesmo com dois celulares', async () => {
-    const { reb, bia, dani } = table();
+  it('a outra Rebeca entra como "Rebeca O." (a da mesa continua de quem era)', async () => {
+    const { server, reb } = table();
+    const outra = new Phone(server, 'u-reb2', 'Rebeca Lima');
+    await outra.join(true, null);
+    expect(outra.names()).toEqual(['Rebeca', 'Caio', 'Rebeca L.']);
+    expect(outra.state.bill.people[0].userId).toBeUndefined();
+    await outra.push();
+    await reb.sync();
+    expect(reb.state.bill).toEqual(outra.state.bill);
+  });
+
+  it('escolhe ser o "Caio" da mesa: fica com os itens dele', async () => {
+    const { server, reb } = table();
+    const caio = new Phone(server, 'u-caio', 'Caio Lima');
+    await caio.join(true, 'sem resposta');
+    expect(caio.asked).toBe(true);
+    caio.answer = 'Caio';
+    caio.self();
+    expect(caio.names()).toEqual(['Rebeca', 'Caio']);
+    await caio.push();
+    await reb.sync();
+    expect(reb.state.bill.people[1].userId).toBe('u-caio');
+  });
+
+  it('entrou com o app antigo: depois de 10 minutos é adicionada, uma vez só, mesmo com dois celulares', async () => {
+    const { server, reb, bia, dani } = table();
     await dani.join();
     await dani.push();
     await bia.join(false); // app antigo: entrou no grupo, mas não foi para a mesa
+    await reb.pull();
+    expect(reb.names()).toEqual(['Rebeca', 'Caio', 'Dani']); // ainda esperando ela dizer quem é
+    server.later();
     await reb.pull();
     await dani.pull();
     await reb.push();

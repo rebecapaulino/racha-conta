@@ -51,3 +51,23 @@ export function facesByName(people: { id: string; name: string; userId?: string 
   }
   return out;
 }
+
+/**
+ * Nome de quem entra pelo convite como pessoa nova: o primeiro nome da conta ("Rebeca"); se já
+ * tem alguém com esse nome, com a inicial do sobrenome ("Rebeca O."); se ainda assim repete, o
+ * nome inteiro. Assim duas Rebecas diferentes não ficam com o mesmo nome na tela.
+ */
+export function newcomerName(taken: string[], account: string, max = 24): string {
+  const words = account.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!words.length) return 'Convidado';
+  const used = new Set(taken.map(normalName));
+  const first = words[0];
+  const options = [first, ...(words.length > 1 ? [`${first} ${words[words.length - 1].charAt(0).toUpperCase()}.`] : []), words.join(' ')];
+  const pick = options.find((o) => !used.has(normalName(o.slice(0, max)))) ?? options[options.length - 1];
+  return pick.slice(0, max).trim();
+}
+
+/** Quem da lista tem o mesmo nome da conta (sugestão em "Quem é você?"; nunca liga sozinho). */
+export function sameNameIds(people: { id: string; name: string }[], account: string): string[] {
+  return people.filter((p) => sameName(p.name, account)).map((p) => p.id);
+}

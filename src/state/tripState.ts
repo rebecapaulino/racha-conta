@@ -71,10 +71,12 @@ export type TripAction =
   | { type: 'transferTraveler'; from: string; to: string }
   /**
    * Alguém entrou no grupo: passa a participar da viagem (ver joinTraveler). `id` é o da pessoa
-   * nova, se precisar criar; `prefer`, a pessoa a ligar se estiver livre; `self`: é a conta
-   * deste aparelho (vira o "sou eu").
+   * nova, se precisar criar; `prefer`, a pessoa que ela escolheu ser (se estiver livre); `self`:
+   * é a conta deste aparelho (vira o "sou eu"); `claim`: a escolha foi dela mesma, e vale mesmo
+   * que outro aparelho já a tenha posto como pessoa nova (ainda sem nada no nome); `auto`: quem
+   * pôs foi outro aparelho (a pessoa ainda não escolheu quem é).
    */
-  | { type: 'joinTraveler'; tripId: string; userId: string; name: string; id: string; prefer?: string; self?: boolean }
+  | { type: 'joinTraveler'; tripId: string; userId: string; name: string; id: string; prefer?: string; self?: boolean; claim?: boolean; auto?: boolean }
   | { type: 'setMe'; id: string | null }
   | { type: 'addExpense'; id: string; input: ExpenseInput }
   | { type: 'editExpense'; id: string; input: ExpenseInput }
@@ -376,7 +378,7 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
     case 'joinTraveler': {
       const trip = openTrip(s);
       if (!trip || trip.id !== a.tripId || !a.userId) return s;
-      const r = joinTraveler(trip, a.userId, cleanName(a.name, 60), a.id, a.prefer);
+      const r = joinTraveler(trip, a.userId, cleanName(a.name, 60), a.id, a.prefer, !!a.claim, !!a.auto);
       if (r.trip === trip && !(a.self && r.id && s.me[trip.id] !== r.id)) return s;
       const next = r.trip === trip ? s : { ...s, trips: s.trips.map((t) => (t.id === trip.id ? r.trip : t)) };
       return a.self && r.id ? { ...next, me: { ...next.me, [trip.id]: r.id } } : next;
@@ -462,7 +464,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.start === undefined || (isStr(t.start) && DATE.test(t.start))) &&
     (t.end === undefined || (isStr(t.end) && DATE.test(t.end))) &&
     Array.isArray(t.people) &&
-    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy)) && (p.userId === undefined || isStr(p.userId))) &&
+    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy)) && (p.userId === undefined || isStr(p.userId)) && (p.auto === undefined || p.auto === true)) &&
     Array.isArray(t.expenses) && t.expenses.every(isValidExpense) &&
     Array.isArray(t.settlements) &&
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId)) && (x.expenseIds === undefined || (Array.isArray(x.expenseIds) && x.expenseIds.every(isStr)))) &&

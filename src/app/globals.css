@@ -1399,3 +1399,9 @@ input, textarea, select { font-size: max(16px, 1em); }
 .tabs button { flex: 1 1 auto; gap: 8px; padding-inline: 8px; }
 .tabs button .tab-count { margin-left: -1px; }
 @media (max-width: 374px) { .tabs button { gap: 5px; padding-inline: 4px; } }
+
+/* "Quem é você?" (ao entrar num grupo): "Sou uma pessoa nova" com um + no lugar da inicial. */
+.whoami-picker .pick { width: 84px; }
+.whoami-picker .pick small { font-size: .72rem; text-align: center; line-height: 1.25; }
+.whoami-new-icon { background: transparent; border: 2px dashed var(--line); color: var(--muted); }
+.whoami-new[aria-checked="true"] .whoami-new-icon { border-style: solid; border-color: var(--primary); color: var(--primary); }

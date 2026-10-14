@@ -94,16 +94,24 @@ describe('quem entra no grupo aparece em Pessoas', () => {
     expect(openTrip(mine)!.log?.at(-1)?.text).toBe('Rebeca Oliveira entrou no grupo como Rebeca');
   });
 
-  it('entrar pelo convite: "sou eu" é a pessoa nova (ou a que tinha o nome)', () => {
+  it('entrar pelo convite: "sou eu" é quem a pessoa escolheu, ou a pessoa nova', () => {
     const owner = openTrip(sharedA())!;
     let s = run(
       blankTrips(),
       { type: 'setAuthor', name: 'Caio Lima' },
       { type: 'syncJoin', groupId: 'gA', code: 'cA', version: 3, trip: owner },
-      { type: 'joinTraveler', tripId: 'A', userId: 'u-caio', name: 'Caio Lima', id: 'novo', self: true },
+      { type: 'joinTraveler', tripId: 'A', userId: 'u-caio', name: 'Caio Lima', id: 'novo', self: true, claim: true, prefer: 'caio' },
     );
     expect(s.me.A).toBe('caio');
     expect(openTrip(s)!.people).toHaveLength(2);
+    // Sem escolher: mesmo com um Caio na lista, entra como pessoa nova ("Caio L.").
+    const fresh = run(
+      blankTrips(),
+      { type: 'syncJoin', groupId: 'gA', code: 'cA', version: 3, trip: owner },
+      { type: 'joinTraveler', tripId: 'A', userId: 'u-caio', name: 'Caio Lima', id: 'novo', self: true, claim: true },
+    );
+    expect(openTrip(fresh)!.people.at(-1)).toMatchObject({ id: 'novo', name: 'Caio L.' });
+    expect(fresh.me.A).toBe('novo');
     s = run(
       blankTrips(),
       { type: 'syncJoin', groupId: 'gA', code: 'cA', version: 3, trip: owner },
@@ -168,5 +176,7 @@ describe('dados novos da viagem são aceitos (e os estranhos, não)', () => {
     expect(isValidTrip({ ...t, joined: [1] })).toBe(false);
     expect(isValidTrip({ ...t, joined: 'u-bia' })).toBe(false);
     expect(isValidTrip({ ...t, people: [{ ...t.people[0], userId: 5 }] })).toBe(false);
+    expect(isValidTrip({ ...t, people: [{ ...t.people[0], auto: true }] })).toBe(true);
+    expect(isValidTrip({ ...t, people: [{ ...t.people[0], auto: 'sim' }] })).toBe(false);
   });
 });

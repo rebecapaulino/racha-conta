@@ -6,18 +6,24 @@ import { describe, expect, it } from 'vitest';
 import { tripSummary, type Trip } from '../core/trip';
 import { blankTrips, meOf, openTrip, tripsReducer, type TripAction, type TripsState } from '../state/tripState';
 import type { Member, RemoteTrip } from './groups';
-import { joinByInvite, memberActions, pullTrip, pushTrip, type TripApi } from './tripEngine';
+import { CHOOSE_MS, joinByInvite, memberActions, pullTrip, pushTrip, selfJoin, type TripApi } from './tripEngine';
 
 /** O banco: grupos com a viagem, a versão, o convite e quem está nele. */
 class Server {
   groups = new Map<string, { trip: Trip; version: number; code: string; members: Member[] }>();
   private n = 0;
   offline = false;
+  /** Relógio do servidor (quando cada um entrou). */
+  now = Date.parse('2026-12-28T12:00:00Z');
+  /** Passam os 10 minutos para quem entrou dizer quem é. */
+  later() {
+    this.now += CHOOSE_MS + 1000;
+  }
 
   create(trip: Trip, user: { id: string; name: string }) {
     const id = `g${++this.n}`;
     const code = `convite-${this.n}`;
-    this.groups.set(id, { trip: clone(trip), version: 1, code, members: [{ userId: user.id, name: user.name, photo: null, role: 'owner' }] });
+    this.groups.set(id, { trip: clone(trip), version: 1, code, members: [{ userId: user.id, name: user.name, photo: null, role: 'owner', joinedAt: new Date(this.now).toISOString() }] });
     return { groupId: id, code, version: 1 };
   }
 
@@ -51,7 +57,7 @@ class Server {
         net();
         for (const [id, g] of this.groups) {
           if (g.code !== code) continue;
-          if (!g.members.some((m) => m.userId === userId)) g.members.push({ userId, name, photo, role: 'editor' });
+          if (!g.members.some((m) => m.userId === userId)) g.members.push({ userId, name, photo, role: 'editor', joinedAt: new Date(this.now).toISOString() });
           return id;
         }
         throw new Error('convite inválido');
@@ -96,10 +102,32 @@ class Phone {
     this.do({ type: 'syncLink', tripId: this.trip.id, groupId: g.groupId, code: g.code, version: g.version });
     return g.code;
   }
-  /** "Entrar no grupo" no convite. */
-  async join(code: string) {
-    const { actions } = await joinByInvite(this.api, code, this.account, newId);
+  /**
+   * Resposta a "Quem é você nesta viagem?": o nome de uma pessoa da lista, null para "Sou uma
+   * pessoa nova", ou undefined (ainda não respondeu).
+   */
+  answer: string | null | undefined = undefined;
+  /** "Entrar no grupo" no convite, e a resposta à pergunta que vem em seguida. */
+  async join(code: string, answer: string | null | 'sem resposta' = null) {
+    const { actions } = await joinByInvite(this.api, code, this.account);
     this.do(...actions);
+    this.answer = answer === 'sem resposta' ? undefined : answer;
+    this.self();
+  }
+  /** O que a tela faz com selfJoin: resolve sozinho, ou responde a pergunta (se já respondeu). */
+  asked = false;
+  self() {
+    const e = this.entry();
+    if (!e) return;
+    const r = selfJoin(this.trip, this.server.members(e.groupId), this.account, this.me, newId);
+    this.asked = r.kind === 'ask';
+    if (r.kind === 'auto') this.do(r.action);
+    if (r.kind === 'ask' && this.answer !== undefined) {
+      const prefer = this.answer === null ? undefined : r.free.find((p) => p.name === this.answer)?.id;
+      if (this.answer !== null && !prefer) throw new Error(`${this.answer} não está na lista`);
+      this.do({ type: 'joinTraveler', tripId: this.trip.id, userId: this.account.id, name: this.account.name, id: newId(), self: true, claim: true, ...(prefer ? { prefer } : {}) });
+      this.asked = false;
+    }
   }
   /** Envia a fila de todas as viagens até esvaziar (como o efeito de envio). */
   async push() {
@@ -121,7 +149,8 @@ class Phone {
     if (!e) return;
     const { action } = await pullTrip(this.api, e.groupId, this.trip.id);
     if (action) this.do(action);
-    this.do(...memberActions(this.trip, this.server.members(e.groupId), this.account.id, this.me, newId));
+    this.self();
+    this.do(...memberActions(this.trip, this.server.members(e.groupId), this.account.id, newId, this.server.now));
   }
   async sync() {
     await this.pull();
@@ -222,14 +251,18 @@ describe('quem entrou participa da viagem', () => {
     expect(bia.trip).toEqual(rebeca.trip);
   });
 
-  it('"Bia" anotada antes: a conta dela é ligada a essa pessoa (sem duplicar), com as despesas dela', async () => {
+  it('"Bia" anotada antes: ao entrar ela escolhe ser essa pessoa (sem duplicar), com as despesas dela', async () => {
     const { rebeca, bia } = setup();
     rebeca.do(
       { type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca', meId: 'reb' },
       { type: 'addTraveler', id: 'bia', name: 'Bia' },
       { type: 'addExpense', id: 'e1', input: expense('reb', ['reb', 'bia'], 20000) },
     );
-    await bia.join(rebeca.share());
+    await bia.join(rebeca.share(), 'sem resposta');
+    expect(bia.asked).toBe(true); // "Quem é você nesta viagem?"
+    expect(bia.names()).toEqual(['Rebeca', 'Bia']);
+    bia.answer = 'Bia';
+    bia.self();
     expect(bia.me).toBe('bia');
     expect(bia.names()).toEqual(['Rebeca', 'Bia']);
     await bia.push();
@@ -237,32 +270,78 @@ describe('quem entrou participa da viagem', () => {
     expect(rebeca.trip.people.find((p) => p.id === 'bia')!.userId).toBe('u-bia');
   });
 
-  it('quem entrou com a versão antiga do app (sem estar em Pessoas) é adicionado ao conferir o grupo', async () => {
+  it('duas Rebecas diferentes: a que entra pelo link é pessoa nova ("Rebeca O."), e a anotada fica com as despesas dela', async () => {
+    const { server } = setup();
+    const caio = new Phone(server, { id: 'u-caio', name: 'Caio Lima', photo: null });
+    const reb = new Phone(server, { id: 'u-reb2', name: 'Rebeca Oliveira', photo: null });
+    caio.do(
+      { type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Caio', meId: 'caio' },
+      { type: 'addTraveler', id: 'rebeca', name: 'Rebeca' },
+      { type: 'addExpense', id: 'e1', input: expense('caio', ['caio', 'rebeca'], 20000) },
+    );
+    await reb.join(caio.share(), null); // "Sou uma pessoa nova"
+    await reb.push();
+    await caio.sync();
+    expect(caio.names()).toEqual(['Caio', 'Rebeca', 'Rebeca O.']);
+    const anotada = caio.trip.people.find((p) => p.id === 'rebeca')!;
+    expect(anotada.userId).toBeUndefined();
+    expect(tripSummary(caio.trip).people.find((p) => p.person.id === 'rebeca')!.balance).toBe(-10000);
+    expect(reb.me).toBe(reb.trip.people.find((p) => p.name === 'Rebeca O.')!.id);
+  });
+
+  it('sem responder, os outros esperam 10 minutos; depois a põem como pessoa nova, e ela ainda pode escolher', async () => {
+    const { server, rebeca, bia } = setup();
+    rebeca.do(
+      { type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca', meId: 'reb' },
+      { type: 'addTraveler', id: 'bia', name: 'Bia' },
+    );
+    const code = rebeca.share();
+    await bia.join(code, 'sem resposta'); // abriu a pergunta e não respondeu
+    await rebeca.sync();
+    expect(rebeca.names()).toEqual(['Rebeca', 'Bia']); // ainda esperando
+    server.later();
+    await rebeca.sync();
+    expect(rebeca.names()).toEqual(['Rebeca', 'Bia', 'Bia S.']);
+    expect(rebeca.trip.people[2].auto).toBe(true);
+    // A Bia volta ao app: a pergunta continua, e ela diz que é a "Bia" anotada.
+    await bia.pull();
+    expect(bia.asked).toBe(true);
+    bia.answer = 'Bia';
+    bia.self();
+    await bia.push();
+    await rebeca.sync();
+    expect(rebeca.names()).toEqual(['Rebeca', 'Bia']);
+    expect(rebeca.trip.people[1].userId).toBe('u-bia');
+    expect(rebeca.trip).toEqual(bia.trip);
+  });
+
+  it('entrou com o app antigo (só no grupo): depois de 10 minutos entra como pessoa nova, uma vez só', async () => {
     const { server, rebeca, bia } = setup();
     rebeca.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca' });
     const code = rebeca.share();
-    // App antigo: entrou no grupo, mas não virou pessoa da viagem.
     await bia.api.join(code, 'Bia Souza', null);
-    expect(server.members('g1')).toHaveLength(2);
+    server.later();
     await rebeca.sync();
     expect(rebeca.names()).toEqual(['Rebeca', 'Bia']);
-    // E a Bia, ao abrir o link de novo, não vira uma segunda "Bia".
-    await bia.join(code);
+    // A Bia abre a versão nova: ninguém livre para escolher, então confirma a pessoa nova.
+    await bia.join(code, 'sem resposta');
+    expect(bia.asked).toBe(false);
     await bia.sync();
     await rebeca.sync();
     expect(bia.names()).toEqual(['Rebeca', 'Bia']);
+    expect(rebeca.trip.people[1].auto).toBeUndefined();
     expect(rebeca.trip).toEqual(bia.trip);
     expect(bia.me).toBe(bia.trip.people[1].id);
   });
 
   it('dois celulares põem a mesma pessoa ao mesmo tempo: ela entra uma vez só', async () => {
-    const { server, rebeca, bia, caio } = setup();
+    const { server, rebeca, caio, bia } = setup();
     rebeca.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca' });
     const code = rebeca.share();
     await caio.join(code);
     await caio.push();
     await bia.api.join(code, 'Bia Souza', null); // app antigo
-    // Rebeca e Caio veem a Bia no grupo e põem ela na viagem, cada um no seu celular.
+    server.later();
     await rebeca.pull();
     await caio.pull();
     expect(rebeca.names()).toContain('Bia');
@@ -276,14 +355,16 @@ describe('quem entrou participa da viagem', () => {
   });
 
   it('quem foi tirado da viagem não volta sozinho na próxima conferência', async () => {
-    const { rebeca, bia } = setup();
+    const { server, rebeca, bia } = setup();
     rebeca.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca' });
     await bia.join(rebeca.share());
     await bia.push();
     await rebeca.sync();
     const biaId = rebeca.trip.people.find((p) => p.userId === 'u-bia')!.id;
     rebeca.do({ type: 'removeTraveler', id: biaId });
+    server.later();
     await rebeca.sync();
+    await bia.sync();
     await rebeca.sync();
     expect(rebeca.names()).toEqual(['Rebeca']);
   });

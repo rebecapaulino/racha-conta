@@ -402,3 +402,13 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 - Cada cartão de "Suas viagens" tem três pontinhos no canto superior direito. Tocar abre a confirmação "Excluir …? Todas as despesas e acertos são apagados." (viagem compartilhada: "Para quem está no grupo, a viagem continua."). Igual ao "Apagar viagem" de dentro da viagem, que continua lá.
 - Os pontinhos ficam por cima do cartão (que é um botão inteiro); o topo do cartão abre espaço para eles não cobrirem as datas. No cartão com foto, ficam brancos com fundo escuro.
+
+## "Quem é você?" ao entrar no grupo: nome igual não liga mais sozinho (14/10/2026)
+
+- **Problema:** o app ligava quem entrava pelo convite à pessoa anotada com o mesmo nome. Com duas Rebecas diferentes, a que entrava tomava o lugar (despesas e foto) da anotada.
+- **Agora (Viagem e Rolê):** logo depois de "Entrar no grupo", aparece "Quem é você nesta viagem?" (ou "neste rolê?"), com as pessoas que ainda não são de nenhuma conta e "Pessoa nova", que já vem marcada. Quem tem o mesmo nome aparece primeiro, com "mesmo nome", só como sugestão. Não fecha sem escolher. Sem ninguém para escolher, entra direto como pessoa nova. Na pergunta, as pessoas aparecem só com a inicial (a foto pelo nome é justamente o palpite que pode estar errado).
+- **Pessoa nova com nome repetido:** primeiro nome; se já existe, com a inicial do sobrenome ("Rebeca O."); se ainda repete, o nome inteiro.
+- **Quem não responde:** os outros aparelhos esperam 10 minutos e então a põem como pessoa nova (marcada como provisória). Quando ela abre o app, a pergunta continua; se escolher uma pessoa anotada e a provisória ainda não tem nada no nome, a provisória sai. Quem entrou com o app antigo segue o mesmo caminho.
+- **Quem criou o grupo** não é perguntado: na Viagem é o seu "sou eu"; no Rolê não é adicionado (já está na mesa).
+- Errou a escolha: "Assumir despesas de outra pessoa" continua resolvendo.
+- Conferido no navegador (Viagem, três contas): a outra Rebeca entra como "Rebeca O." e a anotada continua sem foto e com as despesas dela; a Bia escolhe a "Bia" anotada e fica com ela.

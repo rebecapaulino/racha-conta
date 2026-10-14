@@ -2,7 +2,8 @@
 // entrar pelo convite e pôr na viagem quem entrou no grupo. O useTripSync só chama estas
 // funções e despacha o que elas devolvem; os testes usam um servidor de mentira no lugar do Supabase.
 
-import type { Trip } from '../core/trip';
+import { canRemoveTraveler, freeTravelers, type Traveler, type Trip } from '../core/trip';
+import { sameNameIds } from '../core/faces';
 import { isValidTrip, type TripAction, type TripsState } from '../state/tripState';
 import type { Member, RemoteTrip } from './groups';
 
@@ -51,44 +52,66 @@ export interface JoinAccount {
 }
 
 /**
- * Entra no grupo pelo convite: a viagem chega, abre neste aparelho e a pessoa passa a
- * participar dela (ligada a quem já estava com o nome dela, ou como pessoa nova).
+ * Entra no grupo pelo convite: a viagem chega e abre neste aparelho. Quem a pessoa é na viagem
+ * ela escolhe em seguida ("Quem é você nesta viagem?", ver selfJoin).
  */
-export async function joinByInvite(api: TripApi, code: string, account: JoinAccount, newId: () => string): Promise<{ actions: TripAction[]; trip: Trip }> {
+export async function joinByInvite(api: TripApi, code: string, account: JoinAccount): Promise<{ actions: TripAction[]; trip: Trip }> {
   const groupId = await api.join(code, account.name, account.photo);
   const remote = await api.fetch(groupId);
   if (!remote || !isValidTrip(remote.trip)) throw new Error('viagem inválida');
-  return {
-    trip: remote.trip,
-    actions: [
-      { type: 'syncJoin', groupId, code: remote.code, version: remote.version, trip: remote.trip },
-      { type: 'joinTraveler', tripId: remote.trip.id, userId: account.id, name: account.name, id: newId(), self: true },
-    ],
-  };
+  return { trip: remote.trip, actions: [{ type: 'syncJoin', groupId, code: remote.code, version: remote.version, trip: remote.trip }] };
 }
 
+/** Quanto tempo quem entrou tem para dizer quem é, antes de outro aparelho pô-la como pessoa nova. */
+export const CHOOSE_MS = 10 * 60 * 1000;
+
 /**
- * Quem está no grupo e ainda não ganhou o seu lugar na viagem (entrou antes desta versão do
- * app, ou por outro aparelho): uma ação para cada. Vale também para a conta deste aparelho,
- * que fica ligada ao "sou eu" (`meId`) se ele ainda não tem conta. Quem criou o grupo só é
- * ligado pelo próprio aparelho: ele já está na viagem, talvez com outro nome, e só o aparelho
- * dele sabe qual pessoa é.
+ * Quem está no grupo e ainda não ganhou o seu lugar na viagem: os outros aparelhos põem como
+ * pessoa nova (nunca ligam pelo nome), mas só depois de `CHOOSE_MS` (antes disso, a própria
+ * pessoa está escolhendo quem é). Não entram aqui: a conta deste aparelho (ver selfJoin) e quem
+ * criou o grupo (já está na viagem, e só o aparelho dele sabe com qual nome).
  */
-export function memberActions(trip: Trip, members: Member[], accountId: string | null, meId: string | null, newId: () => string): TripAction[] {
+export function memberActions(trip: Trip, members: Member[], accountId: string | null, newId: () => string, now = Date.now()): TripAction[] {
   const joined = new Set(trip.joined ?? []);
-  const out: TripAction[] = [];
-  for (const m of members) {
-    if (joined.has(m.userId)) continue;
-    const self = m.userId === accountId;
-    if (!self && m.role === 'owner') continue;
-    out.push({
-      type: 'joinTraveler',
-      tripId: trip.id,
-      userId: m.userId,
-      name: m.name,
-      id: newId(),
-      ...(self ? { self: true, ...(meId ? { prefer: meId } : {}) } : {}),
-    });
+  return members
+    .filter((m) => m.userId !== accountId && m.role !== 'owner' && !joined.has(m.userId))
+    .filter((m) => !m.joinedAt || now - Date.parse(m.joinedAt) >= CHOOSE_MS)
+    .map((m): TripAction => ({ type: 'joinTraveler', tripId: trip.id, userId: m.userId, name: m.name, id: newId(), auto: true }));
+}
+
+export type SelfJoin =
+  /** Já está na viagem (ou não é do grupo): nada a fazer. */
+  | { kind: 'none' }
+  /** Resolve sem perguntar. */
+  | { kind: 'auto'; action: TripAction }
+  /** Perguntar "Quem é você nesta viagem?" entre as pessoas livres; `suggested`: mesmo nome. */
+  | { kind: 'ask'; free: Traveler[]; suggested: string[] };
+
+/**
+ * A conta deste aparelho está no grupo: falta dizer quem ela é na viagem?
+ * - Quem criou o grupo: é o seu "sou eu", sem perguntar.
+ * - Quem entrou: escolhe entre as pessoas que ainda não são de nenhuma conta, ou "pessoa nova".
+ *   Sem ninguém livre, entra direto como pessoa nova.
+ * - Outro aparelho já a pôs como pessoa nova (passaram os 10 minutos): ainda pergunta, enquanto
+ *   essa pessoa não tiver nada no nome.
+ */
+export function selfJoin(trip: Trip, members: Member[], account: { id: string; name: string } | null, meId: string | null, newId: () => string): SelfJoin {
+  const me = account && members.find((m) => m.userId === account.id);
+  if (!account || !me) return { kind: 'none' };
+  const joined = (trip.joined ?? []).includes(account.id);
+  const base = { type: 'joinTraveler', tripId: trip.id, userId: account.id, name: account.name, id: newId(), self: true, claim: true } as const;
+  const free = freeTravelers(trip);
+  if (me.role === 'owner') {
+    if (joined) return { kind: 'none' };
+    return { kind: 'auto', action: meId && free.some((p) => p.id === meId) ? { ...base, prefer: meId } : base };
   }
-  return out;
+  const linked = trip.people.find((p) => p.userId === account.id);
+  if (linked) {
+    if (!linked.auto) return { kind: 'none' };
+    if (free.length && canRemoveTraveler(trip, linked.id)) return { kind: 'ask', free, suggested: sameNameIds(free, account.name) };
+    return { kind: 'auto', action: base };
+  }
+  if (joined) return { kind: 'none' }; // foi tirada da viagem depois: não volta sozinha
+  if (free.length === 0) return { kind: 'auto', action: base };
+  return { kind: 'ask', free, suggested: sameNameIds(free, account.name) };
 }

@@ -6,7 +6,9 @@ import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../
 import { loginEnabled, useAccount } from '../../auth/account';
 import { loadTrips, meOf, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
 import { createTripGroup } from '../../sync/groups';
-import { joinByInvite, memberActions } from '../../sync/tripEngine';
+import { joinByInvite, memberActions, selfJoin } from '../../sync/tripEngine';
+import { newcomerName } from '../../core/faces';
+import { WhoAmISheet } from '../WhoAmISheet';
 import { InviteSheet, useInvite } from '../useInvite';
 import { AccountButton } from '../AccountButton';
 import { ThemeButton } from '../ThemeButton';
@@ -47,12 +49,24 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const { members, status: syncStatus, refresh: syncRefresh } = useTripSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
   const entry = trip ? state.sync?.[trip.id] : undefined;
 
-  // Quem está no grupo participa da viagem: quem ainda não está em Pessoas entra (ou é ligado
-  // à pessoa com o nome dela). Cada conta uma vez só (ver joinTraveler).
+  // Quem está no grupo participa da viagem. Você: diz quem é em "Quem é você nesta viagem?"
+  // (ou entra direto, sem ninguém para escolher). Os outros: se em 10 minutos não disseram,
+  // este aparelho os põe como pessoa nova. Nome igual nunca liga sozinho (ver joinTraveler).
+  const self = useMemo(
+    () => (trip && entry && account ? selfJoin(trip, members, account, meId, newId) : null),
+    [trip, entry, members, account, meId],
+  );
   useEffect(() => {
     if (!trip || !entry || members.length === 0) return;
-    for (const a of memberActions(trip, members, account?.id ?? null, meId, newId)) dispatch(a);
-  }, [trip, entry, members, account?.id, meId]);
+    if (self?.kind === 'auto') dispatch(self.action);
+    for (const a of memberActions(trip, members, account?.id ?? null, newId)) dispatch(a);
+  }, [trip, entry, members, account?.id, self]);
+  function chooseSelf(id: string | null) {
+    if (!trip || !account) return;
+    dispatch({ type: 'joinTraveler', tripId: trip.id, userId: account.id, name: account.name, id: newId(), self: true, claim: true, ...(id ? { prefer: id } : {}) });
+    const who = id ? trip.people.find((p) => p.id === id)?.name : null;
+    toast(who ? `Pronto: você é ${who} nesta viagem` : 'Pronto: você entrou na viagem');
+  }
   const [sharing, setSharing] = useState(false);
 
   /** Foto do "Ler nota fiscal": guarda no aparelho e abre a despesa nova com ela. */
@@ -78,8 +92,8 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     if (!invite || !account) return;
     setInvite({ ...invite, status: 'joining' });
     try {
-      // A viagem chega e abre; você entra em Pessoas (ou vira a pessoa que já tinha o seu nome).
-      const { actions, trip: joined } = await joinByInvite(supabaseTripApi, invite.code, account, newId);
+      // A viagem chega e abre; em seguida, "Quem é você nesta viagem?".
+      const { actions, trip: joined } = await joinByInvite(supabaseTripApi, invite.code, account);
       for (const a of actions) dispatch(a);
       closeInvite();
       toast(`Você entrou na viagem ${joined.name}`);
@@ -300,6 +314,15 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         onClose={() => setExpenseMode(null)}
         onSaved={() => current === 'pessoas' && setTab('despesas')}
         groupId={entry?.groupId ?? null}
+      />
+      <WhoAmISheet
+        key={trip.id}
+        open={self?.kind === 'ask'}
+        noun="viagem"
+        people={self?.kind === 'ask' ? self.free : []}
+        suggested={self?.kind === 'ask' ? self.suggested : []}
+        newName={newcomerName(trip.people.filter((p) => p.userId !== account?.id).map((p) => p.name), account?.name ?? '')}
+        onChoose={chooseSelf}
       />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />

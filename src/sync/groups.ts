@@ -11,6 +11,8 @@ export interface Member {
   name: string;
   photo: string | null;
   role: 'owner' | 'editor';
+  /** Quando entrou no grupo (ISO). */
+  joinedAt?: string;
 }
 
 /** Como está a conversa com o grupo (para mostrar na janela de compartilhar). */
@@ -100,5 +102,5 @@ export const saveTripGroup = (groupId: string, trip: Trip, base: number) => save
 export async function fetchMembers(groupId: string): Promise<Member[]> {
   const { data, error } = await db().from('group_members').select('user_id, name, photo, role, joined_at').eq('group_id', groupId).order('joined_at');
   if (error) throw error;
-  return (data ?? []).map((m) => ({ userId: m.user_id, name: m.name, photo: m.photo, role: m.role }));
+  return (data ?? []).map((m) => ({ userId: m.user_id, name: m.name, photo: m.photo, role: m.role, joinedAt: m.joined_at }));
 }

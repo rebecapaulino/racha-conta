@@ -6,7 +6,9 @@ import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { loginEnabled, useAccount } from '../auth/account';
 import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, newId, reducer, roleDoc, saveState, worthKeeping } from '../state/billState';
-import { roleMemberActions } from '../sync/roleEngine';
+import { roleMemberActions, selfJoinRole } from '../sync/roleEngine';
+import { newcomerName } from '../core/faces';
+import { WhoAmISheet } from './WhoAmISheet';
 import { createGroup, fetchGroup, joinGroup } from '../sync/groups';
 import { useBillSync } from './useBillSync';
 import { InviteSheet, useInvite } from './useInvite';
@@ -57,13 +59,22 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   }
   const { invite, setInvite, close: closeInvite } = useInvite('role', !!account);
 
-  // Quem está no grupo está na mesa: quem ainda não está entra (ou é ligado à pessoa com o
-  // nome dela). Cada conta uma vez só (ver joinPerson).
+  // Quem está no grupo está na mesa. Você: diz quem é em "Quem é você neste rolê?" (ou entra
+  // direto, sem ninguém para escolher). Os outros: se em 10 minutos não disseram, este aparelho
+  // os põe como pessoa nova. Nome igual nunca liga sozinho (ver joinPerson).
   const shared = !!state.shared;
+  const self = useMemo(() => (shared && account ? selfJoinRole(bill, members, account, newId) : null), [shared, bill, members, account]);
   useEffect(() => {
     if (!shared || members.length === 0) return;
-    for (const a of roleMemberActions(bill, members, newId)) dispatch(a);
-  }, [shared, bill, members]);
+    if (self?.kind === 'auto') dispatch(self.action);
+    for (const a of roleMemberActions(bill, members, account?.id ?? null, newId)) dispatch(a);
+  }, [shared, bill, members, account?.id, self]);
+  function chooseSelf(id: string | null) {
+    if (!account) return;
+    dispatch({ type: 'joinPerson', userId: account.id, name: account.name, id: newId(), claim: true, ...(id ? { prefer: id } : {}) });
+    const who = id ? bill.people.find((p) => p.id === id)?.name : null;
+    toast(who ? `Pronto: você é ${who} neste rolê` : 'Pronto: você entrou no rolê');
+  }
 
   // Rolês: contas anteriores, guardadas a cada "Nova conta".
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
@@ -174,8 +185,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         type: 'open',
         state: { ...blankState(), ...doc, photoId: doc.photoId ?? null, id, shared: { groupId, code: remote.code, version: remote.version, base: doc, pending: [] }, author: account.name },
       });
-      // Você entra na mesa (ou vira a pessoa que já tinha o seu nome); quem criou o rolê já está nela.
-      dispatch({ type: 'joinPerson', userId: account.id, name: account.name, id: newId() });
+      // Em seguida: "Quem é você neste rolê?" (ver selfJoinRole).
       setTab(doc.bill.people.length ? 'pedidos' : 'mesa');
       setScreen('conta');
       closeInvite();
@@ -201,6 +211,15 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         onClose={() => setSharing(false)}
       />
       <InviteSheet invite={invite} noun="rolê" onJoin={join} onClose={closeInvite} />
+      <WhoAmISheet
+        key={state.id}
+        open={self?.kind === 'ask'}
+        noun="rolê"
+        people={self?.kind === 'ask' ? self.free : []}
+        suggested={self?.kind === 'ask' ? self.suggested : []}
+        newName={newcomerName(bill.people.filter((p) => p.userId !== account?.id).map((p) => p.name), account?.name ?? '')}
+        onChoose={chooseSelf}
+      />
     </>
   );
 

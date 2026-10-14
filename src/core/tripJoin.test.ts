@@ -51,42 +51,58 @@ describe('quem entra no grupo participa da viagem', () => {
     expect(new Set(r.trip.people.map((p) => p.color)).size).toBe(3);
   });
 
-  it('já tinha uma pessoa com o nome dela (anotada antes): liga a essa pessoa em vez de duplicar', () => {
+  it('nome igual NÃO liga sozinho: outra Rebeca entra como "Rebeca O.", e a anotada fica como estava', () => {
+    const t = add(tripWith(['Rebeca', 'Caio']), 'e1', { cents: 10000, payerId: 'rebeca', people: ['rebeca', 'caio'] });
+    const r = joinTraveler(t, 'u-reb2', 'Rebeca Oliveira', 'novo');
+    expect(r.how).toBe('added');
+    expect(r.trip.people.map((p) => p.name)).toEqual(['Rebeca', 'Caio', 'Rebeca O.']);
+    expect(r.trip.people[0].userId).toBeUndefined();
+    expect(personStatement(r.trip, 'rebeca').owedTotal).toBe(5000);
+  });
+
+  it('quem entra escolheu ser a pessoa anotada: liga a ela, com as despesas dela', () => {
     const t = add(tripWith(['Rebeca', 'Bia']), 'e1', { cents: 10000, payerId: 'rebeca', people: ['rebeca', 'bia'] });
-    const r = joinTraveler(t, 'u-bia', 'Bia Souza', 'novo');
+    const r = joinTraveler(t, 'u-bia', 'Beatriz Souza', 'novo', 'bia');
     expect(r.how).toBe('linked');
     expect(r.id).toBe('bia');
     expect(r.trip.people).toHaveLength(2);
     expect(r.trip.people[1].userId).toBe('u-bia');
-    // As despesas que já estavam no nome dela continuam com ela.
     expect(personStatement(r.trip, 'bia').owesTotal).toBe(5000);
   });
 
-  it('acento e maiúscula não atrapalham a ligação pelo nome', () => {
-    const r = joinTraveler(tripWith(['Rebeca', 'Lúcia']), 'u-l', 'LUCIA mendes', 'novo');
-    expect(r.id).toBe('lúcia');
+  it('nome repetido: primeiro nome, depois a inicial do sobrenome, depois o nome inteiro', () => {
+    const t: Trip = { ...tripWith([]), people: [{ id: 'a1', name: 'Ana', color: 0, weight: 1 }, { id: 'a2', name: 'Ana P.', color: 1, weight: 1 }] };
+    expect(joinTraveler(t, 'u1', 'Ana Paula', 'n').trip.people.at(-1)!.name).toBe('Ana Paula');
+    expect(joinTraveler(tripWith(['Ana']), 'u1', 'ana paula', 'n').trip.people.at(-1)!.name).toBe('ana P.');
+    expect(joinTraveler(tripWith(['Rebeca']), 'u1', 'Dani', 'n').trip.people.at(-1)!.name).toBe('Dani');
   });
 
-  it('duas pessoas com o mesmo nome: não adivinha; entra como pessoa nova com o nome inteiro', () => {
-    const t: Trip = { ...tripWith(['Ana']), people: [{ id: 'a1', name: 'Ana', color: 0, weight: 1 }, { id: 'a2', name: 'Ana', color: 1, weight: 1 }] };
-    const r = joinTraveler(t, 'u-ana', 'Ana Paula', 'novo');
-    expect(r.how).toBe('added');
-    expect(r.trip.people.find((p) => p.id === 'novo')!.name).toBe('Ana Paula');
-  });
-
-  it('o "sou eu" do aparelho tem preferência sobre o nome', () => {
-    const r = joinTraveler(tripWith(['Beca', 'Rebeca']), 'u-reb', 'Rebeca Oliveira', 'novo', 'beca');
-    expect(r.id).toBe('beca');
-    expect(r.trip.people.find((p) => p.id === 'rebeca')!.userId).toBeUndefined();
-  });
-
-  it('pessoa já ligada a outra conta não é tomada', () => {
-    const t = joinTraveler(tripWith(['Rebeca', 'Bia']), 'u-bia1', 'Bia', 'x').trip;
-    const r = joinTraveler(t, 'u-bia2', 'Bia', 'novo', 'bia');
+  it('escolher alguém que já é de outra conta não vale: entra como pessoa nova', () => {
+    const t = joinTraveler(tripWith(['Rebeca', 'Bia']), 'u-bia1', 'Bia', 'x', 'bia').trip;
+    const r = joinTraveler(t, 'u-bia2', 'Bia Lima', 'novo', 'bia');
     expect(r.how).toBe('added');
     expect(r.trip.people.find((p) => p.id === 'bia')!.userId).toBe('u-bia1');
-    // O primeiro nome já existe e a conta só tem ele: fica "Bia" mesmo (dá para renomear).
-    expect(r.trip.people.find((p) => p.id === 'novo')!.name).toBe('Bia');
+    expect(r.trip.people.find((p) => p.id === 'novo')!.name).toBe('Bia L.');
+  });
+
+  it('outro aparelho já a pôs como pessoa nova: a escolha dela ainda vale (se a nova não tem nada)', () => {
+    const auto = joinTraveler(tripWith(['Rebeca', 'Bia']), 'u-bia', 'Bia Souza', 'n1', undefined, false, true);
+    expect(auto.trip.people.find((p) => p.id === 'n1')).toMatchObject({ name: 'Bia S.', auto: true });
+    // Sem ser a própria pessoa (claim), não muda.
+    expect(joinTraveler(auto.trip, 'u-bia', 'Bia Souza', 'n2', 'bia').how).toBe('already');
+    const chosen = joinTraveler(auto.trip, 'u-bia', 'Bia Souza', 'n2', 'bia', true);
+    expect(chosen.id).toBe('bia');
+    expect(chosen.trip.people.map((p) => p.id)).toEqual(['rebeca', 'bia']);
+    expect(chosen.trip.people[1].userId).toBe('u-bia');
+  });
+
+  it('a pessoa nova posta por outro já tem despesa: a escolha não troca; "pessoa nova" só confirma', () => {
+    let t = joinTraveler(tripWith(['Rebeca', 'Bia']), 'u-bia', 'Bia Souza', 'n1', undefined, false, true).trip;
+    t = add(t, 'e1', { cents: 1000, payerId: 'n1', people: ['n1', 'rebeca'] });
+    const r = joinTraveler(t, 'u-bia', 'Bia Souza', 'n2', 'bia', true);
+    expect(r.id).toBe('n1');
+    expect(r.trip.people.find((p) => p.id === 'n1')!.auto).toBeUndefined();
+    expect(r.trip.people.find((p) => p.id === 'bia')!.userId).toBeUndefined();
   });
 
   it('é uma vez só: chamar de novo não muda nada (dois aparelhos fazendo ao mesmo tempo)', () => {
@@ -153,7 +169,7 @@ describe('assumir as despesas de outra pessoa', () => {
 
   it('passar e tirar (juntar): a conta do grupo de quem saiu passa para quem ficou sem conta', () => {
     const t = tripWith(['Rebeca', 'Bia']);
-    const linked = joinTraveler(t, 'u-bia', 'Bia', 'x').trip; // a "Bia" virou a conta
+    const linked = joinTraveler(t, 'u-bia', 'Bia', 'x', 'bia').trip; // a "Bia" virou a conta
     const withNew: Trip = { ...linked, people: [...linked.people, { id: 'beatriz', name: 'Beatriz', color: 3, weight: 1 }] };
     const r = mergeTraveler(withNew, 'bia', 'beatriz');
     if (!r.ok) throw new Error(r.error);
@@ -163,8 +179,8 @@ describe('assumir as despesas de outra pessoa', () => {
   });
 
   it('juntar não tira a conta de quem já tinha uma', () => {
-    let t = joinTraveler(tripWith(['Rebeca', 'Bia', 'Caio']), 'u-bia', 'Bia', 'x').trip;
-    t = joinTraveler(t, 'u-caio', 'Caio', 'y').trip;
+    let t = joinTraveler(tripWith(['Rebeca', 'Bia', 'Caio']), 'u-bia', 'Bia', 'x', 'bia').trip;
+    t = joinTraveler(t, 'u-caio', 'Caio', 'y', 'caio').trip;
     const r = mergeTraveler(t, 'bia', 'caio');
     if (!r.ok) throw new Error(r.error);
     expect(r.trip.people.find((p) => p.id === 'caio')!.userId).toBe('u-caio');

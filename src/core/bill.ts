@@ -2,7 +2,7 @@
 // para poder ser testado sozinho e reaproveitado (ex.: app Capacitor depois).
 
 import { formatBRL, splitEven, splitWeighted } from './money';
-import { normalName, sameName } from './faces';
+import { newcomerName } from './faces';
 import { categoryEmoji } from './noteCategory';
 import { accountIn, dropCoverage, minTransfers, netPairs, reconcilePlan, settleUp, type Balances, type PlanRow, type Transfer } from './settle';
 
@@ -29,6 +29,8 @@ export interface Person {
   coveredBy?: string;
   /** Conta do grupo ligada a esta pessoa (quem entrou pelo convite e é ela). */
   userId?: string;
+  /** Posta como pessoa nova por outro aparelho; a própria pessoa ainda não disse quem é. */
+  auto?: true;
 }
 
 export interface Item {
@@ -440,29 +442,53 @@ export function groupSummary(bill: Bill): GroupSummary {
   };
 }
 
+/** A pessoa aparece em alguma coisa da conta (item, quem pagou, pagamento, acerto, quem paga por quem)? */
+export function personUsed(bill: Bill, id: string): boolean {
+  const notes = bill.notes ?? [];
+  return (
+    bill.items.some((i) => i.who.includes(id)) ||
+    bill.payerId === id ||
+    notes.some((n) => n.payerId === id || (n.paid && id in n.paid)) ||
+    (!!bill.paid && id in bill.paid) ||
+    (bill.settled ?? []).some((t) => t.from === id || t.to === id) ||
+    bill.people.some((p) => p.coveredBy === id)
+  );
+}
+
 /**
- * Alguém entrou no grupo do rolê: passa a estar na mesa. Já ligada a alguém: nada muda. Senão,
- * liga à única pessoa sem conta com o mesmo nome ("Bia" ↔ "Bia Souza"); sem ninguém assim,
- * entra como pessoa nova (`id`, cor `color`) com o primeiro nome da conta (o nome inteiro, se
- * o primeiro já está na mesa), nas notas que eram de todo mundo, como quem é adicionado à mão.
- * Cada conta uma vez só (`joined`): quem foi tirado depois não volta sozinho.
+ * Alguém entrou no grupo do rolê: passa a estar na mesa. Nome igual NÃO liga sozinho (duas
+ * Rebecas podem ser pessoas diferentes): só liga a `prefer`, a pessoa que quem entrou escolheu
+ * em "Quem é você neste rolê?". Sem escolha, entra como pessoa nova (`id`, cor `color`) com o
+ * primeiro nome da conta (ou "Rebeca O." se já há uma Rebeca), nas notas que eram de todo mundo.
+ * Cada conta uma vez só (`joined`). `claim`: a escolha é da própria pessoa e vale mesmo que outro
+ * aparelho já a tenha posto como pessoa nova (`auto`), se essa pessoa ainda não tem nada.
  */
-export function joinPerson(bill: Bill, userId: string, name: string, id: string, color: number): { bill: Bill; added: boolean } {
+export function joinPerson(
+  bill: Bill,
+  userId: string,
+  name: string,
+  id: string,
+  color: number,
+  opts: { prefer?: string; claim?: boolean; auto?: boolean } = {},
+): { bill: Bill; added: boolean } {
   const joined = bill.joined ?? [];
-  if (joined.includes(userId)) return { bill, added: false };
-  const mark = (b: Bill): Bill => ({ ...b, joined: [...joined, userId] });
-  if (bill.people.some((p) => p.userId === userId)) return { bill: mark(bill), added: false };
-  const clean = name.replace(/\s+/g, ' ').trim();
-  const byName = bill.people.filter((p) => !p.userId && sameName(p.name, clean));
-  if (byName.length === 1) {
-    return { bill: mark({ ...bill, people: bill.people.map((p) => (p.id === byName[0].id ? { ...p, userId } : p)) }), added: false };
+  const mark = (b: Bill): Bill => (joined.includes(userId) ? b : { ...b, joined: [...joined, userId] });
+  const linked = bill.people.find((p) => p.userId === userId);
+  const target = opts.prefer ? bill.people.find((p) => p.id === opts.prefer && !p.userId) : undefined;
+  const setUser = (b: Bill, pid: string) => ({ ...b, people: b.people.map((p) => (p.id === pid ? { ...p, userId } : p)) });
+  if (linked) {
+    if (opts.claim && linked.auto && target && !personUsed(bill, linked.id)) return { bill: mark(setUser(removePerson(bill, linked.id), target.id)), added: false };
+    if (opts.claim && linked.auto) {
+      return { bill: mark({ ...bill, people: bill.people.map((p) => { if (p.id !== linked.id) return p; const n = { ...p }; delete n.auto; return n; }) }), added: false };
+    }
+    return { bill: mark(bill), added: false };
   }
-  const first = clean.split(' ')[0] ?? '';
-  const taken = (n: string) => bill.people.some((p) => normalName(p.name) === normalName(n));
-  const label = (first && !taken(first) ? first : clean || 'Convidado').slice(0, MAX_NAME).trim();
+  if (joined.includes(userId) && !opts.claim) return { bill, added: false };
+  if (target) return { bill: mark(setUser(bill, target.id)), added: false };
+  const label = newcomerName(bill.people.map((p) => p.name), name, MAX_NAME);
   const everyone = bill.people.map((p) => p.id);
   const notes = bill.notes?.map((n) => (everyone.every((pid) => n.people.includes(pid)) ? { ...n, people: [...n.people, id] } : n));
-  const person: Person = { id, name: label, color: color % PERSON_COLORS, userId };
+  const person: Person = { id, name: label, color: color % PERSON_COLORS, userId, ...(opts.auto ? { auto: true as const } : {}) };
   return { bill: mark({ ...bill, people: [...bill.people, person], ...(notes ? { notes } : {}) }), added: true };
 }
 

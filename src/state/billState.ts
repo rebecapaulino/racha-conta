@@ -95,7 +95,7 @@ export type Action =
   | { type: 'title'; title: string }
   | { type: 'addPerson'; name: string }
   /** Alguém entrou no grupo: passa a estar na mesa (ver joinPerson). `id`: o da pessoa nova, se precisar criar. */
-  | { type: 'joinPerson'; userId: string; name: string; id: string }
+  | { type: 'joinPerson'; userId: string; name: string; id: string; prefer?: string; claim?: boolean; auto?: boolean }
   | { type: 'removePerson'; id: string }
   | { type: 'addItem'; name: string; cents: number }
   /** Itens lidos da foto da nota: somam aos atuais ou trocam por eles; pode trazer o serviço da nota. */
@@ -243,7 +243,7 @@ function apply(state: AppState, action: Action): AppState {
 
     case 'joinPerson': {
       if (!action.userId) return state;
-      const r = joinPerson(bill, action.userId, action.name.slice(0, 60), action.id, state.nextColor);
+      const r = joinPerson(bill, action.userId, action.name.slice(0, 60), action.id, state.nextColor, { prefer: action.prefer, claim: action.claim, auto: action.auto });
       if (r.bill === bill) return state;
       return { ...state, example: false, bill: r.bill, nextColor: state.nextColor + (r.added ? 1 : 0) };
     }
@@ -658,7 +658,7 @@ export function isValidBill(b: unknown): b is Bill {
     Array.isArray(x.people) &&
     Array.isArray(x.items) &&
     (SERVICE_OPTIONS as readonly number[]).includes(x.servicePct) &&
-    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string') && (p.userId === undefined || typeof p.userId === 'string')) &&
+    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string') && (p.userId === undefined || typeof p.userId === 'string') && (p.auto === undefined || p.auto === true)) &&
     (x.joined === undefined || (Array.isArray(x.joined) && x.joined.every((u) => typeof u === 'string'))) &&
     (x.settleMode === undefined || x.settleMode === 'direct' || x.settleMode === 'min') &&
     x.items.every(

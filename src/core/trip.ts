@@ -6,7 +6,7 @@
 
 import { formatBRL, splitEven, splitWeighted } from './money';
 import { MAX_NAME, PERSON_COLORS } from './bill';
-import { normalName, sameName } from './faces';
+import { newcomerName } from './faces';
 import { accountIn, canCoverIn, minTransfers, type Transfer } from './settle';
 
 export const MAX_TRIP_NAME = 40;
@@ -28,6 +28,11 @@ export interface Traveler {
   coveredBy?: string;
   /** Conta do grupo ligada a esta pessoa (quem entrou pelo convite e é ela). */
   userId?: string;
+  /**
+   * Posta como pessoa nova por outro aparelho, porque a própria pessoa ainda não disse quem é
+   * na viagem. Enquanto não tiver nada no nome, ela ainda pode escolher outra pessoa.
+   */
+  auto?: true;
 }
 
 export const TRIP_CATEGORIES = [
@@ -515,39 +520,56 @@ export interface JoinResult {
   trip: Trip;
   /** A pessoa da viagem que é a conta (null: não mudou nada e ela não está na viagem). */
   id: string | null;
-  /** O que aconteceu: ligou a alguém que já estava, adicionou, ou já estava. */
+  /** O que aconteceu: ligou a quem a pessoa escolheu, adicionou, ou já estava. */
   how: 'linked' | 'added' | 'already';
 }
 
+/** Quem ainda não está ligado a nenhuma conta (pode ser escolhido por quem entra). */
+export const freeTravelers = (trip: Trip) => trip.people.filter((p) => !p.userId);
+
 /**
- * Alguém entrou no grupo: passa a participar da viagem. Se já tem uma pessoa ligada à conta,
- * nada muda. Senão, liga à pessoa `prefer` (o "sou eu" do aparelho dela) ou à única pessoa
- * sem conta com o mesmo nome ("Bia" ↔ "Bia Souza"); sem ninguém assim, entra como pessoa nova
- * (`newId`) com o primeiro nome da conta (o nome inteiro, se o primeiro já existe na viagem).
- * Cada conta faz isso uma vez só (`joined`): quem foi tirado depois não volta sozinho.
+ * Alguém entrou no grupo: passa a participar da viagem. Nome igual NÃO liga sozinho (duas
+ * Rebecas podem ser pessoas diferentes): só liga a `prefer`, a pessoa que quem entrou escolheu
+ * em "Quem é você nesta viagem?" (ou o "sou eu" de quem criou). Sem escolha, entra como pessoa
+ * nova (`newId`), com o primeiro nome da conta, ou "Rebeca O." se já há uma Rebeca.
+ *
+ * Cada conta faz isso uma vez só (`joined`): quem foi tirado depois não volta sozinho. Exceção
+ * (`claim`, a escolha é da própria pessoa): outro aparelho já a tinha posto como pessoa nova
+ * (`auto`); se essa pessoa ainda não tem nada no nome, a escolha vale e a pessoa vazia sai.
+ * `auto`: quem chama é outro aparelho (a pessoa nova fica marcada, ver Traveler.auto).
  */
-export function joinTraveler(trip: Trip, userId: string, name: string, newId: string, prefer?: string): JoinResult {
+export function joinTraveler(trip: Trip, userId: string, name: string, newId: string, prefer?: string, claim = false, auto = false): JoinResult {
   const linked = trip.people.find((p) => p.userId === userId);
   const joined = trip.joined ?? [];
   const mark = (t: Trip): Trip => (joined.includes(userId) ? t : { ...t, joined: [...joined, userId] });
-  if (linked) return { trip: mark(trip), id: linked.id, how: joined.includes(userId) ? 'already' : 'linked' };
-  if (joined.includes(userId)) return { trip, id: null, how: 'already' };
-  const clean = name.replace(/\s+/g, ' ').trim();
-  const free = trip.people.filter((p) => !p.userId);
-  const preferred = prefer ? free.find((p) => p.id === prefer) : undefined;
-  const byName = free.filter((p) => sameName(p.name, clean));
-  const target = preferred ?? (byName.length === 1 ? byName[0] : undefined);
+  const target = prefer ? trip.people.find((p) => p.id === prefer && !p.userId) : undefined;
+  if (linked) {
+    if (claim && linked.auto && target && canRemoveTraveler(trip, linked.id)) {
+      const people = cleanCoverage(trip.people.filter((p) => p.id !== linked.id).map((p) => (p.id === target.id ? { ...p, userId } : p)));
+      return { trip: mark({ ...trip, people }), id: target.id, how: 'linked' };
+    }
+    if (claim && linked.auto) {
+      // Disse que é mesmo a pessoa nova: deixa de ser provisória.
+      const people = trip.people.map((p) => {
+        if (p.id !== linked.id) return p;
+        const next = { ...p };
+        delete next.auto;
+        return next;
+      });
+      return { trip: mark({ ...trip, people }), id: linked.id, how: 'already' };
+    }
+    return { trip: mark(trip), id: linked.id, how: joined.includes(userId) ? 'already' : 'linked' };
+  }
+  if (joined.includes(userId) && !claim) return { trip, id: null, how: 'already' };
   if (target) {
     const people = trip.people.map((p) => (p.id === target.id ? { ...p, userId } : p));
     return { trip: mark({ ...trip, people }), id: target.id, how: 'linked' };
   }
-  const first = clean.split(' ')[0] ?? '';
-  const taken = (n: string) => trip.people.some((p) => normalName(p.name) === normalName(n));
-  const label = (first && !taken(first) ? first : clean || 'Convidado').slice(0, MAX_NAME).trim();
+  const label = newcomerName(trip.people.map((p) => p.name), name, MAX_NAME);
   const used = new Set(trip.people.map((p) => p.color));
   let color = trip.people.length % PERSON_COLORS;
   for (let c = PERSON_COLORS - 1; c >= 0; c--) if (!used.has(c)) color = c;
-  const person: Traveler = { id: newId, name: label, color, weight: 1, userId };
+  const person: Traveler = { id: newId, name: label, color, weight: 1, userId, ...(auto ? { auto: true as const } : {}) };
   return { trip: mark({ ...trip, people: [...trip.people, person] }), id: newId, how: 'added' };
 }
 
