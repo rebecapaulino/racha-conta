@@ -10,7 +10,7 @@ export const VISUAL: Visual = 'fluent';
 
 /** Cor da barra do navegador em cada visual. */
 export const THEME_COLOR: Record<Visual, { light: string; dark: string }> = {
-  fluent: { light: '#F5F5F5', dark: '#1F1F1F' },
+  fluent: { light: '#FFFFFF', dark: '#1F1F1F' },
   suave: { light: '#F6F4F2', dark: '#171515' },
 };
 
