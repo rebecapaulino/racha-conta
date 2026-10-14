@@ -150,7 +150,9 @@ h1, h2, p { margin: 0; }
 .app {
   max-width: 560px;
   margin-inline: auto;
-  padding: max(14px, env(safe-area-inset-top)) 16px 0;
+  /* margem lateral da página (os itens que vão de ponta a ponta usam a mesma) */
+  --gutter: 16px;
+  padding: max(14px, env(safe-area-inset-top)) var(--gutter) 0;
 }
 .col-main { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .panel { min-width: 0; }
@@ -707,8 +709,8 @@ h1, h2, p { margin: 0; }
 /* ---------- botões da base (celular) ---------- */
 .cta, .share-actions {
   position: sticky; bottom: 0; z-index: 4;
-  margin-inline: -16px;
-  padding: 18px 16px calc(14px + env(safe-area-inset-bottom));
+  margin-inline: calc(-1 * var(--gutter, 16px));
+  padding: 18px var(--gutter, 16px) calc(14px + env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, transparent, var(--bg) 34%);
 }
 .share-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; margin-top: 2px; }
@@ -889,8 +891,6 @@ input, textarea, select { font-size: max(16px, 1em); }
 /* ---------- celulares compactos (iPhone SE, Androids pequenos) ---------- */
 .brand span { white-space: nowrap; }
 @media (max-width: 374px) {
-  .app { padding-inline: 12px; }
-  .cta, .share-actions { margin-inline: -12px; padding-inline: 12px; }
   .share-actions .btn { padding-inline: 10px; gap: 6px; font-size: .92rem; }
   .brand { font-size: 1.05rem; gap: 8px; }
   .brand span { display: none; }
@@ -1273,7 +1273,7 @@ input, textarea, select { font-size: max(16px, 1em); }
 .notes-strip {
   display: flex; gap: 8px;
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
-  margin-inline: -16px; padding: 2px 16px 4px;
+  margin-inline: calc(-1 * var(--gutter, 16px)); padding: 2px var(--gutter, 16px) 4px;
 }
 .notes-strip::-webkit-scrollbar { display: none; }
 .note-chip {
@@ -1316,7 +1316,6 @@ input, textarea, select { font-size: max(16px, 1em); }
 .note-photo-big { max-height: 70dvh; }
 .note-delete { color: var(--danger); align-self: center; }
 #h-note-photo { display: flex; align-items: center; gap: 8px; }
-@media (max-width: 374px) { .notes-strip { margin-inline: -12px; padding-inline: 12px; } }
 
 /* ---------- resumo do grupo (várias notas) ---------- */
 .div-switch { grid-template-columns: 1fr 1fr; }
@@ -1371,3 +1370,25 @@ input, textarea, select { font-size: max(16px, 1em); }
 .note-x:hover { color: var(--danger); }
 /* Espaço para o X não ser cortado pela faixa que rola de lado. */
 .notes-strip { padding-top: 12px; gap: 14px; padding-right: 24px; }
+
+/* ---------- respiro no celular ----------
+   Do celular comum (360px) ao grande (430px), os espaços crescem com a tela: margem da
+   página, distância entre os blocos e entre os botões do topo. Computador não muda. */
+@media (max-width: 359px) { .app { --gutter: 12px; } }
+@media (min-width: 360px) and (max-width: 999px) {
+  .app { --gutter: clamp(16px, 5vw, 22px); }
+  .col-main { gap: clamp(18px, 5.2vw, 24px); }
+  .stack-y { gap: clamp(14px, 4.2vw, 18px); }
+  .top-actions { gap: 10px; }
+  .hero-actions { gap: 10px; }
+  :root .person-row.row { padding-block: 13px; }
+}
+/* Topo: quando o nome "Racha Conta" não cabe ao lado dos botões (tela estreita ou fonte do
+   celular maior), ele desce para uma segunda linha escondida e fica só o logo. */
+.topbar .brand {
+  flex: 1 1 0; min-width: 28px;
+  flex-wrap: wrap; align-content: flex-start; column-gap: 10px; row-gap: 0;
+  height: 48px; overflow: hidden;
+}
+.topbar .brand > * { height: 48px; display: flex; align-items: center; }
+.topbar .brand .logo { height: 48px; }

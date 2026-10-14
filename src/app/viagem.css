@@ -65,7 +65,8 @@ h3.field-label { margin: 0; }
 .area-switch button[aria-pressed="true"] .area-icon svg:not(.art) { color: var(--primary); }
 .area-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
 .area-text b { font-size: .98rem; font-weight: 700; }
-.area-text small { color: var(--muted); font-size: .76rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* sem espaço, o subtítulo quebra em duas linhas em vez de ser cortado ("bar e restauran…") */
+.area-text small { color: var(--muted); font-size: .76rem; font-weight: 500; }
 
 /* ---------- capa da caderneta (cartão do topo) ---------- */
 .trip-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }

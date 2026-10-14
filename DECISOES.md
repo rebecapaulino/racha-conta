@@ -330,3 +330,12 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Lápis no cartão do Rolê.** Abre "Editar rolê" com o nome do lugar (o mesmo campo de Pedidos, que continua lá).
 - **Segurança:** só nomes de foto do app (letras e números) viram caminho no Storage; nada de "/" ou "..".
 - **Tela estreita:** com os pontinhos do grupo e três botões, os botões descem para baixo do nome em vez de quebrar o nome no meio.
+
+## Respiro no celular (14/10/2026)
+
+- De 360px a 430px de largura, os espaços crescem com a tela: margem da página (16 → 22px), distância entre blocos, espaço dentro dos cartões, entre os botões do topo e do cartão, e entre as pessoas da lista. Abaixo de 360px e no computador, nada muda.
+- A margem da página virou uma variável (`--gutter`), e as barras de ponta a ponta (botão da base, notas do Rolê) seguem ela.
+- "Racha Conta" no topo: aparece só quando cabe ao lado dos botões (depende da tela e do tamanho de fonte do celular). Quando não cabe, fica só o logo, como já acontecia nas telas pequenas.
+- Subtítulos "bar e restaurante" / "vários dias" quebram em duas linhas em vez de serem cortados.
+- No toque, a aba tocada antes ficava cinza (o efeito de passar o mouse grudava). Corrigido.
+- Conferido sem rolagem para o lado em 320, 360, 375, 390, 412 e 430px, com fonte normal, 112,5% e 130%.

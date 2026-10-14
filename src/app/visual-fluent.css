@@ -517,3 +517,17 @@
 :root[data-visual="fluent"] {
   & .login-panel h2, & .login-brand h1 { font-weight: 600; }
 }
+
+/* respiro no celular: mais espaço dentro dos cartões (ver o mesmo bloco em globals.css) */
+@media (min-width: 360px) and (max-width: 999px) {
+  :root[data-visual="fluent"] {
+    & .card { padding: clamp(16px, 5vw, 22px); gap: 14px; }
+    & .hero { padding: clamp(18px, 5vw, 22px) clamp(18px, 5.6vw, 24px); }
+    & .hero-label { margin-top: 6px; }
+  }
+}
+/* No toque, a aba tocada antes ficava cinza (o "passar o mouse" grudava). */
+@media (hover: none) {
+  :root[data-visual="fluent"] .tabs button:hover:not([aria-selected="true"]) { background: none; color: var(--muted); }
+  :root[data-visual="fluent"] .tabs button:hover:not([aria-selected="true"])::after { background: transparent; }
+}
