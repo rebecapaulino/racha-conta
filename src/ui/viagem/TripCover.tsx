@@ -130,7 +130,7 @@ export function TripList({ trips, groups = {}, fluent, onOpen, onCreate, onDelet
               <h2 id="h-trip-menu" tabIndex={-1}>{menu.name}</h2>
               <div className="confirm" role="group" aria-labelledby="h-trip-menu-del">
                 <p id="h-trip-menu-del">
-                  <b>Excluir &quot;{menu.name}&quot;?</b> Todas as despesas e acertos saem deste celular.
+                  <b>Excluir &quot;{menu.name}&quot;?</b> Todas as despesas e acertos são apagados.
                   {groups[menu.id] ? ' Para quem está no grupo, a viagem continua.' : ''}
                 </p>
                 <div className="sheet-actions">

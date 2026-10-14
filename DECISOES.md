@@ -400,5 +400,5 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 ## Estante: três pontinhos para excluir a viagem (14/10/2026)
 
-- Cada cartão de "Suas viagens" tem três pontinhos no canto superior direito. Tocar abre a confirmação "Excluir …? Todas as despesas e acertos saem deste celular." (viagem compartilhada: "Para quem está no grupo, a viagem continua."). Igual ao "Apagar viagem" de dentro da viagem, que continua lá.
+- Cada cartão de "Suas viagens" tem três pontinhos no canto superior direito. Tocar abre a confirmação "Excluir …? Todas as despesas e acertos são apagados." (viagem compartilhada: "Para quem está no grupo, a viagem continua."). Igual ao "Apagar viagem" de dentro da viagem, que continua lá.
 - Os pontinhos ficam por cima do cartão (que é um botão inteiro); o topo do cartão abre espaço para eles não cobrirem as datas. No cartão com foto, ficam brancos com fundo escuro.

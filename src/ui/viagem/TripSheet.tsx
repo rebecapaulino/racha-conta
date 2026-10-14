@@ -142,7 +142,7 @@ function TripForm({ mode, dispatch, toast, onClose, accountName }: Props & { mod
         confirmDelete ? (
           <div className="confirm" role="group" aria-labelledby="h-trip-del">
             <p id="h-trip-del">
-              <b>Apagar &quot;{trip.name}&quot;?</b> Todas as despesas e acertos saem deste celular. Mande o resumo no WhatsApp antes, se quiser guardar.
+              <b>Apagar &quot;{trip.name}&quot;?</b> Todas as despesas e acertos são apagados. Mande o resumo no WhatsApp antes, se quiser guardar.
             </p>
             <div className="sheet-actions">
               <button type="button" className="btn secondary" onClick={() => setConfirmDelete(false)} autoFocus>Cancelar</button>
