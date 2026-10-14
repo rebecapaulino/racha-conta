@@ -17,6 +17,8 @@ import { ThemeButton } from './ThemeButton';
 import { DivisaoStep } from './DivisaoStep';
 import { GroupSummary } from './GroupSummary';
 import { HeroCard } from './HeroCard';
+import { FacesProvider } from './Avatar';
+import { facesByName } from '../core/faces';
 import { HistoryScreen } from './HistoryScreen';
 import { IconArrowRight, IconHistory, IconPie, IconReceipt, IconSparkle, IconUsers, Logo } from './icons';
 import { Art } from './illustrations';
@@ -250,8 +252,11 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     );
   }
 
+  // Foto de cada pessoa da mesa, pelas contas do grupo (rolê compartilhado).
+  const faces = facesByName(bill.people, members);
+
   return (
-    <>
+    <FacesProvider value={faces}>
       <div className="app">
         <div className="col-main">
           <header className="topbar">
@@ -365,6 +370,6 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
 
       {toastBox}
       {sharedSheets}
-    </>
+    </FacesProvider>
   );
 }

@@ -364,3 +364,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Criar viagem logado: não pergunta mais "Seu nome"; usa o primeiro nome da conta. Sem login, o campo continua.
 - Estante "Suas viagens": o cartão mostra a foto da viagem (inclusive a que outra pessoa do grupo pôs).
 - Bolinhas do grupo: mostram a foto da conta (Google) de cada pessoa; sem foto, ou se não carregar, as iniciais.
+
+## Foto da conta em todas as bolinhas de pessoa (14/10/2026)
+
+- As bolinhas de pessoa (lista, quem pagou, extrato, mesa, pilha do cartão…) mostram a foto da conta Google de quem é do grupo.
+- Como as pessoas da conta são nomes digitados, a ligação é pelo nome (`core/faces.ts`, com testes): "Rebeca" combina com a conta "Rebeca Oliveira" (primeiro nome ou nome inteiro, sem ligar para acento e maiúscula). Na dúvida (duas "Ana" na mesa, ou duas contas "Ana …"), fica a inicial: nunca a foto de outra pessoa.
+- Na Viagem, "você" (a pessoa deste aparelho) sempre ganha a foto da própria conta, mesmo sem grupo.
+- Só endereços https; se a foto não carregar, volta a inicial.

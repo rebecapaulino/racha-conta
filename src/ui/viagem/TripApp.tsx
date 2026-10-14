@@ -20,6 +20,8 @@ import { ShareSheet } from './ShareSheet';
 import { SettleSheet, type SettleTarget } from './SettleSheet';
 import { TripBalances } from './TripBalances';
 import { TripCover, TripList } from './TripCover';
+import { FacesProvider } from '../Avatar';
+import { facesByName } from '../../core/faces';
 import { TripExpenses } from './TripExpenses';
 import { TripPeople } from './TripPeople';
 import { TripSheet, type TripMode } from './TripSheet';
@@ -183,8 +185,12 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     <TripBalances trip={trip} summary={summary} meId={meId} fluent={fluent} dispatch={dispatch} toast={toast} onSettle={setSettling} />
   );
 
+  // Foto de cada pessoa: pelas contas do grupo; e "você" (deste aparelho) com a foto da sua conta.
+  const faces = facesByName(trip.people, members);
+  if (meId && account?.photo && /^https:\/\//.test(account.photo)) faces[meId] = account.photo;
+
   return (
-    <>
+    <FacesProvider value={faces}>
       <div className="app trip-app">
         <div className="col-main">
           <header className="topbar">
@@ -298,6 +304,6 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       {tripSheet}
       {inviteSheet}
       {toastEl}
-    </>
+    </FacesProvider>
   );
 }
