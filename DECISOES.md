@@ -351,3 +351,8 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - As abas (Pessoas · Despesas · Saldos, e Mesa · Pedidos · Divisão) tinham 1/3 da largura cada, com o conteúdo no meio: como os textos têm tamanhos diferentes, o espaço entre uma aba e outra ficava desigual. Agora cada aba cresce a partir do próprio conteúdo, e o espaço entre elas fica igual (medido em 320, 360, 412 e 430px).
 - Ícone da aba mais afastado do texto (8px; 5px em tela pequena).
 - Lembrete: o app instalado só troca de versão depois de tocar em "Atualizar" no aviso do topo.
+
+## Foto do grupo que não aparecia (14/10/2026)
+
+- Defeito: o aparelho tentava baixar a foto do grupo uma vez só. Se a outra pessoa ainda estava enviando, a foto nunca aparecia (até reabrir o app). Agora tenta de novo: 0,4 s, 5 s, 15 s, 30 s, 1 min e 2 min.
+- Do lado de quem tirou: se o envio da foto falhar (sinal fraco), tenta de novo em 8 s, em vez de esperar outra mudança.

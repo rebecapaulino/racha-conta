@@ -130,15 +130,20 @@ export function useTripSync(
   useEffect(() => {
     if (!groupId || !userId || !receipts || navigator.onLine === false) return;
     let alive = true;
+    let retry = 0;
     (async () => {
+      let failed = false;
       for (const id of receipts.split(',')) {
         if (!alive || wasSent(groupId, id)) continue;
         const blob = await getPhoto(id);
-        if (blob) await uploadReceipt(groupId, id, blob);
+        if (blob && !(await uploadReceipt(groupId, id, blob))) failed = true;
       }
+      // Não subiu (sinal fraco, sessão renovando): tenta de novo daqui a pouco.
+      if (failed && alive) retry = window.setTimeout(() => setTick((n) => n + 1), RETRY_MS);
     })();
     return () => {
       alive = false;
+      window.clearTimeout(retry);
     };
   }, [groupId, userId, receipts, tick]);
 
