@@ -1356,3 +1356,18 @@ input, textarea, select { font-size: max(16px, 1em); }
 
 /* Botão de tema (claro/escuro) no topo: redondo, só o ícone. */
 .top-btn.theme-btn { width: 46px; padding: 0; justify-content: center; }
+
+/* X em cima de cada nota fiscal: apaga a nota (com confirmação). */
+.note-chip-wrap { position: relative; flex: none; display: inline-flex; }
+.note-x {
+  position: absolute; top: -8px; right: -8px; z-index: 1;
+  width: 26px; height: 26px; padding: 0; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: var(--surface); color: var(--muted);
+  box-shadow: 0 0 0 1.5px var(--line), 0 2px 6px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+/* Área de toque de 44px sem aumentar o círculo. */
+.note-x::after { content: ""; position: absolute; inset: -9px; }
+.note-x:hover { color: var(--danger); }
+/* Espaço para o X não ser cortado pela faixa que rola de lado. */
+.notes-strip { padding-top: 12px; gap: 14px; padding-right: 24px; }

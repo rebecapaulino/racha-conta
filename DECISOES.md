@@ -289,3 +289,7 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Entrar pelo convite:** o link abre na área certa (Rolê ou Viagem) sozinho. Ao entrar num rolê, a conta que estava aberta vai para Rolês (nada se perde). Indo para Rolês e reabrindo, o rolê continua ligado ao grupo.
 - **Capa do rolê:** a data foi para baixo do nome (como na Viagem), para os botões caberem ao lado no celular.
 - Código: `src/state/billState.ts` (`shared`, fila, `replayRole`), `src/ui/useBillSync.ts`, `src/ui/useInvite.tsx` (convite comum às duas áreas), `ShareSheet` comum. Testado com testes automáticos e no navegador com Supabase simulado.
+
+## Rolê: X para apagar nota fiscal — 14/10/2026
+
+- Cada nota na faixa de notas tem um X no canto (com confirmação). Antes, a última nota não podia ser apagada e ficava presa mesmo sem despesas. Agora, apagar a última (ou a conta de uma nota só) tira os itens, quem pagou, quem já pagou e os acertos; as pessoas e o nome da conta ficam.

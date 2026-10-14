@@ -3,7 +3,8 @@ import { computeSplit, noteBill, noteLabel, summaryText, type Bill, type Note } 
 import { formatBRL } from '../core/money';
 import { newId, type Action } from '../state/billState';
 import { getPhoto } from '../state/photos';
-import { IconImage, IconPencil, IconPlus, IconShare } from './icons';
+import { IconImage, IconPencil, IconPlus, IconShare, IconX } from './icons';
+import { Sheet } from './viagem/Sheet';
 import { categoryEmoji } from '../core/noteCategory';
 import { NoteSheet, type NoteSheetMode } from './NoteSheet';
 import { usePhotoUrl } from './usePhotoUrl';
@@ -25,6 +26,8 @@ interface Props {
  */
 export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) {
   const [mode, setMode] = useState<NoteSheetMode | null>(null);
+  // Nota a apagar (pelo X em cima dela), esperando a confirmação.
+  const [deleting, setDeleting] = useState<{ id: string; label: string; items: number } | null>(null);
   const photoRef = useRef<HTMLDialogElement>(null);
   const notes = bill.notes ?? [];
   // Conta de uma nota só: ela aparece como "Nota 1" e vira nota de verdade ao ser editada.
@@ -104,20 +107,33 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
         {shown.map((n, i) => {
           const total = computeSplit(noteBill(bill, n.id || null));
           const on = n.id === current.id;
+          const items = noteBill(bill, n.id || null).items.length;
+          const chipLabel = n.category.trim() ? `Nota ${noteLabel(n, i)}` : noteLabel(n, i);
           return (
-            <button
-              key={n.id || 'unica'}
-              type="button"
-              className="note-chip"
-              aria-pressed={on}
-              onClick={() => !on && dispatch({ type: 'selectNote', id: n.id })}
-            >
-              <span className="note-emoji" aria-hidden="true">{categoryEmoji(n.category)}</span>
-              <span className="note-chip-text">
-                <b>{noteLabel(n, i)}</b>
-                <small className="num">{formatBRL(total.total + total.unassigned)}</small>
-              </span>
-            </button>
+            <span key={n.id || 'unica'} className="note-chip-wrap">
+              <button
+                type="button"
+                className="note-chip"
+                aria-pressed={on}
+                onClick={() => !on && dispatch({ type: 'selectNote', id: n.id })}
+              >
+                <span className="note-emoji" aria-hidden="true">{categoryEmoji(n.category)}</span>
+                <span className="note-chip-text">
+                  <b>{noteLabel(n, i)}</b>
+                  <small className="num">{formatBRL(total.total + total.unassigned)}</small>
+                </span>
+              </button>
+              {(notes.length > 0 || items > 0) && (
+                <button
+                  type="button"
+                  className="note-x"
+                  aria-label={`Apagar ${chipLabel}`}
+                  onClick={() => setDeleting({ id: n.id, label: chipLabel, items })}
+                >
+                  <IconX size={14} />
+                </button>
+              )}
+            </span>
           );
         })}
         <button type="button" className="note-chip note-add" onClick={() => setMode({ kind: 'create' })}>
@@ -146,6 +162,34 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
         toast={toast}
         onClose={() => setMode(null)}
       />
+
+      <Sheet open={!!deleting} onClose={() => setDeleting(null)} labelledBy="h-note-del">
+        <div className="sheet-body">
+          <span className="sheet-grip" aria-hidden="true" />
+          <h2 id="h-note-del" tabIndex={-1}>Apagar {deleting?.label}?</h2>
+          <p>
+            {deleting?.items
+              ? `${deleting.items === 1 ? 'O item dela sai' : `Os ${deleting.items} itens dela saem`} da conta.`
+              : 'Ela não tem itens.'}{' '}
+            {notes.length < 2 ? 'As pessoas da mesa continuam.' : ''}
+          </p>
+          <div className="sheet-actions">
+            <button type="button" className="btn secondary" onClick={() => setDeleting(null)}>Cancelar</button>
+            <button
+              type="button"
+              className="btn primary danger"
+              onClick={() => {
+                if (!deleting) return;
+                dispatch({ type: 'removeNote', id: deleting.id });
+                toast(`${deleting.label} apagada`);
+                setDeleting(null);
+              }}
+            >
+              Apagar
+            </button>
+          </div>
+        </div>
+      </Sheet>
 
       <dialog
         ref={photoRef}

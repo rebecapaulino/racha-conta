@@ -111,7 +111,7 @@ describe('várias notas na mesma conta', () => {
     expect(s.bill.notes![1]).toMatchObject({ payerId: null, people: [ana] });
   });
 
-  it('apagar a nota apaga os itens dela; a última nota não pode ser apagada', () => {
+  it('apagar a nota apaga os itens dela; apagar a última limpa os itens da conta', () => {
     const s0 = bar();
     let s = run(s0, { type: 'addNote', category: 'Doces', payerId: null, people: ids(s0), photoId: null }, { type: 'addItem', name: 'Bolo', cents: 900 });
     const doces = s.noteId!;
@@ -119,7 +119,9 @@ describe('várias notas na mesma conta', () => {
     expect(s.bill.notes!.length).toBe(1);
     expect(s.bill.items.map((i) => i.name)).toEqual(['Chopp']);
     expect(activeBill(s).items.map((i) => i.name)).toEqual(['Chopp']);
-    expect(run(s, { type: 'removeNote', id: s.bill.notes![0].id })).toBe(s);
+    const last = run(s, { type: 'removeNote', id: s.bill.notes![0].id });
+    expect(last.bill.items).toEqual([]);
+    expect(last.bill.people).toEqual(s.bill.people);
   });
 
   it('ler a nota guardando a foto: a foto fica na nota; "trocar" troca só os itens dela', () => {
@@ -377,5 +379,30 @@ describe('Rolê: quem paga a parte de quem', () => {
     s = run(s, { type: 'settleMode', mode: 'direct' });
     expect(s.bill.settleMode).toBeUndefined();
     expect(isValidBill({ ...s.bill, settleMode: 'x' })).toBe(false);
+  });
+});
+
+describe('apagar nota pelo X', () => {
+  it('a última nota (ou a conta de uma nota só) também pode ser apagada: saem os itens, ficam as pessoas', () => {
+    const s0 = bar();
+    expect(s0.bill.items.length).toBeGreaterThan(0);
+    const s = run(s0, { type: 'removeNote', id: '' });
+    expect(s.bill.items).toEqual([]);
+    expect(s.bill.payerId).toBeNull();
+    expect(s.bill.people).toEqual(s0.bill.people);
+    expect(s.log.at(-1)!.text).toBe('Apagou a nota da conta');
+    expect(isValidBill(s.bill)).toBe(true);
+  });
+
+  it('com duas notas, apagar uma deixa a outra; depois dá para apagar a que sobrou', () => {
+    const s0 = bar();
+    const [ana, bruno] = ids(s0);
+    let s = run(s0, { type: 'addNote', category: 'Doces', payerId: ana, people: [ana, bruno], photoId: null }, { type: 'addItem', name: 'Bolo', cents: 4000 });
+    const [first, second] = s.bill.notes!.map((n) => n.id);
+    s = run(s, { type: 'removeNote', id: second });
+    expect(s.bill.notes!.map((n) => n.id)).toEqual([first]);
+    s = run(s, { type: 'removeNote', id: first });
+    expect(s.bill.items).toEqual([]);
+    expect(s.bill.notes).toBeUndefined();
   });
 });

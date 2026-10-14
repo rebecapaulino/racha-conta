@@ -386,7 +386,17 @@ function apply(state: AppState, action: Action): AppState {
 
     case 'removeNote': {
       const notes = bill.notes ?? [];
-      if (notes.length < 2 || !notes.some((n) => n.id === action.id)) return state;
+      // A única nota (ou a conta de uma nota só, id ''): sai tudo o que é dela (itens, quem
+      // pagou, quem já pagou, acertos). As pessoas e o nome da conta ficam.
+      if (notes.length < 2 && (action.id === '' || notes.some((n) => n.id === action.id))) {
+        if (bill.items.length === 0 && !bill.notes && !bill.payerId) return state;
+        const rest = { ...bill, items: [], payerId: null };
+        delete rest.notes;
+        delete rest.paid;
+        delete rest.settled;
+        return { ...state, bill: rest, noteId: null };
+      }
+      if (!notes.some((n) => n.id === action.id)) return state;
       const gone = new Set(noteBill(bill, action.id).items.map((i) => i.id));
       return next(
         { notes: notes.filter((n) => n.id !== action.id), items: bill.items.filter((i) => !gone.has(i.id)) },
@@ -547,7 +557,7 @@ function describe(before: AppState, after: AppState, action: Action): string | n
       return `Apagou a nota ${(() => {
         const list = bill.notes ?? [];
         const i = list.findIndex((n) => n.id === action.id);
-        return i < 0 ? '' : noteLabel(list[i], i);
+        return i < 0 ? 'da conta' : noteLabel(list[i], i);
       })()}`;
     case 'photo':
       return !action.photoId ? 'Removeu a foto' : before.photoId ? 'Trocou a foto' : 'Adicionou a foto';
