@@ -45,7 +45,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
 
   // Rolê compartilhado: grupo, convite e quem está nele.
   const { account } = useAccount();
-  const { members } = useBillSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
+  const { members, status: syncStatus, refresh: syncRefresh } = useBillSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
   const [sharing, setSharing] = useState(false);
   async function share() {
     if (!account || state.shared) return;
@@ -179,6 +179,8 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         title={bill.title.trim() || 'Conta da mesa'}
         code={state.shared?.code ?? null}
         pending={state.shared?.pending.length ?? 0}
+        status={syncStatus}
+        onRefresh={syncRefresh}
         members={members}
         account={account}
         onCreate={share}

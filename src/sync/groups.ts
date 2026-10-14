@@ -13,6 +13,20 @@ export interface Member {
   role: 'owner' | 'editor';
 }
 
+/** Como está a conversa com o grupo (para mostrar na janela de compartilhar). */
+export interface SyncStatus {
+  /** Última vez que conferiu o grupo com sucesso. */
+  checkedAt: number | null;
+  /** Último erro ao falar com o grupo (null: tudo certo). */
+  error: string | null;
+}
+
+/** Texto curto do erro (do Supabase ou da rede). */
+export function errorText(e: unknown): string {
+  if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') return (e as { message: string }).message;
+  return String(e);
+}
+
 export interface InvitePreview {
   groupId: string;
   kind: 'trip' | 'role';

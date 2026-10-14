@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Account } from '../../auth/account';
 import { whatsappUrl } from '../../core/bill';
 import { memberInitials } from '../../core/initials';
-import { inviteUrl, type Member } from '../../sync/groups';
+import { inviteUrl, type Member, type SyncStatus } from '../../sync/groups';
 import { IconChat, IconCopy } from '../icons';
 import { Sheet } from './Sheet';
 
@@ -32,6 +32,9 @@ interface Props {
   code: string | null;
   /** Mudanças feitas aqui que ainda não chegaram ao grupo. */
   pending?: number;
+  /** Como está a conversa com o grupo, e o "Atualizar agora". */
+  status?: SyncStatus;
+  onRefresh?: () => void;
   members: Member[];
   account: Account | null;
   /** Cria o grupo e o link (só quem ainda não compartilhou). */
@@ -41,7 +44,7 @@ interface Props {
 }
 
 /** Compartilhar a viagem (ou o rolê): cria o link de convite e mostra quem já está no grupo. */
-export function ShareSheet({ open, noun, title, code, pending = 0, members, account, onCreate, toast, onClose }: Props) {
+export function ShareSheet({ open, noun, title, code, pending = 0, status, onRefresh, members, account, onCreate, toast, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const url = code ? inviteUrl(code) : '';
@@ -100,11 +103,27 @@ export function ShareSheet({ open, noun, title, code, pending = 0, members, acco
                 <IconChat /> WhatsApp
               </a>
             </div>
-            <p className={`hint sync-state${pending ? ' is-pending' : ''}`} aria-live="polite">
-              {pending
-                ? `${pending === 1 ? '1 mudança sua ainda não foi enviada' : `${pending} mudanças suas ainda não foram enviadas`}. Vai assim que tiver internet.`
-                : '✓ Tudo enviado para o grupo.'}
-            </p>
+            <div className="sync-box" aria-live="polite">
+              <p className={`sync-state${pending ? ' is-pending' : ''}`}>
+                {pending
+                  ? `${pending === 1 ? '1 mudança sua ainda não foi enviada' : `${pending} mudanças suas ainda não foram enviadas`}.`
+                  : '✓ Tudo o que você mudou já está no grupo.'}
+              </p>
+              {status?.error ? (
+                <p className="sync-error">Não deu para falar com o grupo. {status.error}</p>
+              ) : (
+                <p className="hint">
+                  {status?.checkedAt
+                    ? `Conferido às ${new Date(status.checkedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}: o que os outros mudaram já aparece aqui.`
+                    : 'Conferindo o grupo…'}
+                </p>
+              )}
+              {onRefresh && (
+                <button type="button" className="btn secondary" onClick={onRefresh}>
+                  Atualizar agora
+                </button>
+              )}
+            </div>
             <h3 className="field-label">No grupo ({members.length})</h3>
             {members.length === 0 ? (
               <p className="hint">Carregando quem está no grupo…</p>

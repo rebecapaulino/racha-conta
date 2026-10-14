@@ -309,3 +309,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Viagem:** cartão "Ler nota fiscal" na caderneta (também com ela vazia), que abre a despesa nova já com a nota e o total lido.
 - **Rolê, filtros** nos itens (como na Viagem): Quem e Divisão (Individual, Dividido, Sem ninguém), com total e "Limpar filtros".
 - **Grupo:** além do tempo real, o app confere o grupo a cada 15 s e ao voltar para ele; avisa "Fulano entrou no grupo"; a janela de compartilhar mostra se há mudanças suas esperando para enviar.
+
+## Grupo: nunca desligar sozinho — 14/10/2026
+
+- **Problema:** quando o Supabase respondia "não achei este grupo para você" (por um instante, ex.: sessão do Google sendo renovada), o app desligava a viagem/rolê do grupo sem avisar. Daí em diante, as mudanças daquele celular não iam para ninguém (e as bolinhas do grupo sumiam). Foi o caso do nome da viagem que não mudou.
+- **Agora:** o app nunca desliga sozinho. Mostra o erro na janela de compartilhar ("Não deu para falar com o grupo…"), com "Atualizar agora", a hora da última conferência e se há mudanças suas esperando. Dados do grupo que o app não reconhece também viram aviso (antes eram ignorados em silêncio).
+- **Quem já ficou desligado:** abrir o link de convite de novo religa (a viagem do grupo substitui a do aparelho).

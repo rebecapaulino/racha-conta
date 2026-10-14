@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../auth/account';
 import { isValidRoleDoc, roleDoc, type Action, type AppState } from '../state/billState';
-import { fetchGroup, fetchMembers, saveGroup, watchContent, type Member } from '../sync/groups';
+import { errorText, fetchGroup, fetchMembers, saveGroup, watchContent, type Member, type SyncStatus } from '../sync/groups';
 
 const RETRY_MS = 8000;
 
@@ -11,9 +11,12 @@ export function useBillSync(
   dispatch: Dispatch<Action>,
   account: Account | null,
   onJoined?: (name: string) => void,
-): { members: Member[] } {
+): { members: Member[]; status: SyncStatus; refresh: () => void } {
   const name = account?.name ?? null;
   const userId = account?.id ?? null;
+  const [status, setStatus] = useState<SyncStatus>({ checkedAt: null, error: null });
+  const fail = (what: string) => (e: unknown) => setStatus((st) => ({ ...st, error: `${what}: ${errorText(e)}` }));
+  const refreshRef = useRef<() => void>(() => {});
   const joined = useRef(onJoined);
   useEffect(() => {
     joined.current = onJoined;
@@ -45,10 +48,13 @@ export function useBillSync(
           return;
         }
         const remote = await fetchGroup(gid);
-        if (!remote) dispatch({ type: 'syncUnlink' });
+        if (!remote) setStatus((st) => ({ ...st, error: 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). O rolê continua ligado; tente Atualizar agora.' }));
         else if (isValidRoleDoc(remote.content)) dispatch({ type: 'syncRemote', doc: remote.content, version: remote.version });
       })
-      .catch(() => window.setTimeout(() => setTick((n) => n + 1), RETRY_MS))
+      .catch((e) => {
+          fail('Enviar')(e);
+          window.setTimeout(() => setTick((n) => n + 1), RETRY_MS);
+        })
       .finally(() => {
         inflight.current = false;
         setTick((n) => n + 1);
@@ -63,10 +69,12 @@ export function useBillSync(
       fetchGroup(groupId)
         .then((r) => {
           if (!alive) return;
-          if (!r) dispatch({ type: 'syncUnlink' });
+          setStatus({ checkedAt: Date.now(), error: null });
+          if (!r) setStatus((st) => ({ ...st, error: 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). O rolê continua ligado; tente Atualizar agora.' }));
           else if (isValidRoleDoc(r.content)) dispatch({ type: 'syncRemote', doc: r.content, version: r.version });
+          else setStatus((st) => ({ ...st, error: 'A versão do grupo veio com algum dado que o app não reconhece.' }));
         })
-        .catch(() => {});
+        .catch(fail('Buscar o grupo'));
     let known: Set<string> | null = null;
     const loadMembers = () =>
       fetchMembers(groupId)
@@ -77,7 +85,7 @@ export function useBillSync(
           known = new Set(list.map((m) => m.userId));
           setMembers({ groupId, list });
         })
-        .catch(() => {});
+        .catch(fail('Ver quem está no grupo'));
     void loadDoc();
     void loadMembers();
     const stop = watchContent(
@@ -91,6 +99,11 @@ export function useBillSync(
       if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
       void loadDoc();
       void loadMembers();
+    };
+    refreshRef.current = () => {
+      void loadDoc();
+      void loadMembers();
+      setTick((n) => n + 1);
     };
     const timer = window.setInterval(refresh, 15000);
     document.addEventListener('visibilitychange', refresh);
@@ -106,5 +119,5 @@ export function useBillSync(
     };
   }, [groupId, userId, dispatch]);
 
-  return { members: members && members.groupId === groupId ? members.list : [] };
+  return { members: members && members.groupId === groupId ? members.list : [], status, refresh: () => refreshRef.current() };
 }

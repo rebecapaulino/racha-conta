@@ -41,7 +41,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const summary = useMemo(() => (trip ? tripSummary(trip) : null), [trip]);
   const fluent = activeVisual() === 'fluent';
   const { account } = useAccount();
-  const { members } = useTripSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
+  const { members, status: syncStatus, refresh: syncRefresh } = useTripSync(state, dispatch, account, (name) => toast(`${name} entrou no grupo`));
   const entry = trip ? state.sync?.[trip.id] : undefined;
   const [sharing, setSharing] = useState(false);
 
@@ -284,6 +284,8 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         title={trip.name}
         code={entry?.code ?? null}
         pending={entry?.pending.length ?? 0}
+        status={syncStatus}
+        onRefresh={syncRefresh}
         members={members}
         account={account}
         onCreate={share}
