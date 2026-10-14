@@ -125,8 +125,8 @@ export function useTripSync(
     };
   }, [groupId, tripId, userId, dispatch]);
 
-  // Fotos das notas tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
-  const receipts = (open?.expenses ?? []).map((e) => e.receipt).filter((r): r is string => !!r).join(',');
+  // Fotos das notas (e a do cartão) tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
+  const receipts = [open?.photoId, ...(open?.expenses ?? []).map((e) => e.receipt)].filter((r): r is string => !!r).join(',');
   useEffect(() => {
     if (!groupId || !userId || !receipts || navigator.onLine === false) return;
     let alive = true;

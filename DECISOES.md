@@ -321,3 +321,12 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Por quê:** o plano grátis do Supabase limita as conexões de tempo real (200 simultâneas), e não precisamos ver a mudança no mesmo segundo.
 - **Como fica:** cada mudança vai direto para o banco (com a conferência de versão). Os outros aparelhos buscam a versão nova **a cada 20 s, só com o app na tela**, e na hora em que a pessoa volta para o app (ou a internet volta). "Atualizar agora" na janela de compartilhar busca na hora. Nenhuma conexão de tempo real é aberta.
 - As tabelas continuam na publicação `supabase_realtime` (do SQL de 14/10); não faz diferença sem ninguém ouvindo.
+
+## Fotos no grupo, lápis no Rolê e foto na Viagem (14/10/2026)
+
+- **Fotos das notas do Rolê vão para o grupo.** Usam o mesmo balde `notas` do Supabase da Viagem (pasta do grupo, só membros veem). Não precisa de SQL novo. Cada aparelho envia as fotos que tirou uma vez; quem não tem a foto baixa do grupo ao abrir e guarda no aparelho.
+- **Foto do cartão da Viagem.** Botão da câmera igual ao do Rolê. A foto fica na viagem (`photoId`) e, se a viagem é compartilhada, vai para a pasta do grupo: todo mundo vê o mesmo fundo. Entra no registro ("Adicionou/Trocou/Tirou a foto da viagem").
+- **A foto do cartão do Rolê continua só no aparelho** (como antes): é lembrança do histórico de quem tirou.
+- **Lápis no cartão do Rolê.** Abre "Editar rolê" com o nome do lugar (o mesmo campo de Pedidos, que continua lá).
+- **Segurança:** só nomes de foto do app (letras e números) viram caminho no Storage; nada de "/" ou "..".
+- **Tela estreita:** com os pontinhos do grupo e três botões, os botões descem para baixo do nome em vez de quebrar o nome no meio.

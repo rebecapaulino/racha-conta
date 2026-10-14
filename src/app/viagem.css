@@ -633,6 +633,10 @@ h3.field-label { margin: 0; }
 
 /* ---------- viagem compartilhada ---------- */
 .hero-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+/* Tela estreita com muitos botões (grupo + compartilhar + foto + editar): os botões descem
+   para a linha de baixo em vez de espremer o nome até quebrar no meio da palavra. */
+.hero-top:has(> .trip-title) { flex-wrap: wrap; }
+.hero-top > .trip-title { min-width: 5.5em; }
 :root .hero-actions .hero-photo-btn { margin: 0; }
 :root[data-visual="fluent"] .hero-actions { margin: -10px -12px -10px 0; }
 /* Bolinhas de quem está no grupo (iniciais), sobrepostas como no Excel. */

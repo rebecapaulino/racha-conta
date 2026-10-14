@@ -139,6 +139,8 @@ export interface Trip {
   settleMode?: SettleMode;
   /** Registro de alterações: o que mudou, quando e (no compartilhado) quem fez. */
   log?: TripLogEntry[];
+  /** Foto do fundo do cartão da viagem (no aparelho e, no compartilhado, na pasta do grupo). */
+  photoId?: string;
 }
 
 /** Uma linha do registro de alterações da viagem. */

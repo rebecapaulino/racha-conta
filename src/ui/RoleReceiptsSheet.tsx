@@ -4,14 +4,14 @@ import { formatBRL } from '../core/money';
 import { categoryEmoji } from '../core/noteCategory';
 import { downloadUrl, fileName } from './download';
 import { IconDownload, IconReceipt } from './icons';
-import { usePhotoUrl } from './usePhotoUrl';
+import { useReceiptUrl } from './viagem/useReceiptUrl';
 import { Sheet } from './viagem/Sheet';
 
 /** Notas do rolê que têm foto. */
 export const notesWithPhoto = (bill: Bill) => (bill.notes ?? []).filter((n) => !!n.photoId);
 
-function Card({ bill, note, index, onOpen }: { bill: Bill; note: Note; index: number; onOpen: () => void }) {
-  const url = usePhotoUrl(note.photoId);
+function Card({ bill, note, index, groupId, onOpen }: { bill: Bill; note: Note; index: number; groupId: string | null; onOpen: () => void }) {
+  const url = useReceiptUrl(note.photoId, groupId);
   const total = computeSplit(noteBill(bill, note.id)).total;
   return (
     <button type="button" className="receipt-card" onClick={onOpen} aria-label={`Ver a nota ${noteLabel(note, index)}, ${formatBRL(total)}`}>
@@ -27,8 +27,8 @@ function Card({ bill, note, index, onOpen }: { bill: Bill; note: Note; index: nu
   );
 }
 
-function Big({ note, label }: { note: Note; label: string }) {
-  const url = usePhotoUrl(note.photoId);
+function Big({ note, label, groupId }: { note: Note; label: string; groupId: string | null }) {
+  const url = useReceiptUrl(note.photoId, groupId);
   if (!url) return <p className="hint">Carregando a foto…</p>;
   return (
     <>
@@ -42,7 +42,7 @@ function Big({ note, label }: { note: Note; label: string }) {
 }
 
 /** Todas as notas fiscais do rolê num bloco só, separadas por categoria (como na Viagem). */
-export function RoleReceiptsSheet({ bill, open, onClose }: { bill: Bill; open: boolean; onClose: () => void }) {
+export function RoleReceiptsSheet({ bill, open, groupId = null, onClose }: { bill: Bill; open: boolean; groupId?: string | null; onClose: () => void }) {
   const [viewing, setViewing] = useState<{ note: Note; label: string } | null>(null);
   const all = bill.notes ?? [];
   const list = notesWithPhoto(bill);
@@ -54,7 +54,7 @@ export function RoleReceiptsSheet({ bill, open, onClose }: { bill: Bill; open: b
         <h2 id="h-role-receipts" tabIndex={-1}>{viewing ? `Nota ${viewing.label}` : 'Notas fiscais'}</h2>
         {viewing ? (
           <>
-            <Big note={viewing.note} label={viewing.label} />
+            <Big note={viewing.note} label={viewing.label} groupId={groupId} />
             <button type="button" className="btn secondary" onClick={() => setViewing(null)}>Voltar para as notas</button>
           </>
         ) : list.length === 0 ? (
@@ -75,7 +75,7 @@ export function RoleReceiptsSheet({ bill, open, onClose }: { bill: Bill; open: b
                   <div className="receipt-grid">
                     {items.map((n) => {
                       const i = all.findIndex((x) => x.id === n.id);
-                      return <Card key={n.id} bill={bill} note={n} index={i} onOpen={() => setViewing({ note: n, label: noteLabel(n, i) })} />;
+                      return <Card key={n.id} bill={bill} note={n} index={i} groupId={groupId} onOpen={() => setViewing({ note: n, label: noteLabel(n, i) })} />;
                     })}
                   </div>
                 </section>

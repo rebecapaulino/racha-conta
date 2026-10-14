@@ -1,16 +1,23 @@
+import { useState, type CSSProperties } from 'react';
 import { formatBRL } from '../../core/money';
 import { activeExpenses, tripSummary, type Trip } from '../../core/trip';
 import { AvatarStack } from '../Avatar';
+import { CoverPhoto } from '../CoverPhoto';
 import { IconPencil, IconShare } from '../icons';
 import type { Member } from '../../sync/groups';
 import { MemberDots } from './ShareSheet';
 import { Art } from '../illustrations';
 import { tripDates } from './tripDates';
+import { useReceiptUrl } from './useReceiptUrl';
 
 interface CoverProps {
   trip: Trip;
   fluent: boolean;
   onEdit: () => void;
+  onPhoto: (photoId: string | null) => void;
+  toast: (msg: string) => void;
+  /** Grupo da viagem compartilhada: a foto que outra pessoa pôs vem de lá. */
+  groupId?: string | null;
   /** Abre o compartilhar (sem isso, o botão não aparece: sem login configurado). */
   onShare?: () => void;
   /** Quem está no grupo (viagem compartilhada). */
@@ -19,13 +26,16 @@ interface CoverProps {
 }
 
 /** Capa da caderneta aberta: nome, datas e o gasto total da viagem. */
-export function TripCover({ trip, fluent, onEdit, onShare, members = [], accountId = null }: CoverProps) {
+export function TripCover({ trip, fluent, onEdit, onPhoto, toast, groupId = null, onShare, members = [], accountId = null }: CoverProps) {
+  const photoUrl = useReceiptUrl(trip.photoId ?? null, groupId);
+  const [busy, setBusy] = useState(false);
+  const style = photoUrl ? ({ '--photo': `url("${photoUrl}")` } as CSSProperties) : undefined;
   const s = tripSummary(trip);
   const count = activeExpenses(trip).length;
   const dates = tripDates(trip.start, trip.end);
   const n = trip.people.length;
   return (
-    <section className="hero trip-hero" aria-label="Resumo da viagem">
+    <section className={`hero trip-hero${photoUrl ? ' has-photo' : ''}`} style={style} aria-label="Resumo da viagem" aria-busy={busy}>
       <div className="hero-top">
         <span className="trip-title">
           <span className="hero-title">{trip.name}</span>
@@ -42,12 +52,13 @@ export function TripCover({ trip, fluent, onEdit, onShare, members = [], account
               <IconShare size={18} />
             </button>
           )}
+          <CoverPhoto noun="viagem" photoId={trip.photoId ?? null} photoUrl={photoUrl} onPhoto={onPhoto} toast={toast} onBusy={setBusy} />
           <button type="button" className="hero-photo-btn" onClick={onEdit} aria-label="Editar viagem" title="Editar viagem">
             <IconPencil size={18} />
           </button>
         </span>
       </div>
-      {fluent && <Art kind="suitcase" size={64} className="hero-art" />}
+      {fluent && !photoUrl && <Art kind="suitcase" size={64} className="hero-art" />}
       <span className="hero-label">Gasto total da viagem</span>
       <b className="hero-total">{formatBRL(s.total)}</b>
       <div className="hero-bottom">

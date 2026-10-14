@@ -210,7 +210,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
 
   // Pedido para abrir a nota que a leitura da foto acabou de criar (quem pagou, quem divide).
   const [editRequest, setEditRequest] = useState(0);
-  const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} editRequest={editRequest} />;
+  const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} editRequest={editRequest} groupId={state.shared?.groupId ?? null} />;
   const divisaoNota = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
   const divisao = !multi ? (
     divisaoNota
@@ -281,6 +281,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
             photoId={state.photoId}
             fluent={fluent}
             onPhoto={(photoId) => dispatch({ type: 'photo', photoId })}
+            onRename={(title) => dispatch({ type: 'title', title })}
             toast={toast}
             onShare={loginEnabled && !state.example ? () => setSharing(true) : undefined}
             members={members}

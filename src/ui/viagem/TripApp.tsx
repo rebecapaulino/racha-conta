@@ -204,6 +204,9 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
             trip={trip}
             fluent={fluent}
             onEdit={() => setTripMode({ kind: 'edit', trip })}
+            onPhoto={(photoId) => dispatch({ type: 'editTrip', photoId })}
+            toast={toast}
+            groupId={entry?.groupId ?? null}
             onShare={loginEnabled ? () => setSharing(true) : undefined}
             members={members}
             accountId={account?.id ?? null}

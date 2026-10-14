@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../auth/account';
 import { isValidRoleDoc, roleDoc, type Action, type AppState } from '../state/billState';
+import { getPhoto } from '../state/photos';
 import { errorText, fetchGroup, fetchMembers, saveGroup, type Member, type SyncStatus } from '../sync/groups';
+import { uploadReceipt, wasSent } from '../sync/receipts';
 
 const RETRY_MS = 8000;
 /** De quanto em quanto tempo confere o grupo (com o app aberto). */
@@ -114,6 +116,23 @@ export function useBillSync(
       window.removeEventListener('online', refresh);
     };
   }, [groupId, userId, dispatch]);
+
+  // Fotos das notas tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
+  const photos = (state.bill.notes ?? []).map((n) => n.photoId).filter((r): r is string => !!r).join(',');
+  useEffect(() => {
+    if (!groupId || !userId || !photos || navigator.onLine === false) return;
+    let alive = true;
+    (async () => {
+      for (const id of photos.split(',')) {
+        if (!alive || wasSent(groupId, id)) continue;
+        const blob = await getPhoto(id);
+        if (blob) await uploadReceipt(groupId, id, blob);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [groupId, userId, photos, tick]);
 
   return { members: members && members.groupId === groupId ? members.list : [], status, refresh: () => refreshRef.current() };
 }

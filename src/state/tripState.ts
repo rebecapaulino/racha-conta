@@ -58,7 +58,7 @@ export interface SyncEntry {
 export type TripAction =
   | { type: 'createTrip'; id: string; name: string; start?: string; end?: string; meName?: string; meId?: string }
   | { type: 'openTrip'; id: string | null }
-  | { type: 'editTrip'; name?: string; start?: string | null; end?: string | null; categoryNames?: Partial<Record<TripCategory, string>>; settleMode?: SettleMode }
+  | { type: 'editTrip'; name?: string; start?: string | null; end?: string | null; categoryNames?: Partial<Record<TripCategory, string>>; settleMode?: SettleMode; photoId?: string | null }
   | { type: 'deleteTrip'; id: string }
   | { type: 'addTraveler'; id: string; name: string; weight?: number }
   /** coveredBy: quem paga a parte dela (null: ela mesma). */
@@ -131,6 +131,7 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       if (after.name !== before.name) return `Renomeou a viagem para ${after.name}`;
       if (after.start !== before.start || after.end !== before.end) return 'Mudou as datas da viagem';
       if (JSON.stringify(after.categoryNames ?? {}) !== JSON.stringify(before.categoryNames ?? {})) return 'Mudou o nome de uma categoria';
+      if (after.photoId !== before.photoId) return !after.photoId ? 'Tirou a foto da viagem' : before.photoId ? 'Trocou a foto da viagem' : 'Adicionou a foto da viagem';
       return null;
     }
     case 'addTraveler':
@@ -289,6 +290,10 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
         }
         if (a.settleMode === 'min') next.settleMode = 'min';
         else if (a.settleMode === 'direct') delete next.settleMode;
+        if (a.photoId !== undefined) {
+          if (a.photoId && PHOTO_ID.test(a.photoId)) next.photoId = a.photoId;
+          else delete next.photoId;
+        }
         return next;
       });
     case 'deleteTrip': {
@@ -378,6 +383,8 @@ function cleanInput(input: ExpenseInput): ExpenseInput {
 // ---------- guardar e ler ----------
 
 const isStr = (v: unknown): v is string => typeof v === 'string';
+/** Nome de foto aceito (vira nome de arquivo na pasta do grupo: nada de "/" ou "..") */
+const PHOTO_ID = /^[a-z0-9]{6,40}$/;
 const isInt = (v: unknown, min = 0): v is number => Number.isSafeInteger(v) && (v as number) >= min;
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const CATEGORY_IDS = new Set<string>(TRIP_CATEGORIES.map((c) => c.id));
@@ -396,7 +403,7 @@ function isValidExpense(e: unknown): e is Expense {
     (e.settled === undefined || e.settled === true) &&
     (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
     (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr))) &&
-    (e.receipt === undefined || (isStr(e.receipt) && /^[a-z0-9]{6,40}$/.test(e.receipt)))
+    (e.receipt === undefined || (isStr(e.receipt) && PHOTO_ID.test(e.receipt)))
   );
 }
 
@@ -414,6 +421,7 @@ export function isValidTrip(t: unknown): t is Trip {
     isInt(t.nextSeq) &&
     (t.settleMode === undefined || t.settleMode === 'direct' || t.settleMode === 'min') &&
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr))) &&
+    (t.photoId === undefined || (isStr(t.photoId) && PHOTO_ID.test(t.photoId))) &&
     (t.log === undefined || (Array.isArray(t.log) && t.log.every((e) => isObj(e) && typeof e.at === 'number' && isStr(e.text))))
   );
 }

@@ -8,7 +8,7 @@ import { IconDownload, IconImage, IconPencil, IconPlus, IconReceipt, IconShare, 
 import { Sheet } from './viagem/Sheet';
 import { categoryEmoji } from '../core/noteCategory';
 import { NoteSheet, type NoteSheetMode } from './NoteSheet';
-import { usePhotoUrl } from './usePhotoUrl';
+import { useReceiptUrl } from './viagem/useReceiptUrl';
 import { notesWithPhoto, RoleReceiptsSheet } from './RoleReceiptsSheet';
 
 interface Props {
@@ -20,13 +20,15 @@ interface Props {
   toast: (msg: string) => void;
   /** Muda quando uma nota acabou de ser criada pela leitura da foto: abre a nota para completar. */
   editRequest?: number;
+  /** Grupo do rolê compartilhado: as fotos das notas que outra pessoa tirou vêm de lá. */
+  groupId?: string | null;
 }
 
 /**
  * Notas fiscais da conta (ex.: a do bar e a dos doces): troca a nota aberta em Pedidos e
  * Divisão, cria uma nova e edita a aberta (categoria, quem pagou, quem divide, foto).
  */
-export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) {
+export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId = null }: Props) {
   const [mode, setMode] = useState<NoteSheetMode | null>(null);
   // Nota a apagar (pelo X em cima dela), esperando a confirmação.
   const [deleting, setDeleting] = useState<{ id: string; label: string; items: number } | null>(null);
@@ -42,7 +44,7 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
   const label = noteLabel(current, index);
   // "Nota Doces", mas "Nota 2" (e não "Nota Nota 2").
   const named = current.category.trim() ? `Nota ${label}` : label;
-  const photoUrl = usePhotoUrl(current.photoId);
+  const photoUrl = useReceiptUrl(current.photoId, groupId);
 
   // A foto fica pronta antes do toque: o celular só abre o menu de compartilhar logo depois dele.
   const photoBlob = useRef<Blob | null>(null);
@@ -54,7 +56,8 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
     return () => {
       alive = false;
     };
-  }, [current.photoId]);
+    // photoUrl: a foto que veio do grupo acabou de ser guardada no aparelho.
+  }, [current.photoId, photoUrl]);
 
   const payer = bill.people.find((p) => p.id === current.payerId);
   const meta: string[] = [];
@@ -164,12 +167,13 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest }: Props) 
       <button type="button" className="btn secondary receipts-btn" onClick={() => setReceiptsOpen(true)}>
         <IconReceipt size={18} /> Notas fiscais ({notesWithPhoto(bill).length})
       </button>
-      <RoleReceiptsSheet bill={bill} open={receiptsOpen} onClose={() => setReceiptsOpen(false)} />
+      <RoleReceiptsSheet bill={bill} open={receiptsOpen} groupId={groupId} onClose={() => setReceiptsOpen(false)} />
 
       <NoteSheet
         mode={mode}
         people={bill.people}
         notesCount={notes.length}
+        groupId={groupId}
         dispatch={dispatch}
         toast={toast}
         onClose={() => setMode(null)}

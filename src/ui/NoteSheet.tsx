@@ -5,13 +5,16 @@ import { deletePhoto, putPhoto, shrinkPhoto } from '../state/photos';
 import { Avatar, personStyle } from './Avatar';
 import { IconCamera, IconCheck, IconImage, IconTrash } from './icons';
 import { categoryEmoji } from '../core/noteCategory';
-import { forgetPhotoUrl, rememberPhotoUrl, usePhotoUrl } from './usePhotoUrl';
+import { forgetPhotoUrl, rememberPhotoUrl } from './usePhotoUrl';
+import { useReceiptUrl } from './viagem/useReceiptUrl';
 
 /** O que a janela está fazendo: criando uma nota ou editando uma (a da conta de nota só também). */
 export type NoteSheetMode = { kind: 'create' } | { kind: 'edit'; note: Note; label: string; items: number; intro?: string };
 
 interface Props {
   mode: NoteSheetMode | null;
+  /** Grupo do rolê compartilhado: a foto que outra pessoa tirou vem de lá. */
+  groupId?: string | null;
   people: Person[];
   /** Quantas notas a conta tem (a última não pode ser apagada). */
   notesCount: number;
@@ -23,7 +26,7 @@ interface Props {
 type Photo = { kind: 'keep' } | { kind: 'none' } | { kind: 'new'; blob: Blob; url: string };
 
 /** Nova nota / editar nota: categoria, quem pagou, quem divide e a foto da nota. */
-export function NoteSheet({ mode, people, notesCount, dispatch, toast, onClose }: Props) {
+export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, toast, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -35,7 +38,7 @@ export function NoteSheet({ mode, people, notesCount, dispatch, toast, onClose }
   const [photo, setPhoto] = useState<Photo>({ kind: 'keep' });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
-  const savedUrl = usePhotoUrl(editing?.photoId ?? null);
+  const savedUrl = useReceiptUrl(editing?.photoId ?? null, groupId);
 
   // Ao abrir, começa com o que a nota já tem (ou, na nova, com todo mundo dividindo).
   // Abrir/fechar a janela segue o modo; os campos começam do zero a cada abertura.

@@ -110,6 +110,21 @@ describe('viagens no aparelho', () => {
     expect(trip(s).name).toBe('Natal');
   });
 
+  it('foto da viagem: guarda, troca, tira e recusa nome de arquivo estranho', () => {
+    let s = run(base(), { type: 'editTrip', photoId: 'abc123def' });
+    expect(trip(s).photoId).toBe('abc123def');
+    expect(isValidTrip(trip(s))).toBe(true);
+    s = run(s, { type: 'editTrip', name: 'Natal' });
+    expect(trip(s).photoId).toBe('abc123def');
+    s = run(s, { type: 'editTrip', photoId: '../outro-grupo/x' });
+    expect(trip(s).photoId).toBeUndefined();
+    expect(isValidTrip({ ...trip(s), photoId: '../x' })).toBe(false);
+    s = run(s, { type: 'editTrip', photoId: 'zzz999zzz' });
+    s = run(s, { type: 'editTrip', photoId: null });
+    expect(trip(s).photoId).toBeUndefined();
+    expect(trip(s).log?.slice(-3).map((e) => e.text)).toEqual(['Tirou a foto da viagem', 'Adicionou a foto da viagem', 'Tirou a foto da viagem']);
+  });
+
   it('modo do acerto: guarda "menos Pix"; o padrão (direto) não precisa ser guardado', () => {
     let s = run(base(), { type: 'editTrip', settleMode: 'min' });
     expect(trip(s).settleMode).toBe('min');

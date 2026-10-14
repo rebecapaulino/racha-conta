@@ -1,5 +1,5 @@
-// Fotos das notas fiscais da viagem compartilhada: ficam no Supabase Storage (pasta do grupo),
-// para o grupo todo ver. Só quem é do grupo lê e envia (regras em 20261015_notas.sql).
+// Fotos das notas fiscais (e do cartão) da viagem ou do rolê compartilhado: ficam no Supabase
+// Storage (pasta do grupo), para o grupo todo ver. Só quem é do grupo lê e envia (regras em 20261015_notas.sql).
 // Cada aparelho também guarda a foto (IndexedDB): depois de baixada, abre sem internet.
 
 import { supabase } from '../auth/supabase';
@@ -7,6 +7,8 @@ import { supabase } from '../auth/supabase';
 const BUCKET = 'notas';
 const SENT_KEY = 'racha-notas-enviadas';
 const path = (groupId: string, id: string) => `${groupId}/${id}.jpg`;
+/** Só nomes de foto do app (letras e números): nada de "/" ou ".." no caminho. */
+const okId = (id: string) => /^[a-z0-9]{6,40}$/.test(id);
 
 function sentList(): string[] {
   try {
@@ -32,7 +34,7 @@ export function markSent(groupId: string, id: string) {
 /** Envia a foto da nota para a pasta do grupo. false: sem internet ou sem acesso (tenta de novo depois). */
 export async function uploadReceipt(groupId: string, id: string, blob: Blob): Promise<boolean> {
   const sb = supabase();
-  if (!sb) return false;
+  if (!sb || !okId(id)) return false;
   const { error } = await sb.storage.from(BUCKET).upload(path(groupId, id), blob, { contentType: blob.type || 'image/jpeg', upsert: true });
   if (error) return false;
   markSent(groupId, id);
@@ -42,7 +44,7 @@ export async function uploadReceipt(groupId: string, id: string, blob: Blob): Pr
 /** Baixa a foto de uma nota que outra pessoa do grupo tirou. */
 export async function downloadReceipt(groupId: string, id: string): Promise<Blob | null> {
   const sb = supabase();
-  if (!sb) return null;
+  if (!sb || !okId(id)) return null;
   const { data, error } = await sb.storage.from(BUCKET).download(path(groupId, id));
   return error || !data ? null : data;
 }
