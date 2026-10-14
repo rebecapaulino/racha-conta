@@ -5,7 +5,9 @@ import { newId } from '../state/billState';
 import { deletePhoto, putPhoto, shrinkPhoto } from '../state/photos';
 import { AvatarStack } from './Avatar';
 import { shortDate } from './dates';
-import { IconCamera, IconImage, IconTrash } from './icons';
+import { IconCamera, IconImage, IconShare, IconTrash } from './icons';
+import type { Member } from '../sync/groups';
+import { MemberDots } from './viagem/ShareSheet';
 import { Art } from './illustrations';
 import { forgetPhotoUrl, rememberPhotoUrl, usePhotoUrl } from './usePhotoUrl';
 
@@ -21,10 +23,15 @@ interface Props {
   fluent: boolean;
   onPhoto: (photoId: string | null) => void;
   toast: (msg: string) => void;
+  /** Abre o compartilhar (sem isso, o botão não aparece). */
+  onShare?: () => void;
+  /** Quem está no grupo (rolê compartilhado). */
+  members?: Member[];
+  accountId?: string | null;
 }
 
 /** Cartão do total. Com foto do rolê, a foto vira o fundo (fica como lembrança no histórico). */
-export function HeroCard({ title, startedAt, total, servicePct, notesCount, people, photoId, fluent, onPhoto, toast }: Props) {
+export function HeroCard({ title, startedAt, total, servicePct, notesCount, people, photoId, fluent, onPhoto, toast, onShare, members = [], accountId = null }: Props) {
   const photoUrl = usePhotoUrl(photoId);
   const [busy, setBusy] = useState(false);
   const sheetRef = useRef<HTMLDialogElement>(null);
@@ -76,18 +83,33 @@ export function HeroCard({ title, startedAt, total, servicePct, notesCount, peop
   return (
     <section className={`hero${photoUrl ? ' has-photo' : ''}`} style={style} aria-label="Resumo da conta" aria-busy={busy}>
       <div className="hero-top">
-        <span className="hero-title">{title.trim() || 'Conta da mesa'}</span>
-        <span className="hero-date">{shortDate(startedAt)}</span>
-        <button
-          type="button"
-          className="hero-photo-btn"
-          onClick={() => sheetRef.current?.showModal?.()}
-          aria-label={photoUrl ? 'Trocar foto do rolê' : 'Adicionar foto do rolê'}
-          title={photoUrl ? 'Trocar foto' : 'Adicionar foto'}
-          disabled={busy}
-        >
-          <IconCamera size={20} />
-        </button>
+        {/* Título com a data embaixo (como na Viagem): sobra lugar para os botões ao lado. */}
+        <span className="trip-title">
+          <span className="hero-title">{title.trim() || 'Conta da mesa'}</span>
+          <span className="hero-date">{shortDate(startedAt)}</span>
+        </span>
+        <span className="hero-actions">
+          {members.length > 0 && onShare && (
+            <button type="button" className="member-dots-btn" onClick={onShare} aria-label="Ver quem está no grupo">
+              <MemberDots members={members} accountId={accountId} max={3} />
+            </button>
+          )}
+          {onShare && (
+            <button type="button" className="hero-photo-btn" onClick={onShare} aria-label="Compartilhar rolê" title="Compartilhar rolê">
+              <IconShare size={18} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="hero-photo-btn"
+            onClick={() => sheetRef.current?.showModal?.()}
+            aria-label={photoUrl ? 'Trocar foto do rolê' : 'Adicionar foto do rolê'}
+            title={photoUrl ? 'Trocar foto' : 'Adicionar foto'}
+            disabled={busy}
+          >
+            <IconCamera size={20} />
+          </button>
+        </span>
       </div>
       {fluent && !photoUrl && <Art kind="money" size={64} className="hero-art" />}
       <span className="hero-label">Total com serviço</span>

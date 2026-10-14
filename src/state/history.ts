@@ -2,18 +2,19 @@
 // As contas são pequenas e ficam no armazenamento local; as fotos ficam à parte (photos.ts).
 // Se o armazenamento falhar, o histórico vive só enquanto a página estiver aberta.
 
-import { isValidBill, validLog, type AppState } from './billState';
+import { isValidBill, validLog, validSync, type AppState } from './billState';
 
-export type HistoryEntry = Pick<AppState, 'id' | 'startedAt' | 'photoId' | 'bill' | 'nextColor' | 'log'>;
+export type HistoryEntry = Pick<AppState, 'id' | 'startedAt' | 'photoId' | 'bill' | 'nextColor' | 'log' | 'shared'>;
 
 const KEY = 'racha-conta-historico-v1';
 
 export function toEntry(s: AppState): HistoryEntry {
-  return { id: s.id, startedAt: s.startedAt, photoId: s.photoId, bill: s.bill, nextColor: s.nextColor, log: s.log };
+  return { id: s.id, startedAt: s.startedAt, photoId: s.photoId, bill: s.bill, nextColor: s.nextColor, log: s.log, ...(s.shared ? { shared: s.shared } : {}) };
 }
 
 export function fromEntry(e: HistoryEntry): AppState {
-  return { ...e, noteId: null, log: validLog(e.log), example: false };
+  const { shared, ...rest } = e;
+  return { ...rest, noteId: null, log: validLog(e.log), example: false, ...(validSync(shared) ? { shared } : {}) };
 }
 
 /** Guarda (ou atualiza) um rolê, mantendo o mais recente primeiro. */

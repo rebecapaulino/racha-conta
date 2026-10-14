@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { computeSplit } from '../core/bill';
 import { formatBRL } from '../core/money';
-import { activeBill, activeNote, loadState, reducer, saveState, worthKeeping } from '../state/billState';
+import { loginEnabled, useAccount } from '../auth/account';
+import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, reducer, roleDoc, saveState, worthKeeping } from '../state/billState';
+import { createGroup, fetchGroup, joinGroup } from '../sync/groups';
+import { useBillSync } from './useBillSync';
+import { InviteSheet, useInvite } from './useInvite';
+import { ShareSheet } from './viagem/ShareSheet';
 import { addEntry, fromEntry, loadHistory, removeEntry, saveHistory, toEntry, type HistoryEntry } from '../state/history';
 import { deletePhoto } from '../state/photos';
 import { AccountButton } from './AccountButton';
@@ -37,6 +42,17 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   const viewResult = useMemo(() => (view === bill ? result : computeSplit(view)), [view, bill, result]);
 
   useEffect(() => saveState(state), [state]);
+
+  // Rolê compartilhado: grupo, convite e quem está nele.
+  const { account } = useAccount();
+  const { members } = useBillSync(state, dispatch, account);
+  const [sharing, setSharing] = useState(false);
+  async function share() {
+    if (!account || state.shared) return;
+    const g = await createGroup('role', roleDoc(state), account.name, account.photo);
+    dispatch({ type: 'syncLink', groupId: g.groupId, code: g.code, version: g.version });
+  }
+  const { invite, setInvite, close: closeInvite } = useInvite('role', !!account);
 
   // Rolês: contas anteriores, guardadas a cada "Nova conta".
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
@@ -131,6 +147,47 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     toast('Rolê apagado');
   }
 
+  async function join() {
+    if (!invite || !account) return;
+    setInvite({ ...invite, status: 'joining' });
+    try {
+      const groupId = await joinGroup(invite.code, account.name, account.photo);
+      const remote = await fetchGroup(groupId);
+      if (!remote || !isValidRoleDoc(remote.content)) throw new Error('rolê inválido');
+      const doc = remote.content;
+      const id = `grupo-${groupId}`;
+      // A conta aberta vai para Rolês (nada se perde), e o rolê do grupo abre.
+      if (state.id !== id && worthKeeping(state)) setHistory((h) => addEntry(removeEntry(h, id), toEntry(state)));
+      else setHistory((h) => removeEntry(h, id));
+      dispatch({
+        type: 'open',
+        state: { ...blankState(), ...doc, id, shared: { groupId, code: remote.code, version: remote.version, base: doc, pending: [] }, author: account.name },
+      });
+      setTab(doc.bill.people.length ? 'pedidos' : 'mesa');
+      setScreen('conta');
+      closeInvite();
+      toast(`Você entrou no rolê ${doc.bill.title.trim() || 'Conta da mesa'}`);
+    } catch {
+      setInvite({ ...invite, status: 'error' });
+    }
+  }
+  const sharedSheets = (
+    <>
+      <ShareSheet
+        open={sharing}
+        noun="rolê"
+        title={bill.title.trim() || 'Conta da mesa'}
+        code={state.shared?.code ?? null}
+        members={members}
+        account={account}
+        onCreate={share}
+        toast={toast}
+        onClose={() => setSharing(false)}
+      />
+      <InviteSheet invite={invite} noun="rolê" onJoin={join} onClose={closeInvite} />
+    </>
+  );
+
   // No visual fluent, abas e cartão do total ganham ilustrações de formas sobrepostas.
   const fluent = activeVisual() === 'fluent';
 
@@ -222,6 +279,9 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
             fluent={fluent}
             onPhoto={(photoId) => dispatch({ type: 'photo', photoId })}
             toast={toast}
+            onShare={loginEnabled && !state.example ? () => setSharing(true) : undefined}
+            members={members}
+            accountId={account?.id ?? null}
           />
 
           <PwaBars />
@@ -299,7 +359,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
       </div>
 
       {toastBox}
-
+      {sharedSheets}
     </>
   );
 }

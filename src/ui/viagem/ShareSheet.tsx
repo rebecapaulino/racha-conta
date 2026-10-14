@@ -2,8 +2,6 @@ import { useState } from 'react';
 import type { Account } from '../../auth/account';
 import { whatsappUrl } from '../../core/bill';
 import { memberInitials } from '../../core/initials';
-import type { Trip } from '../../core/trip';
-import type { SyncEntry } from '../../state/tripState';
 import { inviteUrl, type Member } from '../../sync/groups';
 import { IconChat, IconCopy } from '../icons';
 import { Sheet } from './Sheet';
@@ -27,8 +25,11 @@ export function MemberDots({ members, accountId, max = 4 }: { members: Member[];
 
 interface Props {
   open: boolean;
-  trip: Trip;
-  entry: SyncEntry | undefined;
+  noun: 'viagem' | 'rolê';
+  /** Nome da viagem ou do rolê. */
+  title: string;
+  /** Código do convite (null: ainda não compartilhou). */
+  code: string | null;
   members: Member[];
   account: Account | null;
   /** Cria o grupo e o link (só quem ainda não compartilhou). */
@@ -37,12 +38,13 @@ interface Props {
   onClose: () => void;
 }
 
-/** Compartilhar a viagem: cria o link de convite e mostra quem já está no grupo. */
-export function ShareSheet({ open, trip, entry, members, account, onCreate, toast, onClose }: Props) {
+/** Compartilhar a viagem (ou o rolê): cria o link de convite e mostra quem já está no grupo. */
+export function ShareSheet({ open, noun, title, code, members, account, onCreate, toast, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const url = entry ? inviteUrl(entry.code) : '';
-  const message = `Entra na viagem "${trip.name}" no Racha Conta, para a gente dividir as contas juntos: ${url}`;
+  const url = code ? inviteUrl(code) : '';
+  const art = noun === 'viagem' ? 'na viagem' : 'no rolê';
+  const message = `Entra ${art} "${title}" no Racha Conta, para a gente dividir as contas juntos: ${url}`;
   const initials = memberInitials(members.map((m) => m.name));
 
   async function create() {
@@ -70,13 +72,13 @@ export function ShareSheet({ open, trip, entry, members, account, onCreate, toas
     <Sheet open={open} onClose={onClose} labelledBy="h-share-trip">
       <div className="sheet-body share-sheet">
         <span className="sheet-grip" aria-hidden="true" />
-        <h2 id="h-share-trip" tabIndex={-1}>Compartilhar viagem</h2>
+        <h2 id="h-share-trip" tabIndex={-1}>{noun === 'viagem' ? 'Compartilhar viagem' : 'Compartilhar rolê'}</h2>
         {!account ? (
-          <p>Entre com o Google (no botão do topo) para compartilhar a viagem.</p>
-        ) : !entry ? (
+          <p>Entre com o Google (no botão do topo) para compartilhar {noun === 'viagem' ? 'a viagem' : 'o rolê'}.</p>
+        ) : !code ? (
           <>
             <p>
-              Quem você convidar vê e edita <b>{trip.name}</b> com você, como um grupo. As mudanças aparecem para todo mundo
+              Quem você convidar vê e edita <b>{title}</b> com você, como um grupo. As mudanças aparecem para todo mundo
               na hora, e o registro mostra quem fez cada uma.
             </p>
             <p className="field-error" role="alert">{error}</p>

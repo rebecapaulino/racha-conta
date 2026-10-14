@@ -36,10 +36,28 @@ function db() {
 /** Endereço do convite: abre o app e mostra "Entrar no grupo". */
 export const inviteUrl = (code: string) => `${window.location.origin}/?convite=${encodeURIComponent(code)}`;
 
-export async function createTripGroup(trip: Trip, name: string, photo: string | null): Promise<{ groupId: string; code: string; version: number }> {
-  const { data, error } = await db().rpc('create_group', { p_kind: 'trip', p_data: { trip }, p_name: name, p_photo: photo });
+/** Cria o grupo com o conteúdo (`{ trip }` na Viagem, `{ bill, log, … }` no Rolê). */
+export async function createGroup(kind: 'trip' | 'role', content: object, name: string, photo: string | null): Promise<{ groupId: string; code: string; version: number }> {
+  const { data, error } = await db().rpc('create_group', { p_kind: kind, p_data: content, p_name: name, p_photo: photo });
   if (error) throw error;
   return { groupId: data.id, code: data.invite_code, version: data.version };
+}
+
+export const createTripGroup = (trip: Trip, name: string, photo: string | null) => createGroup('trip', { trip }, name, photo);
+
+/** O conteúdo do grupo como está no banco. null: não existe mais ou a pessoa não é do grupo. */
+export async function fetchGroup(groupId: string): Promise<{ content: unknown; version: number; code: string } | null> {
+  const { data, error } = await db().from('groups').select('data, version, invite_code').eq('id', groupId).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { content: data.data, version: data.version, code: data.invite_code };
+}
+
+/** Salva. Devolve a versão nova, ou -1 se outra pessoa salvou antes. */
+export async function saveGroup(groupId: string, content: object, base: number): Promise<number> {
+  const { data, error } = await db().rpc('save_group', { p_id: groupId, p_data: content, p_base: base });
+  if (error) throw error;
+  return data as number;
 }
 
 export async function previewInvite(code: string): Promise<InvitePreview | null> {
@@ -58,18 +76,12 @@ export async function joinGroup(code: string, name: string, photo: string | null
 
 /** A viagem como está no grupo. null: não existe mais ou a pessoa não é do grupo. */
 export async function fetchTripGroup(groupId: string): Promise<RemoteTrip | null> {
-  const { data, error } = await db().from('groups').select('data, version, invite_code').eq('id', groupId).maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return { trip: (data.data as { trip: Trip }).trip, version: data.version, code: data.invite_code };
+  const g = await fetchGroup(groupId);
+  return g ? { trip: (g.content as { trip: Trip }).trip, version: g.version, code: g.code } : null;
 }
 
 /** Salva. Devolve a versão nova, ou -1 se outra pessoa salvou antes (aí busca e refaz). */
-export async function saveTripGroup(groupId: string, trip: Trip, base: number): Promise<number> {
-  const { data, error } = await db().rpc('save_group', { p_id: groupId, p_data: { trip }, p_base: base });
-  if (error) throw error;
-  return data as number;
-}
+export const saveTripGroup = (groupId: string, trip: Trip, base: number) => saveGroup(groupId, { trip }, base);
 
 export async function fetchMembers(groupId: string): Promise<Member[]> {
   const { data, error } = await db().from('group_members').select('user_id, name, photo, role, joined_at').eq('group_id', groupId).order('joined_at');
@@ -77,15 +89,27 @@ export async function fetchMembers(groupId: string): Promise<Member[]> {
   return (data ?? []).map((m) => ({ userId: m.user_id, name: m.name, photo: m.photo, role: m.role }));
 }
 
-/** Ouve o grupo: nova versão da viagem e gente entrando ou saindo. Devolve como parar. */
+/** Ouve o grupo da viagem: nova versão e gente entrando ou saindo. Devolve como parar. */
 export function watchGroup(groupId: string, onTrip: (r: { trip: Trip; version: number }) => void, onMembers: () => void): () => void {
+  return watchContent(
+    groupId,
+    (r) => {
+      const trip = (r.content as { trip?: Trip } | null)?.trip;
+      if (trip) onTrip({ trip, version: r.version });
+    },
+    onMembers,
+  );
+}
+
+/** Ouve o grupo: conteúdo novo e gente entrando ou saindo. Devolve como parar. */
+export function watchContent(groupId: string, onContent: (r: { content: unknown; version: number }) => void, onMembers: () => void): () => void {
   const sb = supabase();
   if (!sb) return () => {};
   const channel: RealtimeChannel = sb
     .channel(`grupo-${groupId}`)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'groups', filter: `id=eq.${groupId}` }, (p) => {
-      const row = p.new as { data?: { trip?: Trip }; version?: number };
-      if (row.data?.trip && typeof row.version === 'number') onTrip({ trip: row.data.trip, version: row.version });
+      const row = p.new as { data?: unknown; version?: number };
+      if (row.data && typeof row.version === 'number') onContent({ content: row.data, version: row.version });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${groupId}` }, () => onMembers())
     .subscribe();

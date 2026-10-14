@@ -281,3 +281,11 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Sincronização:** cada mudança feita no aparelho entra numa fila e vai para o grupo (sem internet, espera). O banco só aceita se a versão for a mesma; se outra pessoa salvou antes, o app busca a versão dela e refaz as mudanças da fila por cima (ninguém perde despesa). Em tempo real, as mudanças dos outros aparecem sozinhas.
 - Código: `src/sync/groups.ts` (Supabase), `src/state/tripState.ts` (fila, versões, `replay`), `src/ui/viagem/useTripSync.ts`, `ShareSheet.tsx`, `src/core/initials.ts`. Testado com testes automáticos e no navegador com um Supabase simulado (duas contas, conflito de versão).
 - **Ainda não:** Rolê compartilhado (próximo passo), sair do grupo/tirar alguém, trocar o link, expiração de 90 dias.
+
+## Rolê compartilhado (grupo) — 14/10/2026
+
+- **Igual à Viagem:** botão de compartilhar na capa do rolê (ao lado da câmera) → link de convite; quem entra vê as despesas e pode adicionar e editar; registro com o nome de quem fez; bolinhas com as iniciais de quem está no grupo.
+- **O que vai para o grupo:** a conta (pessoas, notas, itens, serviço, quem pagou, quem já pagou, acertos), o registro e a data. **Fica só no aparelho:** a foto do rolê e das notas (só quem tirou vê) e a nota aberta.
+- **Entrar pelo convite:** o link abre na área certa (Rolê ou Viagem) sozinho. Ao entrar num rolê, a conta que estava aberta vai para Rolês (nada se perde). Indo para Rolês e reabrindo, o rolê continua ligado ao grupo.
+- **Capa do rolê:** a data foi para baixo do nome (como na Viagem), para os botões caberem ao lado no celular.
+- Código: `src/state/billState.ts` (`shared`, fila, `replayRole`), `src/ui/useBillSync.ts`, `src/ui/useInvite.tsx` (convite comum às duas áreas), `ShareSheet` comum. Testado com testes automáticos e no navegador com Supabase simulado.

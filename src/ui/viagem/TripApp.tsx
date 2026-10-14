@@ -5,7 +5,8 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 import { activeExpenses, tripSummary, type Expense, type Traveler } from '../../core/trip';
 import { loginEnabled, useAccount } from '../../auth/account';
 import { isValidTrip, loadTrips, openTrip, saveTrips, tripsReducer } from '../../state/tripState';
-import { createTripGroup, fetchTripGroup, joinGroup, previewInvite, type InvitePreview } from '../../sync/groups';
+import { createTripGroup, fetchTripGroup, joinGroup } from '../../sync/groups';
+import { InviteSheet, useInvite } from '../useInvite';
 import { AccountButton } from '../AccountButton';
 import { ThemeButton } from '../ThemeButton';
 import { IconBook, IconPlus, IconScale, IconSuitcase, IconUsers, Logo } from '../icons';
@@ -15,7 +16,6 @@ import { useMediaQuery } from '../useMediaQuery';
 import { activeVisual } from '../visual';
 import { ExpenseSheet, type ExpenseMode } from './ExpenseSheet';
 import { PersonSheet } from './PersonSheet';
-import { Sheet } from './Sheet';
 import { ShareSheet } from './ShareSheet';
 import { SettleSheet, type SettleTarget } from './SettleSheet';
 import { TripBalances } from './TripBalances';
@@ -49,26 +49,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   }
 
   // Convite (?convite=código): mostra de quem é e entra no grupo.
-  type Invite = { code: string; preview: InvitePreview | null; status: 'loading' | 'ready' | 'invalid' | 'joining' | 'error' };
-  const [invite, setInvite] = useState<Invite | null>(() => {
-    const code = new URLSearchParams(window.location.search).get('convite');
-    return code ? { code, preview: null, status: 'loading' } : null;
-  });
-  const inviteCode = invite?.status === 'loading' ? invite.code : null;
-  const signedIn = !!account;
-  useEffect(() => {
-    if (!inviteCode || !signedIn) return;
-    previewInvite(inviteCode).then(
-      (preview) => setInvite({ code: inviteCode, preview, status: preview ? 'ready' : 'invalid' }),
-      () => setInvite({ code: inviteCode, preview: null, status: 'error' }),
-    );
-  }, [inviteCode, signedIn]);
-  function closeInvite() {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('convite');
-    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-    setInvite(null);
-  }
+  const { invite, setInvite, close: closeInvite } = useInvite('trip', !!account);
   async function join() {
     if (!invite || !account) return;
     setInvite({ ...invite, status: 'joining' });
@@ -149,32 +130,8 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     </div>
   );
   const tripSheet = <TripSheet mode={tripMode} dispatch={dispatch} toast={toast} onClose={() => setTripMode(null)} />;
-  const inviteSheet = (
-    <Sheet open={!!invite && invite.status !== 'loading'} onClose={closeInvite} labelledBy="h-invite">
-      <div className="sheet-body">
-        <span className="sheet-grip" aria-hidden="true" />
-        <h2 id="h-invite" tabIndex={-1}>Convite para viagem</h2>
-        {invite?.status === 'invalid' ? (
-          <p>Esse convite não vale mais. Peça um link novo para quem te chamou.</p>
-        ) : invite?.status === 'error' ? (
-          <p className="field-error" role="alert">Não deu para abrir o convite. Confira a internet e tente de novo.</p>
-        ) : invite?.preview ? (
-          <p>
-            <b>{invite.preview.ownerName || 'Alguém'}</b> te chamou para a viagem <b>{invite.preview.title || 'sem nome'}</b>
-            {' '}({invite.preview.members} {invite.preview.members === 1 ? 'pessoa' : 'pessoas'} no grupo). Entrando, você vê e edita a viagem junto.
-          </p>
-        ) : null}
-        <div className="sheet-actions">
-          <button type="button" className="btn secondary" onClick={closeInvite}>Agora não</button>
-          {(invite?.status === 'ready' || invite?.status === 'joining' || invite?.status === 'error') && invite.preview && (
-            <button type="button" className="btn primary" onClick={join} disabled={invite.status === 'joining'}>
-              {invite.status === 'joining' ? 'Entrando…' : 'Entrar no grupo'}
-            </button>
-          )}
-        </div>
-      </div>
-    </Sheet>
-  );
+  const inviteSheet = <InviteSheet invite={invite} noun="viagem" onJoin={join} onClose={closeInvite} />;
+
 
   if (!trip || !summary) {
     return (
@@ -304,7 +261,17 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />
-      <ShareSheet open={sharing} trip={trip} entry={entry} members={members} account={account} onCreate={share} toast={toast} onClose={() => setSharing(false)} />
+      <ShareSheet
+        open={sharing}
+        noun="viagem"
+        title={trip.name}
+        code={entry?.code ?? null}
+        members={members}
+        account={account}
+        onCreate={share}
+        toast={toast}
+        onClose={() => setSharing(false)}
+      />
       {tripSheet}
       {inviteSheet}
       {toastEl}

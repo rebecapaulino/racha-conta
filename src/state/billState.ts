@@ -46,6 +46,39 @@ export interface AppState {
   log: LogEntry[];
   example: boolean;
   nextColor: number;
+  /** Rolê compartilhado: grupo no Supabase, última versão salva e o que falta enviar. */
+  shared?: BillSync;
+  /** Nome da conta deste aparelho: vai como "quem fez" no registro do rolê compartilhado. */
+  author?: string | null;
+}
+
+/** O que vai para o grupo: a conta, o registro e o que precisa ser igual em todo aparelho. */
+export interface RoleDoc {
+  bill: Bill;
+  log: LogEntry[];
+  nextColor: number;
+  startedAt: number;
+}
+
+/** Como na Viagem: a tela = `pending` aplicadas sobre `base` (a última versão salva no grupo). */
+export interface BillSync {
+  groupId: string;
+  code: string;
+  version: number;
+  base: RoleDoc;
+  pending: Action[];
+}
+
+export const roleDoc = (s: Pick<AppState, 'bill' | 'log' | 'nextColor' | 'startedAt'>): RoleDoc => ({
+  bill: s.bill,
+  log: s.log,
+  nextColor: s.nextColor,
+  startedAt: s.startedAt,
+});
+
+export function isValidRoleDoc(d: unknown): d is RoleDoc {
+  const x = d as RoleDoc | null;
+  return !!x && typeof x === 'object' && isValidBill(x.bill) && Array.isArray(x.log) && typeof x.nextColor === 'number' && typeof x.startedAt === 'number';
 }
 
 export type Action =
@@ -89,7 +122,16 @@ export type Action =
   | { type: 'cover'; id: string; by: string | null }
   | { type: 'settleMode'; mode: SettleMode }
   | { type: 'reset' }
-  | { type: 'open'; state: AppState };
+  | { type: 'open'; state: AppState }
+  // ---- compartilhamento (só o app manda; não entram no registro) ----
+  | { type: 'setAuthor'; name: string | null }
+  | { type: 'syncLink'; groupId: string; code: string; version: number }
+  | { type: 'syncRemote'; doc: RoleDoc; version: number }
+  | { type: 'syncSaved'; version: number; count: number; sent: RoleDoc }
+  | { type: 'syncUnlink' };
+
+/** Ações que só valem neste aparelho (nota aberta, foto guardada aqui, trocar de conta). */
+const LOCAL_ONLY = new Set<Action['type']>(['selectNote', 'photo', 'reset', 'open', 'setAuthor', 'syncLink', 'syncRemote', 'syncSaved', 'syncUnlink']);
 
 const KEY = 'racha-conta-v1';
 
@@ -401,6 +443,9 @@ function apply(state: AppState, action: Action): AppState {
 
     case 'open':
       return action.state;
+
+    default:
+      return state;
   }
 }
 
@@ -513,13 +558,52 @@ function describe(before: AppState, after: AppState, action: Action): string | n
 
 const TITLE_MERGE_MS = 2 * 60 * 1000;
 
+/**
+ * Aplica a ação e anota no registro. No rolê compartilhado, a mudança também entra na fila
+ * para ir ao grupo, e o registro leva o nome de quem fez.
+ */
 export function reducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case 'setAuthor':
+      return { ...state, author: action.name };
+    case 'syncLink':
+      return { ...state, shared: { groupId: action.groupId, code: action.code, version: action.version, base: roleDoc(state), pending: [] } };
+    case 'syncUnlink': {
+      const rest = { ...state };
+      delete rest.shared;
+      return rest;
+    }
+    case 'syncSaved':
+      return state.shared
+        ? { ...state, shared: { ...state.shared, version: action.version, base: action.sent, pending: state.shared.pending.slice(action.count) } }
+        : state;
+    case 'syncRemote': {
+      const sh = state.shared;
+      if (!sh || action.version <= sh.version) return state;
+      const local = replayRole(action.doc, sh.pending, state.author ?? null);
+      const noteId = state.noteId && local.bill.notes?.some((n) => n.id === state.noteId) ? state.noteId : null;
+      return { ...state, ...local, noteId, shared: { ...sh, version: action.version, base: action.doc } };
+    }
+  }
+  const after = reduceAs(state, action, state.shared ? state.author ?? null : null);
+  if (!state.shared || after === state || LOCAL_ONLY.has(action.type) || (after.bill === state.bill && after.nextColor === state.nextColor)) return after;
+  return { ...after, shared: { ...state.shared, pending: [...state.shared.pending, action] } };
+}
+
+/** Aplica a fila sobre a conta do grupo (o mesmo que aconteceu na tela, de novo). */
+export function replayRole(doc: RoleDoc, actions: Action[], by: string | null): RoleDoc {
+  let s: AppState = { ...blankState(), ...doc };
+  for (const a of actions) s = reduceAs(s, a, by);
+  return roleDoc(s);
+}
+
+function reduceAs(state: AppState, action: Action, by: string | null): AppState {
   const after = apply(state, action);
   if (after === state || action.type === 'reset' || action.type === 'open' || action.type === 'selectNote') return after;
   const text = describe(state, after, action);
   if (!text) return after;
 
-  const entry: LogEntry = { at: Date.now(), by: null, kind: action.type, text };
+  const entry: LogEntry = { at: Date.now(), by, kind: action.type, text };
   let log = state.log;
   // Digitar o nome gera uma linha por letra: junta numa só enquanto a pessoa digita.
   const last = log.at(-1);
@@ -587,7 +671,14 @@ function upgrade(x: Partial<AppState> & { bill: Bill }): AppState {
     log: validLog(x.log),
     example: !!x.example,
     nextColor: typeof x.nextColor === 'number' ? x.nextColor : x.bill.people.length,
+    ...(validSync(x.shared) ? { shared: x.shared } : {}),
+    ...(typeof x.author === 'string' ? { author: x.author } : {}),
   };
+}
+
+export function validSync(x: unknown): x is BillSync {
+  const s = x as BillSync | null;
+  return !!s && typeof s === 'object' && typeof s.groupId === 'string' && typeof s.code === 'string' && Number.isSafeInteger(s.version) && isValidRoleDoc(s.base) && Array.isArray(s.pending);
 }
 
 export function validLog(log: unknown): LogEntry[] {
