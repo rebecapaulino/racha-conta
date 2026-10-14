@@ -1,7 +1,7 @@
 import { useRef, useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import { formatWeight, type Traveler, type Trip, type TripSummary } from '../../core/trip';
+import { type Traveler, type Trip, type TripSummary } from '../../core/trip';
 import { newId } from '../../state/billState';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
@@ -17,7 +17,7 @@ interface Props {
   onEdit: (p: Traveler) => void;
 }
 
-/** Quem vai na viagem: pessoas ou famílias inteiras (com peso). */
+/** Quem vai na viagem: pessoas ou famílias inteiras. */
 export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Props) {
   const [name, setName] = useState('');
   const input = useRef<HTMLInputElement>(null);
@@ -75,10 +75,11 @@ export function TripPeople({ trip, summary, meId, fluent, dispatch, onEdit }: Pr
                       {person.name}
                       {person.id === meId && <span className="tag">você</span>}
                     </b>
-                    <small>
-                      <span>peso {formatWeight(person.weight)}</span>
-                      {(paid > 0 || owes > 0) && <> · <span>pagou {formatBRL(paid)}</span> · <span>consumiu {formatBRL(owes)}</span></>}
-                    </small>
+                    {(paid > 0 || owes > 0) && (
+                      <small>
+                        <span>pagou {formatBRL(paid)}</span> · <span>consumiu {formatBRL(owes)}</span>
+                      </small>
+                    )}
                     {person.coveredBy && trip.people.some((p) => p.id === person.coveredBy) && (
                       <small className="covered-tag">
                         {person.coveredBy === meId ? 'Você paga' : `${trip.people.find((p) => p.id === person.coveredBy)!.name} paga`}{' '}

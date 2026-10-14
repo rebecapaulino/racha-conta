@@ -1,9 +1,9 @@
 import { useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
-import { accountMembers, canCover, formatWeight, MAX_WEIGHT, travelerUsage, type Traveler, type Trip } from '../../core/trip';
+import { accountMembers, canCover, travelerUsage, type Traveler, type Trip } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
-import { IconMinus, IconPlus, IconTrash } from '../icons';
+import { IconTrash } from '../icons';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -15,13 +15,8 @@ interface Props {
   onClose: () => void;
 }
 
-const PRESETS = [
-  { weight: 1, label: 'Adulto', hint: '1' },
-  { weight: 0.5, label: 'Criança', hint: '0,5' },
-  { weight: 0, label: 'Não divide', hint: '0' },
-];
 
-/** Editar alguém da viagem: nome, peso, "sou eu" e remover (sem apagar nada em silêncio). */
+/** Editar alguém da viagem: nome, quem paga a parte, "sou eu" e remover (sem apagar nada em silêncio). */
 export function PersonSheet({ person, onClose, ...rest }: Props) {
   return (
     <Sheet open={!!person} onClose={onClose} labelledBy="h-person" className="person-sheet">
@@ -32,7 +27,6 @@ export function PersonSheet({ person, onClose, ...rest }: Props) {
 
 function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { person: Traveler }) {
   const [name, setName] = useState(person.name);
-  const [weight, setWeight] = useState(person.weight);
   const [isMe, setIsMe] = useState(person.id === meId);
   const [coveredBy, setCoveredBy] = useState(person.coveredBy ?? '');
   const sponsors = trip.people.filter((p) => canCover(trip, person.id, p.id));
@@ -43,10 +37,9 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
   const usage = travelerUsage(trip, person.id);
   const used = usage.expenses + usage.settlements > 0;
 
-  const step = (d: number) => setWeight((w) => Math.min(MAX_WEIGHT, Math.max(0, Math.round((w + d) * 2) / 2)));
 
   function save() {
-    dispatch({ type: 'editTraveler', id: person.id, name, weight, coveredBy: coveredBy || null });
+    dispatch({ type: 'editTraveler', id: person.id, name, coveredBy: coveredBy || null });
     if (isMe !== (person.id === meId)) dispatch({ type: 'setMe', id: isMe ? person.id : null });
     toast('Pessoa salva');
     onClose();
@@ -79,31 +72,6 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-      </div>
-
-      <div className="note-field">
-        <h3 className="field-label" id="h-weight">Peso na divisão</h3>
-        <div className="weight-row">
-          <div className="stepper" role="group" aria-labelledby="h-weight">
-            <button type="button" onClick={() => step(-0.5)} disabled={weight <= 0} aria-label="Diminuir peso">
-              <IconMinus size={18} />
-            </button>
-            <output aria-live="polite">{formatWeight(weight)}</output>
-            <button type="button" onClick={() => step(0.5)} disabled={weight >= MAX_WEIGHT} aria-label="Aumentar peso">
-              <IconPlus size={18} />
-            </button>
-          </div>
-          <div className="chips weight-presets">
-            {PRESETS.map((p) => (
-              <button key={p.label} type="button" className="chip" aria-pressed={weight === p.weight} onClick={() => setWeight(p.weight)}>
-                {p.label} <small>{p.hint}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="hint">
-          Vale quando a despesa é dividida <b>por peso</b>. Família inteira numa pessoa só? Some: 2 adultos e 1 criança = 2,5.
-        </p>
       </div>
 
       <div className="note-field">

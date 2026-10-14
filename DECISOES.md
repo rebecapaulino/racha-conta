@@ -261,3 +261,7 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Como:** o tema escolhido vai em `data-theme` no `<html>` antes da página aparecer (sem piscar). Cada bloco de estilo do escuro vale quando o aparelho está escuro e não foi escolhido o claro, ou quando foi escolhido o escuro.
 - **"Total da mesa"** no claro: cinza claro com sombra (antes, preto). No escuro continua preto.
 - **Fundo do modo claro:** branco (#FFFFFF) em vez de cinza (#F5F5F5); a barra do navegador acompanha.
+
+## Peso saiu de Pessoas
+
+- O ajuste de peso e o "peso 1" na lista saíram da tela de Pessoas. Despesas antigas divididas por peso continuam com a mesma conta (o peso guardado de cada pessoa não muda).
