@@ -315,3 +315,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Problema:** quando o Supabase respondia "não achei este grupo para você" (por um instante, ex.: sessão do Google sendo renovada), o app desligava a viagem/rolê do grupo sem avisar. Daí em diante, as mudanças daquele celular não iam para ninguém (e as bolinhas do grupo sumiam). Foi o caso do nome da viagem que não mudou.
 - **Agora:** o app nunca desliga sozinho. Mostra o erro na janela de compartilhar ("Não deu para falar com o grupo…"), com "Atualizar agora", a hora da última conferência e se há mudanças suas esperando. Dados do grupo que o app não reconhece também viram aviso (antes eram ignorados em silêncio).
 - **Quem já ficou desligado:** abrir o link de convite de novo religa (a viagem do grupo substitui a do aparelho).
+
+## Grupo sem tempo real (polling) — 14/10/2026
+
+- **Por quê:** o plano grátis do Supabase limita as conexões de tempo real (200 simultâneas), e não precisamos ver a mudança no mesmo segundo.
+- **Como fica:** cada mudança vai direto para o banco (com a conferência de versão). Os outros aparelhos buscam a versão nova **a cada 20 s, só com o app na tela**, e na hora em que a pessoa volta para o app (ou a internet volta). "Atualizar agora" na janela de compartilhar busca na hora. Nenhuma conexão de tempo real é aberta.
+- As tabelas continuam na publicação `supabase_realtime` (do SQL de 14/10); não faz diferença sem ninguém ouvindo.

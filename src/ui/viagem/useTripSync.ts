@@ -2,10 +2,12 @@ import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../../auth/account';
 import { isValidTrip, openTrip, type TripAction, type TripsState } from '../../state/tripState';
 import { getPhoto } from '../../state/photos';
-import { errorText, fetchMembers, fetchTripGroup, saveTripGroup, watchGroup, type Member, type SyncStatus } from '../../sync/groups';
+import { errorText, fetchMembers, fetchTripGroup, saveTripGroup, type Member, type SyncStatus } from '../../sync/groups';
 import { uploadReceipt, wasSent } from '../../sync/receipts';
 
 const RETRY_MS = 8000;
+/** De quanto em quanto tempo confere o grupo (com o app aberto). */
+const POLL_MS = 20000;
 
 /**
  * Mantém as viagens compartilhadas em dia: envia a fila de mudanças (quando há internet),
@@ -98,13 +100,8 @@ export function useTripSync(
         .catch(fail('Ver quem está no grupo'));
     void loadTrip();
     void loadMembers();
-    const stop = watchGroup(
-      groupId,
-      (r) => isValidTrip(r.trip) && dispatch({ type: 'syncRemote', tripId, trip: r.trip, version: r.version }),
-      loadMembers,
-    );
-    // Além do tempo real: confere de tempos em tempos e ao voltar para o app (se o tempo real
-    // cair, as mudanças dos outros aparecem do mesmo jeito).
+    // Sem tempo real (poupa as conexões do Supabase): confere o grupo de tempos em tempos,
+    // só com o app na tela, e na hora em que a pessoa volta para ele.
     const refresh = () => {
       if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
       void loadTrip();
@@ -115,13 +112,12 @@ export function useTripSync(
       void loadMembers();
       setTick((n) => n + 1);
     };
-    const timer = window.setInterval(refresh, 15000);
+    const timer = window.setInterval(refresh, POLL_MS);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
     return () => {
       alive = false;
-      stop();
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);

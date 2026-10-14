@@ -83,8 +83,8 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
         ) : !code ? (
           <>
             <p>
-              Quem você convidar vê e edita <b>{title}</b> com você, como um grupo. As mudanças aparecem para todo mundo
-              na hora, e o registro mostra quem fez cada uma.
+              Quem você convidar vê e edita <b>{title}</b> com você, como um grupo. Cada mudança vai para o grupo e aparece
+              para os outros em alguns segundos. O registro mostra quem fez cada uma.
             </p>
             <p className="field-error" role="alert">{error}</p>
             <button type="button" className="btn primary big" onClick={create} disabled={busy}>

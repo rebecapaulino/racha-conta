@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../auth/account';
 import { isValidRoleDoc, roleDoc, type Action, type AppState } from '../state/billState';
-import { errorText, fetchGroup, fetchMembers, saveGroup, watchContent, type Member, type SyncStatus } from '../sync/groups';
+import { errorText, fetchGroup, fetchMembers, saveGroup, type Member, type SyncStatus } from '../sync/groups';
 
 const RETRY_MS = 8000;
+/** De quanto em quanto tempo confere o grupo (com o app aberto). */
+const POLL_MS = 20000;
 
 /** Igual ao da Viagem, para o rolê aberto: envia a fila, busca de novo no conflito e ouve o grupo. */
 export function useBillSync(
@@ -88,13 +90,8 @@ export function useBillSync(
         .catch(fail('Ver quem está no grupo'));
     void loadDoc();
     void loadMembers();
-    const stop = watchContent(
-      groupId,
-      (r) => isValidRoleDoc(r.content) && dispatch({ type: 'syncRemote', doc: r.content, version: r.version }),
-      loadMembers,
-    );
-    // Além do tempo real: confere de tempos em tempos e ao voltar para o app (se o tempo real
-    // cair, as mudanças dos outros aparecem do mesmo jeito).
+    // Sem tempo real (poupa as conexões do Supabase): confere o grupo de tempos em tempos,
+    // só com o app na tela, e na hora em que a pessoa volta para ele.
     const refresh = () => {
       if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
       void loadDoc();
@@ -105,13 +102,12 @@ export function useBillSync(
       void loadMembers();
       setTick((n) => n + 1);
     };
-    const timer = window.setInterval(refresh, 15000);
+    const timer = window.setInterval(refresh, POLL_MS);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
     return () => {
       alive = false;
-      stop();
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);

@@ -1,8 +1,8 @@
-// Grupos no Supabase: criar, entrar pelo convite, buscar, salvar e ouvir mudanças.
+// Grupos no Supabase: criar, entrar pelo convite, buscar e salvar. Sem tempo real: cada
+// aparelho confere o grupo de tempos em tempos (ver useTripSync/useBillSync).
 // Quem protege os dados são as regras do banco (só quem é do grupo lê; gravar só pelas
 // funções, que conferem o grupo e a versão). Ver supabase/migrations/20261014_grupos.sql.
 
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../auth/supabase';
 import type { Trip } from '../core/trip';
 
@@ -101,33 +101,4 @@ export async function fetchMembers(groupId: string): Promise<Member[]> {
   const { data, error } = await db().from('group_members').select('user_id, name, photo, role, joined_at').eq('group_id', groupId).order('joined_at');
   if (error) throw error;
   return (data ?? []).map((m) => ({ userId: m.user_id, name: m.name, photo: m.photo, role: m.role }));
-}
-
-/** Ouve o grupo da viagem: nova versão e gente entrando ou saindo. Devolve como parar. */
-export function watchGroup(groupId: string, onTrip: (r: { trip: Trip; version: number }) => void, onMembers: () => void): () => void {
-  return watchContent(
-    groupId,
-    (r) => {
-      const trip = (r.content as { trip?: Trip } | null)?.trip;
-      if (trip) onTrip({ trip, version: r.version });
-    },
-    onMembers,
-  );
-}
-
-/** Ouve o grupo: conteúdo novo e gente entrando ou saindo. Devolve como parar. */
-export function watchContent(groupId: string, onContent: (r: { content: unknown; version: number }) => void, onMembers: () => void): () => void {
-  const sb = supabase();
-  if (!sb) return () => {};
-  const channel: RealtimeChannel = sb
-    .channel(`grupo-${groupId}`)
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'groups', filter: `id=eq.${groupId}` }, (p) => {
-      const row = p.new as { data?: unknown; version?: number };
-      if (row.data && typeof row.version === 'number') onContent({ content: row.data, version: row.version });
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${groupId}` }, () => onMembers())
-    .subscribe();
-  return () => {
-    void sb.removeChannel(channel);
-  };
 }
