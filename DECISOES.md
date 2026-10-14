@@ -236,3 +236,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Carrossel:** o acerto da Viagem mostra um card por vez (quem paga e para quem). A seta no centro, à direita, passa para a próxima pessoa com uma animação de deslizar (sem animação para quem pediu menos movimento). No último, volta ao primeiro. Não há mais vários cards um embaixo do outro.
 - **"Todos pagos"** saiu da tela de editar e ficou embaixo de cada despesa na caderneta (um toque marca, outro desmarca, com Desfazer).
 - **Pagamento ligado a despesas excluídas e ativas:** continua valendo para as que ficaram, até o que se deve nelas (antes saía inteiro).
+
+## Extrato com status de cada pessoa
+
+- **Formato de extrato:** linhas separadas por um traço, sem cards. À direita, o valor (verde recebe, vermelho paga) ou o status: "✓ pago", "✓ recebido", "(não incluso)" para quem não participa de nenhuma despesa, e "parte paga por X" para quem tem a parte paga por outra pessoa.
+- **Pago:** quem já pagou aparece como "pago" (não "quite"), e o card do acerto continua na tela, marcado em verde.
+- Lógica em `statementRows` (trip.ts), testada.

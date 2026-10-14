@@ -709,6 +709,68 @@ function reconcile(
   return rows;
 }
 
+/** Uma linha do extrato de saldos. */
+export interface StatementRow {
+  id: string;
+  /**
+   * recebe / paga: falta acertar `cents`. pago: devia e já pagou. recebido: tinha a receber e
+   * já recebeu. coberta: a parte dela é paga por outra pessoa (`by`). fora: não participa.
+   */
+  kind: 'recebe' | 'paga' | 'pago' | 'recebido' | 'coberta' | 'fora';
+  cents: number;
+  /** Quem paga a parte dela (coberta). */
+  by?: string[];
+  /** De quem ela paga a parte junto (na conta dela). */
+  with?: string[];
+}
+
+/**
+ * O extrato: uma linha por pessoa. Quem tem a parte paga por outro aparece só com o aviso;
+ * o valor fica na linha de quem paga (a conta junta), igual ao acerto.
+ */
+export function statementRows(trip: Trip, summary: TripSummary): StatementRow[] {
+  const row = new Map(summary.people.map((r) => [r.person.id, r]));
+  // Quem paga partes dos outros em alguma despesa (só nesta despesa).
+  const sponsorsOf = new Map<string, Set<string>>();
+  for (const e of openExpenses(trip)) {
+    for (const pid of Object.keys(e.shares)) {
+      const by = chargedTo(e, pid);
+      if (by !== pid) sponsorsOf.set(pid, (sponsorsOf.get(pid) ?? new Set()).add(by));
+    }
+  }
+  return trip.people.map((p): StatementRow => {
+    const root = accountOf(trip, p.id);
+    if (root !== p.id) return { id: p.id, kind: 'coberta', cents: 0, by: [root] };
+    const members = accountMembers(trip, p.id).map((m) => m.id);
+    const all = [p.id, ...members].map((id) => row.get(id)).filter((r) => r !== undefined);
+    const sum = (k: 'paid' | 'owes' | 'charged' | 'sent' | 'received' | 'balance') => all.reduce((a, r) => a + r[k], 0);
+    const balance = sum('balance');
+    const base = members.length ? { with: members } : {};
+    if (balance > 0) return { id: p.id, kind: 'recebe', cents: balance, ...base };
+    if (balance < 0) return { id: p.id, kind: 'paga', cents: -balance, ...base };
+    // Participa de alguma despesa (também das marcadas "Todos pagos")?
+    const ids = new Set([p.id, ...members]);
+    let net = 0;
+    let involved = false;
+    for (const e of activeExpenses(trip)) {
+      if (ids.has(e.payerId)) {
+        involved = true;
+        net += e.cents;
+      }
+      for (const [pid, c] of Object.entries(e.shares)) {
+        if (ids.has(pid)) involved = true;
+        if (ids.has(chargedTo(e, pid))) net -= c;
+      }
+    }
+    if (!involved && sum('sent') === 0 && sum('received') === 0) return { id: p.id, kind: 'fora', cents: 0 };
+    // Consumiu, mas outra pessoa pagou a parte dela nas despesas (só nelas).
+    if (sum('charged') === 0 && sum('paid') === 0 && sponsorsOf.has(p.id)) {
+      return { id: p.id, kind: 'coberta', cents: 0, by: [...sponsorsOf.get(p.id)!] };
+    }
+    return { id: p.id, kind: net > 0 ? 'recebido' : 'pago', cents: 0, ...base };
+  });
+}
+
 /**
  * Quem paga a próxima: quem está devendo mais ao caixa. Se cada despesa nova for paga por
  * essa pessoa, os saldos se equilibram durante a viagem e sobra pouco para acertar no fim.

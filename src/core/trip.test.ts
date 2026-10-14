@@ -19,6 +19,7 @@ import {
   setExpenseDeleted,
   setExpenseSettled,
   splitExpense,
+  statementRows,
   tripBalancesText,
   tripSettleText,
   tripSummary,
@@ -905,5 +906,41 @@ describe('despesa "Todos pagos"', () => {
     const ab = setExpenseDeleted(a, t.expenses[1].id, true, NOW);
     expect(balances(ab)).toEqual({ ana: 0, bia: 0 });
     expect(tripSummary(ab).plan.direct).toEqual([]);
+  });
+});
+
+describe('extrato de saldos', () => {
+  const ext = (t: Trip) => Object.fromEntries(statementRows(t, tripSummary(t)).map((r) => [r.id, [r.kind, r.cents, ...(r.by ?? []), ...(r.with ? ['com', ...r.with] : [])]]));
+
+  it('cada um com o status: paga, recebe, pago, recebido, não incluso', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Natacha', 'Robin']);
+    t = add(t, { cents: 15000, payerId: 'mauricio', people: ['rebeca', 'mauricio', 'natacha'] });
+    expect(ext(t)).toEqual({ rebeca: ['paga', 5000], mauricio: ['recebe', 10000], natacha: ['paga', 5000], robin: ['fora', 0] });
+    const r = addSettlement(t, { from: 'rebeca', to: 'mauricio', cents: 5000 }, 's1', NOW);
+    if (!r.ok) throw new Error(r.error);
+    expect(ext(r.trip)).toEqual({ rebeca: ['pago', 0], mauricio: ['recebe', 5000], natacha: ['paga', 5000], robin: ['fora', 0] });
+    const r2 = addSettlement(r.trip, { from: 'natacha', to: 'mauricio', cents: 5000 }, 's2', NOW);
+    if (!r2.ok) throw new Error(r2.error);
+    expect(ext(r2.trip).mauricio).toEqual(['recebido', 0]);
+  });
+
+  it('despesa "Todos pagos": quem participou aparece como pago (ou recebido), não como não incluso', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Robin']);
+    t = add(t, { cents: 10000, payerId: 'mauricio', people: ['rebeca', 'mauricio'] });
+    t = setExpenseSettled(t, t.expenses[0].id, true, NOW);
+    expect(ext(t)).toEqual({ rebeca: ['pago', 0], mauricio: ['recebido', 0], robin: ['fora', 0] });
+  });
+
+  it('quem tem a parte paga por outro aparece com o aviso, e o valor fica na conta de quem paga', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Robin']);
+    t = { ...t, people: t.people.map((p) => (p.id === 'robin' ? { ...p, coveredBy: 'rebeca' } : p)) };
+    t = add(t, { cents: 15000, payerId: 'mauricio' });
+    expect(ext(t)).toEqual({ rebeca: ['paga', 10000, 'com', 'robin'], mauricio: ['recebe', 10000], robin: ['coberta', 0, 'rebeca'] });
+  });
+
+  it('parte paga por outro só numa despesa', () => {
+    let t = tripWith(['Rebeca', 'Mauricio', 'Robin']);
+    t = add(t, { cents: 15000, payerId: 'mauricio', coveredBy: { robin: 'rebeca' } });
+    expect(ext(t)).toEqual({ rebeca: ['paga', 10000], mauricio: ['recebe', 10000], robin: ['coberta', 0, 'rebeca'] });
   });
 });

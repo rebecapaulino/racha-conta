@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch } from 'react';
 import { whatsappUrl } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import { accountOf, activeExpenses, activeSettlements, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
+import { accountOf, activeExpenses, activeSettlements, statementRows, categoryLabel, settleTransfers, tripBalancesText, tripSettleText, type SettleMode, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
 import { IconAlert, IconCheck, IconCopy, IconImage, IconShare } from '../icons';
@@ -215,23 +215,44 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
 
       <section className="card" aria-labelledby="h-balances">
         <div className="card-head">
-          <h2 id="h-balances">Saldos</h2>
+          <h2 id="h-balances">Extrato</h2>
         </div>
-        {/* Extrato: o saldo de cada um de uma vez. Verde recebe, vermelho paga. */}
+        {/* Uma linha por pessoa, como num extrato: verde recebe, vermelho paga, e o status ao lado. */}
         <ul className="statement">
-          {summary.people.map(({ person: p, balance }) => (
-            <li key={p.id} className="statement-row">
-              <Avatar person={p} size="md" />
-              <span className="statement-name">
-                <b>{p.name}</b>
-                {p.id === meId && <small>Você</small>}
-              </span>
-              <span className="statement-amount">
-                <span className="sr">{balance > 0 ? 'recebe' : balance < 0 ? 'paga' : 'está quite'}</span>
-                {balance === 0 ? <b className="num amt-zero">quite</b> : <Signed cents={balance} />}
-              </span>
-            </li>
-          ))}
+          {statementRows(trip, summary).map((r) => {
+            const p = person(r.id);
+            const names = (ids: string[] = []) => ids.map((id) => called(id, true)).join(', ');
+            return (
+              <li key={r.id} className={`statement-row is-${r.kind}`}>
+                <Avatar person={p} size="md" />
+                <span className="statement-name">
+                  <b>{p.name}</b>
+                  {(p.id === meId || r.with) && (
+                    <small>
+                      {p.id === meId ? 'Você' : ''}
+                      {p.id === meId && r.with ? ' · ' : ''}
+                      {r.with ? `com a parte de ${names(r.with)}` : ''}
+                    </small>
+                  )}
+                </span>
+                <span className="statement-amount">
+                  {r.kind === 'recebe' || r.kind === 'paga' ? (
+                    <>
+                      <span className="sr">{r.kind} </span>
+                      <Signed cents={r.kind === 'recebe' ? r.cents : -r.cents} />
+                    </>
+                  ) : (
+                    <span className="statement-status">
+                      {r.kind === 'pago' && <><IconCheck size={14} /> pago</>}
+                      {r.kind === 'recebido' && <><IconCheck size={14} /> recebido</>}
+                      {r.kind === 'fora' && '(não incluso)'}
+                      {r.kind === 'coberta' && `parte paga por ${names(r.by)}`}
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </section>
 
