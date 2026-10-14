@@ -154,7 +154,10 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
     case 'editExpense': {
       const [b, e] = [exp(before, a.id), exp(after, a.id)];
       if (!b || !e) return null;
-      return b.cents !== e.cents ? `Editou ${e.description}: ${formatBRL(b.cents)} → ${formatBRL(e.cents)}` : `Editou ${e.description}`;
+      if (b.cents !== e.cents) return `Editou ${e.description}: ${formatBRL(b.cents)} → ${formatBRL(e.cents)}`;
+      if (!b.receipt && e.receipt) return `Adicionou a nota fiscal de ${e.description}`;
+      if (b.receipt && !e.receipt) return `Tirou a nota fiscal de ${e.description}`;
+      return `Editou ${e.description}`;
     }
     case 'deleteExpense': {
       const e = exp(after, a.id);
@@ -368,6 +371,7 @@ function cleanInput(input: ExpenseInput): ExpenseInput {
   if (input.split !== 'exact') delete out.exact;
   if (installmentsOf(input) === 1) delete out.installments;
   if (!out.coveredBy || !Object.keys(out.coveredBy).length) delete out.coveredBy;
+  if (!out.receipt) delete out.receipt;
   return out;
 }
 
@@ -391,7 +395,8 @@ function isValidExpense(e: unknown): e is Expense {
     (e.deleted === undefined || e.deleted === true) &&
     (e.settled === undefined || e.settled === true) &&
     (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
-    (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr)))
+    (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr))) &&
+    (e.receipt === undefined || (isStr(e.receipt) && /^[a-z0-9]{6,40}$/.test(e.receipt)))
   );
 }
 

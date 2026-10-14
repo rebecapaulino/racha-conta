@@ -21,6 +21,7 @@ import { todayISO, type TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
 import { IconAlert, IconCheck, IconMinus, IconPlus, IconTrash } from '../icons';
 import { CategoryIcon } from './CategoryIcon';
+import { ReceiptField, totalText } from './ReceiptField';
 import { Sheet } from './Sheet';
 import { dayLabel } from './tripDates';
 
@@ -35,6 +36,8 @@ interface Props {
   onClose: () => void;
   /** Depois de lançar ou salvar (para mostrar a caderneta). */
   onSaved?: () => void;
+  /** Grupo da viagem compartilhada (para ver a foto da nota que outra pessoa tirou). */
+  groupId?: string | null;
 }
 
 /** Lançar ou editar uma despesa, em etapas: valor, categoria, quem pagou e quem participa. */
@@ -61,7 +64,7 @@ const ALL_STEPS: { key: StepKey; name: string; title: string }[] = [
 /** "1.072,48": centavos no formato de digitar (sem o "R$"). */
 const typed = (cents: number) => formatBRL(cents).replace(/^R\$\s?/, '');
 
-function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Props & { mode: ExpenseMode }) {
+function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, groupId = null }: Props & { mode: ExpenseMode }) {
   const editing = mode.kind === 'edit' ? mode.expense : null;
   const people = trip.people;
   const amountRef = useRef<HTMLInputElement>(null);
@@ -76,6 +79,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState(editing ? typed(editing.cents) : '');
   const [description, setDescription] = useState(editing?.description ?? '');
+  const [receipt, setReceipt] = useState<string | null>(editing?.receipt ?? null);
+  // Total lido na foto da nota: preenche o valor (se vazio) ou oferece "Usar".
+  const [readTotal, setReadTotal] = useState<{ cents: number | null } | null>(null);
   const [category, setCategory] = useState<TripCategory>(editing?.category ?? lastCategory);
   const [payerId, setPayerId] = useState(editing?.payerId ?? defaultPayer);
   const [who, setWho] = useState<string[]>(editing?.people ?? people.map((p) => p.id));
@@ -143,6 +149,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
     people: who,
     ...(split === 'exact' ? { exact: Object.fromEntries(who.map((id) => [id, exactCents(id) ?? -1])) } : {}),
     ...(parts > 1 ? { installments: parts } : {}),
+    ...(receipt ? { receipt } : {}),
     ...(cover.scope === 'expense' && cover.ids.some((id) => who.includes(id))
       ? { coveredBy: Object.fromEntries(cover.ids.filter((id) => who.includes(id)).map((id) => [id, payerId])) }
       : {}),
@@ -295,6 +302,46 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
 
         {key === 'valor' && (
           <>
+            <ReceiptField
+              receipt={receipt}
+              groupId={groupId}
+              onChange={(id) => {
+                setReceipt(id);
+                if (!id) setReadTotal(null);
+              }}
+              onTotal={(c) => {
+                setReadTotal({ cents: c });
+                if (c && !cents) {
+                  setAmount(typed(c));
+                  setError('');
+                  setDupOk(false);
+                }
+              }}
+              toast={toast}
+            />
+            {readTotal && (
+              <p className="hint receipt-read" aria-live="polite">
+                {readTotal.cents === null ? (
+                  'Não consegui ler o total na foto. Confira e digite o valor.'
+                ) : readTotal.cents === cents ? (
+                  <>{totalText(readTotal.cents)}. Confira se está certo.</>
+                ) : (
+                  <>
+                    {totalText(readTotal.cents)}.{' '}
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => {
+                        setAmount(typed(readTotal.cents!));
+                        setDupOk(false);
+                      }}
+                    >
+                      Usar esse valor
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
             <div className="money big-money">
               <span aria-hidden="true">R$</span>
               <label className="sr" htmlFor="exp-amount">Valor da despesa, em reais</label>

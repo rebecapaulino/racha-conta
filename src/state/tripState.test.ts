@@ -260,3 +260,20 @@ describe('viagem compartilhada (fila e versões)', () => {
     expect(trip(s).name).toBe('Praia');
   });
 });
+
+describe('nota fiscal na despesa', () => {
+  it('guarda a foto da nota na despesa, anota no registro e tira quando a pessoa remove', () => {
+    const s0 = run(blankTrips(), { type: 'createTrip', id: 'v', name: 'Praia', meName: 'Rebeca', meId: 'r' });
+    const input = { description: 'Mercado', cents: 6000, date: '2026-10-14', category: 'mercado' as const, payerId: 'r', split: 'equal' as const, people: ['r'] };
+    let s = run(s0, { type: 'addExpense', id: 'e1', input });
+    s = run(s, { type: 'editExpense', id: 'e1', input: { ...input, receipt: 'foto123abc' } });
+    expect(trip(s).expenses[0].receipt).toBe('foto123abc');
+    expect(trip(s).log!.at(-1)!.text).toBe('Adicionou a nota fiscal de Mercado');
+    expect(isValidTrip(trip(s))).toBe(true);
+    s = run(s, { type: 'editExpense', id: 'e1', input });
+    expect(trip(s).expenses[0].receipt).toBeUndefined();
+    expect(trip(s).log!.at(-1)!.text).toBe('Tirou a nota fiscal de Mercado');
+    // Id estranho (vindo de outro aparelho) não passa.
+    expect(isValidTrip({ ...trip(s), expenses: [{ ...trip(s).expenses[0], receipt: '../x' }] })).toBe(false);
+  });
+});

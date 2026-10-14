@@ -293,3 +293,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 ## Rolê: X para apagar nota fiscal — 14/10/2026
 
 - Cada nota na faixa de notas tem um X no canto (com confirmação). Antes, a última nota não podia ser apagada e ficava presa mesmo sem despesas. Agora, apagar a última (ou a conta de uma nota só) tira os itens, quem pagou, quem já pagou e os acertos; as pessoas e o nome da conta ficam.
+
+## Viagem: nota fiscal na despesa e bloco de notas — 14/10/2026
+
+- **Na despesa (etapa 1):** "Nota fiscal" com câmera ou galeria. O app lê o total no próprio celular (mesmo leitor do Rolê) e preenche o valor; se já tinha valor diferente, oferece "Usar esse valor"; se não leu, pede para digitar. A foto fica guardada na despesa (X para tirar). Registro: "Adicionou a nota fiscal de X".
+- **Viagem compartilhada:** a foto vai para o Supabase Storage (balde privado `notas`, pasta do grupo; só quem é do grupo vê e envia — `supabase/migrations/20261015_notas.sql`). Quem não tirou baixa uma vez e guarda no aparelho. Sem internet, a foto sobe depois.
+- **Bloco "Notas fiscais (N)"** na caderneta: todas as notas da viagem, separadas por categoria (com o total de cada uma); tocar abre a nota grande.
+- Na lista de despesas, a que tem nota mostra "nota".

@@ -65,6 +65,11 @@ export interface ExpenseInput {
    * parte entra na conta de quem paga. Para valer na viagem toda, é o `coveredBy` da pessoa.
    */
   coveredBy?: Record<string, string>;
+  /**
+   * Foto da nota fiscal (id da foto). Fica no aparelho; na viagem compartilhada, também no
+   * Supabase Storage, para o grupo todo ver.
+   */
+  receipt?: string;
 }
 
 /** Quem acerta a parte de `pid` nesta despesa: quem paga por ela aqui, ou ela mesma. */
@@ -279,6 +284,7 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   if (input.split !== 'exact') delete expense.exact;
   // Voltou para à vista: deixa de ser parcelada (sem isso, a parcela antiga continuava no acerto).
   if (installmentsOf(input) === 1) delete expense.installments;
+  if (!input.receipt) delete expense.receipt;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
   else delete expense.coveredBy;

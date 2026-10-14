@@ -3,7 +3,8 @@ import { formatBRL } from '../../core/money';
 import { activeExpenses, categoryLabel, installmentsOf, nextPayer, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, AvatarStack } from '../Avatar';
-import { IconBulb, IconCheck, IconFilter, IconX } from '../icons';
+import { IconBulb, IconCheck, IconFilter, IconReceipt, IconX } from '../icons';
+import { ReceiptsSheet, withReceipt } from './ReceiptsSheet';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { dayLabel, dayNumber } from './tripDates';
@@ -17,6 +18,8 @@ interface Props {
   toast: (msg: string, undo?: () => void) => void;
   onEdit: (e: Expense) => void;
   onGoPeople: () => void;
+  /** Grupo da viagem compartilhada (fotos das notas que outras pessoas tiraram). */
+  groupId?: string | null;
 }
 
 const SPLIT_TAG = { equal: '', weight: 'por peso', exact: 'valores exatos' } as const;
@@ -40,7 +43,9 @@ function setTipHidden(tripId: string, hidden: boolean) {
 }
 
 /** Caderneta: as despesas em páginas, uma por dia (a mais recente primeiro). */
-export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onGoPeople }: Props) {
+export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onEdit, onGoPeople, groupId = null }: Props) {
+  const [receiptsOpen, setReceiptsOpen] = useState(false);
+  const receiptCount = withReceipt(trip).length;
   const [person, setPerson] = useState('');
   const [category, setCategory] = useState('');
   const [day, setDay] = useState('');
@@ -125,6 +130,13 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
         </section>
       )}
 
+      {receiptCount > 0 && (
+        <button type="button" className="btn secondary receipts-btn" onClick={() => setReceiptsOpen(true)}>
+          <IconReceipt size={18} /> Notas fiscais ({receiptCount})
+        </button>
+      )}
+      <ReceiptsSheet trip={trip} groupId={groupId} open={receiptsOpen} onClose={() => setReceiptsOpen(false)} />
+
       {all.length > 1 && (
         <div className="filters" role="group" aria-label="Filtrar despesas">
           <span className="filters-icon" aria-hidden="true"><IconFilter size={18} /></span>
@@ -200,6 +212,7 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                           <span>{everyone ? 'todos' : who.length === 1 ? `só ${who[0].id === meId ? 'você' : who[0].name}` : `${who.length} pessoas`}</span>
                           {tag && <> · <span>{tag}</span></>}
                           {installmentsOf(e) > 1 && <> · <span className="parts-tag">{installmentsOf(e)}x</span></>}
+                          {e.receipt && <> · <span className="receipt-tag"><IconReceipt size={13} /> nota</span></>}
                         </small>
                       </span>
                       <span className="line-end">

@@ -228,6 +228,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
                 toast={toast}
                 onEdit={(e: Expense) => setExpenseMode({ kind: 'edit', expense: e })}
                 onGoPeople={() => go('pessoas')}
+                groupId={entry?.groupId ?? null}
               />
             )}
             {current === 'saldos' && balances}
@@ -258,6 +259,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         toast={toast}
         onClose={() => setExpenseMode(null)}
         onSaved={() => current === 'pessoas' && setTab('despesas')}
+        groupId={entry?.groupId ?? null}
       />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />

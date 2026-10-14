@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../../auth/account';
 import { isValidTrip, openTrip, type TripAction, type TripsState } from '../../state/tripState';
+import { getPhoto } from '../../state/photos';
 import { fetchMembers, fetchTripGroup, saveTripGroup, watchGroup, type Member } from '../../sync/groups';
+import { uploadReceipt, wasSent } from '../../sync/receipts';
 
 const RETRY_MS = 8000;
 
@@ -82,6 +84,23 @@ export function useTripSync(state: TripsState, dispatch: Dispatch<TripAction>, a
       stop();
     };
   }, [groupId, tripId, userId, dispatch]);
+
+  // Fotos das notas tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
+  const receipts = (open?.expenses ?? []).map((e) => e.receipt).filter((r): r is string => !!r).join(',');
+  useEffect(() => {
+    if (!groupId || !userId || !receipts || navigator.onLine === false) return;
+    let alive = true;
+    (async () => {
+      for (const id of receipts.split(',')) {
+        if (!alive || wasSent(groupId, id)) continue;
+        const blob = await getPhoto(id);
+        if (blob) await uploadReceipt(groupId, id, blob);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [groupId, userId, receipts, tick]);
 
   return { members: members && members.groupId === groupId ? members.list : [] };
 }
