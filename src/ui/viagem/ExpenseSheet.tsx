@@ -23,6 +23,7 @@ import { Avatar, personStyle } from '../Avatar';
 import { IconAlert, IconCheck, IconMinus, IconPlus, IconTrash } from '../icons';
 import { CategoryIcon } from './CategoryIcon';
 import { Sheet } from './Sheet';
+import { dayLabel } from './tripDates';
 
 export type ExpenseMode = { kind: 'new'; payerId?: string } | { kind: 'edit'; expense: Expense };
 
@@ -53,8 +54,8 @@ const ALL_STEPS: { key: StepKey; name: string; title: string }[] = [
   { key: 'valor', name: 'Valor', title: 'Quanto foi?' },
   { key: 'categoria', name: 'Categoria', title: 'Qual a categoria?' },
   { key: 'pagamento', name: 'Pagamento', title: 'Quem pagou?' },
-  { key: 'conta', name: 'Conta de quem pagou', title: 'Alguém paga junto?' },
-  { key: 'quem', name: 'Quem participa', title: 'Quem participa?' },
+  { key: 'conta', name: 'Conta', title: 'Alguém paga junto?' },
+  { key: 'quem', name: 'Pessoas', title: 'Quem participa?' },
   { key: 'divisao', name: 'Divisão', title: 'Como dividir?' },
 ];
 
@@ -260,10 +261,10 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
               disabled={i > reached}
               data-done={i < at || undefined}
               aria-current={i === at ? 'step' : undefined}
-              aria-label={`Etapa ${i + 1}: ${s.name}`}
-              title={s.name}
               onClick={() => go(i)}
-            />
+            >
+              <span>{s.name}</span>
+            </button>
           </li>
         ))}
       </ol>
@@ -275,8 +276,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
         </p>
       ) : null}
 
-      <div className={`wizard-step${key === 'categoria' ? ' is-tight' : ''}`} key={key}>
-        <h3 className={`wizard-title${key === 'categoria' ? ' wizard-title-sm' : ''}`} ref={titleRef} tabIndex={-1}>
+      <div className="wizard-step" key={key}>
+        <h3 className="wizard-title" ref={titleRef} tabIndex={-1}>
           <small>Etapa {at + 1} de {steps.length}</small>
           {key === 'conta' ? `Alguém paga junto com ${rootPerson?.id === meId ? 'você' : rootPerson?.name}?` : steps[at].title}
         </h3>
@@ -311,14 +312,13 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
                 id="exp-desc"
                 className="input"
                 maxLength={MAX_DESCRIPTION}
-                placeholder="Ex.: Almoço na praia"
+                placeholder={`Ex.: ${categoryLabel(trip, category)}`}
                 autoComplete="off"
                 autoCapitalize="sentences"
                 enterKeyHint="next"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
-              <small className="hint">Sem nome, fica o nome da categoria.</small>
             </div>
 
             {editing && (
@@ -383,6 +383,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
                   setDupOk(false);
                 }}
               />
+              <small className="hint">{dayLabel(date)}</small>
             </div>
 
             <div className="note-field">

@@ -262,12 +262,6 @@ export function addSettlement(trip: Trip, t: Transfer & { expenseId?: string }, 
 
 export const activeExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.deleted);
 
-/**
- * Alguma despesa ativa foi dividida por peso? A opção saiu da tela (confundia), mas viagens
- * antigas que usaram continuam certas, e o peso de cada pessoa só aparece nelas.
- */
-export const usesWeight = (trip: Trip) => activeExpenses(trip).some((e) => e.split === 'weight');
-
 /** Onde a pessoa aparece (contando despesas excluídas, que podem voltar). */
 export function travelerUsage(trip: Trip, id: string): { expenses: number; settlements: number } {
   return {

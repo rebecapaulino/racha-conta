@@ -22,7 +22,6 @@ import {
   tripSettleText,
   tripSummary,
   updateExpense,
-  usesWeight,
   type ExpenseInput,
   type Trip,
 } from './trip';
@@ -701,19 +700,5 @@ describe('despesa parcelada no cartão', () => {
     let t = tripWith(['Ana', 'Bia']);
     t = add(t, { cents: 1000, payerId: 'ana', installments: 99 });
     expect(tripSummary(t).plan.direct.every((r) => !r.expenseId)).toBe(true);
-  });
-});
-
-describe('divisão por peso (opção antiga)', () => {
-  it('só aparece em viagem que já tem despesa dividida por peso, e a conta continua certa', () => {
-    let t = tripWith(['Ana', 'Bia'], [1, 0.5]);
-    t = add(t, { cents: 9000, payerId: 'ana' });
-    expect(usesWeight(t)).toBe(false);
-    t = add(t, { cents: 3000, payerId: 'ana', split: 'weight' });
-    expect(usesWeight(t)).toBe(true);
-    // 3000 por peso 1 e 0,5: Ana 2000, Bia 1000. Bia deve 4500 + 1000.
-    expect(balances(t)).toEqual({ ana: 5500, bia: -5500 });
-    t = setExpenseDeleted(t, t.expenses[1].id, true, NOW);
-    expect(usesWeight(t)).toBe(false);
   });
 });

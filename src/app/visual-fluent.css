@@ -131,7 +131,7 @@
     font-weight: 400;
   }
   & .input:focus { border-color: var(--stroke); border-bottom-color: var(--primary); box-shadow: inset 0 -1px 0 var(--primary); }
-  & .field-label { font-weight: 600; font-size: .95rem; }
+  & .field-label, & .wizard-title { font-weight: 600; font-size: .95rem; }
   & .field-error { color: var(--danger); font-weight: 400; }
 
   & .search {

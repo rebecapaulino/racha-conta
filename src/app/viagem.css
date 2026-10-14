@@ -535,17 +535,21 @@ h3.field-label { margin: 0; }
 .history .new-bill { width: 100%; }
 
 /* ---------- nova despesa em etapas ---------- */
-.wizard-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
-.wizard-steps li { flex: 1 1 0; min-width: 0; }
-/* Só a barra: o nome da etapa vem no título ("Etapa 2 de 5") e no rótulo do botão. */
+.wizard-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; }
+/* Cada pedaço da barra tem a largura do nome (que cabe inteiro) e divide o espaço que sobra. */
+.wizard-steps li { flex: 1 1 auto; min-width: 0; }
 .wizard-steps button {
-  width: 100%; min-height: 44px; padding: 0; border: 0; background: none; cursor: pointer;
-  display: flex; align-items: center;
+  width: 100%; min-width: 0; min-height: 44px; padding: 6px 0 0;
+  display: flex; flex-direction: column; gap: 6px;
+  border: 0; background: none; color: var(--muted); font: inherit; font-size: .72rem; font-weight: 600; letter-spacing: -0.01em; text-align: left; cursor: pointer;
 }
-.wizard-steps button::before { content: ""; display: block; width: 100%; height: 6px; border-radius: 999px; background: var(--line); transition: background-color .2s; }
+.wizard-steps button::before { content: ""; display: block; height: 4px; border-radius: 999px; background: var(--line); transition: background-color .2s; }
+.wizard-steps button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wizard-steps button[data-done]::before, .wizard-steps button[aria-current]::before { background: var(--primary); }
-.wizard-steps button[aria-current]::before { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
+.wizard-steps button[aria-current] { color: var(--ink); }
 .wizard-steps button:disabled { cursor: default; }
+.wizard-steps button:not(:disabled):hover span { color: var(--ink); }
+@media (max-width: 360px) { .wizard-steps { gap: 3px; } .wizard-steps button { font-size: .64rem; letter-spacing: -0.02em; } }
 
 .wizard-recap { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: .88rem; min-width: 0; }
 .wizard-recap > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -553,14 +557,11 @@ h3.field-label { margin: 0; }
 .wizard-recap .cat-tile { width: 28px; height: 28px; border-radius: 8px; flex: none; }
 
 .wizard-step { display: flex; flex-direction: column; gap: 14px; animation: wizard-in .2s ease-out; }
-.wizard-title { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 1.25rem; line-height: 1.2; }
+.wizard-title { margin: 0 0 -6px; display: flex; flex-direction: column; gap: 2px; font-size: .95rem; line-height: 1.25; }
 .wizard-title small { color: var(--muted); font-size: .78rem; font-weight: 600; }
 /* O título só recebe o foco para o leitor de tela anunciar a etapa: não é clicável, sem contorno. */
 .expense-form .wizard-title:focus, .expense-form .wizard-title:focus-visible { outline: none; }
 .wizard-step h4.field-label { margin: 0; }
-/* Categoria: a pergunta tem o tamanho do rótulo "Nome da despesa" e a mesma distância da grade. */
-.wizard-title.wizard-title-sm { font-size: .95rem; }
-.wizard-step.is-tight { gap: 8px; }
 @keyframes wizard-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .wizard-step { animation: none; }
