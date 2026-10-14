@@ -58,6 +58,8 @@ export interface RoleDoc {
   log: LogEntry[];
   nextColor: number;
   startedAt: number;
+  /** Foto do cartão do rolê (vai para a pasta do grupo). Sem o campo: grupo criado antes dela ir junto. */
+  photoId?: string | null;
 }
 
 /** Como na Viagem: a tela = `pending` aplicadas sobre `base` (a última versão salva no grupo). */
@@ -69,16 +71,23 @@ export interface BillSync {
   pending: Action[];
 }
 
-export const roleDoc = (s: Pick<AppState, 'bill' | 'log' | 'nextColor' | 'startedAt'>): RoleDoc => ({
+export const roleDoc = (s: Pick<AppState, 'bill' | 'log' | 'nextColor' | 'startedAt' | 'photoId'>): RoleDoc => ({
   bill: s.bill,
   log: s.log,
   nextColor: s.nextColor,
   startedAt: s.startedAt,
+  photoId: s.photoId ?? null,
 });
+
+/** Nome de foto aceito (vira nome de arquivo na pasta do grupo: nada de "/" ou ".."). */
+const PHOTO_ID = /^[a-z0-9]{6,40}$/;
 
 export function isValidRoleDoc(d: unknown): d is RoleDoc {
   const x = d as RoleDoc | null;
-  return !!x && typeof x === 'object' && isValidBill(x.bill) && Array.isArray(x.log) && typeof x.nextColor === 'number' && typeof x.startedAt === 'number';
+  return (
+    !!x && typeof x === 'object' && isValidBill(x.bill) && Array.isArray(x.log) && typeof x.nextColor === 'number' && typeof x.startedAt === 'number' &&
+    (x.photoId === undefined || x.photoId === null || (typeof x.photoId === 'string' && PHOTO_ID.test(x.photoId)))
+  );
 }
 
 export type Action =
@@ -131,7 +140,7 @@ export type Action =
   | { type: 'syncUnlink' };
 
 /** Ações que só valem neste aparelho (nota aberta, foto guardada aqui, trocar de conta). */
-const LOCAL_ONLY = new Set<Action['type']>(['selectNote', 'photo', 'reset', 'open', 'setAuthor', 'syncLink', 'syncRemote', 'syncSaved', 'syncUnlink']);
+const LOCAL_ONLY = new Set<Action['type']>(['selectNote', 'reset', 'open', 'setAuthor', 'syncLink', 'syncRemote', 'syncSaved', 'syncUnlink']);
 
 const KEY = 'racha-conta-v1';
 
@@ -592,19 +601,21 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'syncRemote': {
       const sh = state.shared;
       if (!sh || action.version <= sh.version) return state;
-      const local = replayRole(action.doc, sh.pending, state.author ?? null);
+      // Grupo de antes da foto ir junto (sem o campo): a foto deste aparelho fica.
+      const doc = action.doc.photoId === undefined ? { ...action.doc, photoId: state.photoId } : action.doc;
+      const local = replayRole(doc, sh.pending, state.author ?? null);
       const noteId = state.noteId && local.bill.notes?.some((n) => n.id === state.noteId) ? state.noteId : null;
-      return { ...state, ...local, noteId, shared: { ...sh, version: action.version, base: action.doc } };
+      return { ...state, ...local, photoId: local.photoId ?? null, noteId, shared: { ...sh, version: action.version, base: action.doc } };
     }
   }
   const after = reduceAs(state, action, state.shared ? state.author ?? null : null);
-  if (!state.shared || after === state || LOCAL_ONLY.has(action.type) || (after.bill === state.bill && after.nextColor === state.nextColor)) return after;
+  if (!state.shared || after === state || LOCAL_ONLY.has(action.type) || (after.bill === state.bill && after.nextColor === state.nextColor && after.photoId === state.photoId)) return after;
   return { ...after, shared: { ...state.shared, pending: [...state.shared.pending, action] } };
 }
 
 /** Aplica a fila sobre a conta do grupo (o mesmo que aconteceu na tela, de novo). */
 export function replayRole(doc: RoleDoc, actions: Action[], by: string | null): RoleDoc {
-  let s: AppState = { ...blankState(), ...doc };
+  let s: AppState = { ...blankState(), ...doc, photoId: doc.photoId ?? null };
   for (const a of actions) s = reduceAs(s, a, by);
   return roleDoc(s);
 }

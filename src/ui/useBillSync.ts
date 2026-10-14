@@ -117,8 +117,8 @@ export function useBillSync(
     };
   }, [groupId, userId, dispatch]);
 
-  // Fotos das notas tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
-  const photos = (state.bill.notes ?? []).map((n) => n.photoId).filter((r): r is string => !!r).join(',');
+  // Fotos das notas (e a do cartão) tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
+  const photos = [state.photoId, ...(state.bill.notes ?? []).map((n) => n.photoId)].filter((r): r is string => !!r).join(',');
   useEffect(() => {
     if (!groupId || !userId || !photos || navigator.onLine === false) return;
     let alive = true;

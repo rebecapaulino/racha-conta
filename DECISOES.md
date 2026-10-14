@@ -326,7 +326,7 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 - **Fotos das notas do Rolê vão para o grupo.** Usam o mesmo balde `notas` do Supabase da Viagem (pasta do grupo, só membros veem). Não precisa de SQL novo. Cada aparelho envia as fotos que tirou uma vez; quem não tem a foto baixa do grupo ao abrir e guarda no aparelho.
 - **Foto do cartão da Viagem.** Botão da câmera igual ao do Rolê. A foto fica na viagem (`photoId`) e, se a viagem é compartilhada, vai para a pasta do grupo: todo mundo vê o mesmo fundo. Entra no registro ("Adicionou/Trocou/Tirou a foto da viagem").
-- **A foto do cartão do Rolê continua só no aparelho** (como antes): é lembrança do histórico de quem tirou.
+- ~~A foto do cartão do Rolê continua só no aparelho~~ → mudou no mesmo dia, ver abaixo.
 - **Lápis no cartão do Rolê.** Abre "Editar rolê" com o nome do lugar (o mesmo campo de Pedidos, que continua lá).
 - **Segurança:** só nomes de foto do app (letras e números) viram caminho no Storage; nada de "/" ou "..".
 - **Tela estreita:** com os pontinhos do grupo e três botões, os botões descem para baixo do nome em vez de quebrar o nome no meio.
@@ -339,3 +339,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Subtítulos "bar e restaurante" / "vários dias" quebram em duas linhas em vez de serem cortados.
 - No toque, a aba tocada antes ficava cinza (o efeito de passar o mouse grudava). Corrigido.
 - Conferido sem rolagem para o lado em 320, 360, 375, 390, 412 e 430px, com fonte normal, 112,5% e 130%.
+
+## Foto do cartão do Rolê no grupo (14/10/2026)
+
+- A foto do cartão do Rolê agora vai junto com o rolê compartilhado (campo `photoId` no que vai para o grupo) e para a pasta do grupo no Storage, como na Viagem. Todo mundo vê a mesma foto; trocar ou tirar vale para todos e entra no registro.
+- Grupo criado antes desta mudança (sem o campo): a foto que já estava no aparelho continua, não é apagada pela versão do grupo.
+- O nome da foto vindo do grupo é conferido (só letras e números); se vier estranho, a versão é recusada.

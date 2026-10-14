@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeSplit } from '../core/bill';
-import { blankState, reducer, roleDoc, type Action, type AppState } from './billState';
+import { blankState, isValidRoleDoc, reducer, roleDoc, type Action, type AppState } from './billState';
 import { fromEntry, toEntry } from './history';
 
 const run = (s: AppState, ...a: Action[]) => a.reduce(reducer, s);
@@ -13,12 +13,34 @@ function shared() {
 }
 
 describe('rolê compartilhado (fila e versões)', () => {
-  it('mudança entra na fila com o nome de quem fez; nota aberta e foto ficam só no aparelho', () => {
+  it('mudança entra na fila com o nome de quem fez; a foto do cartão também vai; nota aberta fica só no aparelho', () => {
     let s = run(shared(), { type: 'addItem', name: 'Picanha', cents: 8000 });
     expect(s.shared!.pending.map((a) => a.type)).toEqual(['addItem']);
     expect(s.log.at(-1)).toMatchObject({ by: 'Rebeca' });
-    s = run(s, { type: 'photo', photoId: 'foto-local' });
-    expect(s.shared!.pending).toHaveLength(1);
+    s = run(s, { type: 'photo', photoId: 'abc123foto' });
+    expect(s.shared!.pending.map((a) => a.type)).toEqual(['addItem', 'photo']);
+    expect(roleDoc(s).photoId).toBe('abc123foto');
+    s = run(s, { type: 'selectNote', id: '' });
+    expect(s.shared!.pending).toHaveLength(2);
+  });
+
+  it('foto do cartão: a que outra pessoa pôs chega; grupo antigo (sem o campo) não apaga a minha', () => {
+    const start = run(shared(), { type: 'photo', photoId: 'minhafoto1' });
+    const synced = run(start, { type: 'syncSaved', version: 2, count: 1, sent: roleDoc(start) });
+    // Mauricio trocou a foto (versão 3).
+    const theirs = { ...roleDoc(synced), photoId: 'fotodele22' };
+    let s = run(synced, { type: 'syncRemote', doc: theirs, version: 3 });
+    expect(s.photoId).toBe('fotodele22');
+    // Versão de um app antigo, sem o campo: fica a foto daqui.
+    const old: ReturnType<typeof roleDoc> = { ...roleDoc(s) };
+    delete old.photoId;
+    s = run(s, { type: 'syncRemote', doc: old, version: 4 });
+    expect(s.photoId).toBe('fotodele22');
+    // Tirou a foto no grupo: some aqui também.
+    s = run(s, { type: 'syncRemote', doc: { ...roleDoc(s), photoId: null }, version: 5 });
+    expect(s.photoId).toBeNull();
+    // Nome de arquivo estranho vindo do grupo: recusa a versão.
+    expect(isValidRoleDoc({ ...roleDoc(s), photoId: '../outro/x' })).toBe(false);
   });
 
   it('rolê só neste aparelho não usa fila nem autor', () => {

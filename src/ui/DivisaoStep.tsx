@@ -9,7 +9,7 @@ import { Signed } from './viagem/Signed';
 import { Art } from './illustrations';
 import { renderReceipt } from './receiptImage';
 import { unassignedText } from './unassigned';
-import { usePhotoUrl } from './usePhotoUrl';
+import { useReceiptUrl } from './viagem/useReceiptUrl';
 import { activeVisual } from './visual';
 
 interface Props {
@@ -19,6 +19,8 @@ interface Props {
   /** Id da conta, para o número curto da nota. */
   billId: string;
   photoId: string | null;
+  /** Grupo do rolê compartilhado (a foto do cartão pode vir de lá). */
+  groupId?: string | null;
   log: LogEntry[];
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
@@ -27,7 +29,7 @@ interface Props {
 }
 
 /** Etapa 3: quanto cada um paga, quem pagou, a nota e o compartilhamento. */
-export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dispatch, toast, onGoToItem }: Props) {
+export function DivisaoStep({ bill, result, startedAt, billId, photoId, groupId = null, log, dispatch, toast, onGoToItem }: Props) {
   const previewRef = useRef<HTMLDetailsElement>(null);
   const [slide, setSlide] = useState(0);
   const [back, setBack] = useState(false);
@@ -48,7 +50,7 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, log, dis
 
   // Notinha em imagem: fica pronta antes do toque, porque o celular só abre o menu
   // de compartilhar logo depois do toque (se demorar, ele recusa).
-  const photoUrl = usePhotoUrl(photoId);
+  const photoUrl = useReceiptUrl(photoId, groupId);
   const imageRef = useRef<Blob | null>(null);
   const imageDialogRef = useRef<HTMLDialogElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);

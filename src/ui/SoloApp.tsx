@@ -161,7 +161,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
       else setHistory((h) => removeEntry(h, id));
       dispatch({
         type: 'open',
-        state: { ...blankState(), ...doc, id, shared: { groupId, code: remote.code, version: remote.version, base: doc, pending: [] }, author: account.name },
+        state: { ...blankState(), ...doc, photoId: doc.photoId ?? null, id, shared: { groupId, code: remote.code, version: remote.version, base: doc, pending: [] }, author: account.name },
       });
       setTab(doc.bill.people.length ? 'pedidos' : 'mesa');
       setScreen('conta');
@@ -211,7 +211,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
   // Pedido para abrir a nota que a leitura da foto acabou de criar (quem pagou, quem divide).
   const [editRequest, setEditRequest] = useState(0);
   const notesBar = <NotesBar bill={bill} active={note} dispatch={dispatch} toast={toast} editRequest={editRequest} groupId={state.shared?.groupId ?? null} />;
-  const divisaoNota = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
+  const divisaoNota = <DivisaoStep bill={view} result={viewResult} startedAt={state.startedAt} billId={state.id} photoId={state.photoId} groupId={state.shared?.groupId ?? null} log={state.log} onGoToItem={goToItem} dispatch={dispatch} toast={toast} />;
   const divisao = !multi ? (
     divisaoNota
   ) : (
@@ -286,6 +286,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
             onShare={loginEnabled && !state.example ? () => setSharing(true) : undefined}
             members={members}
             accountId={account?.id ?? null}
+            groupId={state.shared?.groupId ?? null}
           />
 
           <PwaBars />

@@ -9,7 +9,7 @@ import type { Member } from '../sync/groups';
 import { MemberDots } from './viagem/ShareSheet';
 import { Sheet } from './viagem/Sheet';
 import { Art } from './illustrations';
-import { usePhotoUrl } from './usePhotoUrl';
+import { useReceiptUrl } from './viagem/useReceiptUrl';
 
 interface Props {
   title: string;
@@ -30,11 +30,13 @@ interface Props {
   /** Quem está no grupo (rolê compartilhado). */
   members?: Member[];
   accountId?: string | null;
+  /** Grupo do rolê compartilhado: a foto que outra pessoa pôs vem de lá. */
+  groupId?: string | null;
 }
 
 /** Cartão do total. Com foto do rolê, a foto vira o fundo (fica como lembrança no histórico). */
-export function HeroCard({ title, startedAt, total, servicePct, notesCount, people, photoId, fluent, onPhoto, onRename, toast, onShare, members = [], accountId = null }: Props) {
-  const photoUrl = usePhotoUrl(photoId);
+export function HeroCard({ title, startedAt, total, servicePct, notesCount, people, photoId, fluent, onPhoto, onRename, toast, onShare, members = [], accountId = null, groupId = null }: Props) {
+  const photoUrl = useReceiptUrl(photoId, groupId);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
