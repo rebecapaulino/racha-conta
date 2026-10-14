@@ -3,7 +3,7 @@ import { formatBRL } from '../../core/money';
 import { activeExpenses, categoryLabel, installmentsOf, nextPayer, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, AvatarStack } from '../Avatar';
-import { IconBulb, IconFilter, IconX } from '../icons';
+import { IconBulb, IconCheck, IconFilter, IconX } from '../icons';
 import { Art } from '../illustrations';
 import { CategoryIcon } from './CategoryIcon';
 import { dayLabel, dayNumber } from './tripDates';
@@ -51,6 +51,16 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
   // Fechada no X, não volta nesta viagem (dá para desfazer logo depois).
   const [closed, setClosed] = useState<string[]>([]);
   const tip = all.length > 0 && !closed.includes(trip.id) && !tipHidden(trip.id) ? nextPayer(summary) : null;
+
+  /** "Todos pagos": a despesa sai do acerto (continua na caderneta e no gasto total). */
+  function toggleSettled(e: Expense) {
+    const settled = !e.settled;
+    dispatch({ type: 'settleExpense', id: e.id, settled });
+    toast(
+      settled ? `${e.description}: todos pagos. Saiu do acerto.` : `${e.description} voltou para o acerto`,
+      () => dispatch({ type: 'settleExpense', id: e.id, settled: !settled }),
+    );
+  }
 
   function hideTip() {
     setTipHidden(trip.id, true);
@@ -190,7 +200,6 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                           <span>{everyone ? 'todos' : who.length === 1 ? `só ${who[0].id === meId ? 'você' : who[0].name}` : `${who.length} pessoas`}</span>
                           {tag && <> · <span>{tag}</span></>}
                           {installmentsOf(e) > 1 && <> · <span className="parts-tag">{installmentsOf(e)}x</span></>}
-                          {e.settled && <> · <span className="settled-tag">✓ todos pagos</span></>}
                         </small>
                       </span>
                       <span className="line-end">
@@ -198,6 +207,18 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                         {!everyone && who.length > 1 && <AvatarStack people={who} max={3} />}
                       </span>
                     </button>
+                    {/* "Todos pagos" fora da edição: um toque tira a despesa do acerto (e outro devolve). */}
+                    <div className="line-foot">
+                      <button
+                        type="button"
+                        className="chip line-settled"
+                        aria-pressed={!!e.settled}
+                        aria-label={`${e.description}: todos pagos`}
+                        onClick={() => toggleSettled(e)}
+                      >
+                        <IconCheck size={14} /> Todos pagos
+                      </button>
+                    </div>
                   </li>
                 );
               })}

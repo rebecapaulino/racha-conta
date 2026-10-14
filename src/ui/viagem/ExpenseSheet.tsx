@@ -239,18 +239,6 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
     else next();
   }
 
-  /** "Todos pagos": todo mundo já acertou. Sai do painel de acerto (continua na caderneta). */
-  function toggleSettled() {
-    if (!editing) return;
-    const settled = !editing.settled;
-    dispatch({ type: 'settleExpense', id: editing.id, settled });
-    toast(
-      settled ? `${editing.description}: todos pagos. Saiu do acerto.` : `${editing.description} voltou para o acerto`,
-      () => dispatch({ type: 'settleExpense', id: editing.id, settled: !settled }),
-    );
-    onClose();
-  }
-
   function remove() {
     if (!editing) return;
     dispatch({ type: 'deleteExpense', id: editing.id, deleted: true });
@@ -348,14 +336,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved }: Pr
                   </div>
                 </div>
               ) : (
-                <div className="exp-tools">
-                  <button type="button" className="btn ghost exp-settled" aria-pressed={!!editing.settled} onClick={toggleSettled}>
-                    <IconCheck size={18} /> {editing.settled ? 'Voltar para o acerto' : 'Todos pagos'}
-                  </button>
-                  <button type="button" className="btn ghost note-delete exp-delete" onClick={() => setConfirmDelete(true)}>
-                    <IconTrash /> Excluir despesa
-                  </button>
-                </div>
+                <button type="button" className="btn ghost note-delete exp-delete" onClick={() => setConfirmDelete(true)}>
+                  <IconTrash /> Excluir despesa
+                </button>
               )
             )}
           </>

@@ -575,13 +575,12 @@ h3.field-label { margin: 0; }
   .wizard-steps button::before { transition: none; }
 }
 .expense-form .exp-delete { align-self: flex-end; }
-/* Editar despesa: "Todos pagos" à esquerda, "Excluir despesa" à direita. */
-.exp-tools { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
-.exp-tools .btn { width: auto; padding-inline: 8px; }
-.exp-tools .exp-delete { margin-left: auto; }
-:root .exp-tools .exp-settled { color: var(--ok); }
-:root .exp-tools .exp-settled[aria-pressed="true"] { color: var(--muted); }
-.settled-tag { color: var(--ok); font-weight: 600; }
+/* Caderneta: "Todos pagos" embaixo de cada despesa, alinhado com o texto. */
+.line-foot { display: flex; padding: 0 16px 10px 82px; margin-top: -4px; }
+:root .line-settled { min-height: 36px; padding: 0 12px; gap: 6px; font-size: .84rem; color: var(--muted); }
+:root .line-settled[aria-pressed="true"] { --pc: var(--ok); color: var(--ok); }
+.line-settled::after { content: ""; position: absolute; inset: -4px 0; }
+.line-settled { position: relative; }
 
 /* ---------- saldos em forma de extrato ---------- */
 .statement { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -600,3 +599,12 @@ h3.field-label { margin: 0; }
   .statement-amount { font-size: .98rem; }
   .statement-amount b { font-weight: 700; }
 }
+
+/* ---------- acerto: um pagamento por vez ---------- */
+.pay-carousel { position: relative; }
+.pay-carousel .pay-slide { padding-right: 52px; }
+.carousel-next {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line);
+}
+.carousel-next:hover { color: var(--primary); }

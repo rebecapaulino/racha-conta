@@ -230,3 +230,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 - **Viagem:** a "Conta de cada um" e o card antigo de Saldos viraram um extrato único: cada pessoa com o saldo (verde recebe, vermelho paga, "quite"). Os links "Ver a conta" do acerto saíram junto.
 - **Menos Pix saiu da Viagem e do Rolê:** o acerto é sempre direto para quem pagou. Contas e viagens antigas que tinham "Menos Pix" guardado passam a mostrar o direto.
+
+## Acerto em carrossel e "Todos pagos" na caderneta
+
+- **Carrossel:** no alto do acerto da Viagem, um pagamento por vez, agrupado por quem recebe (todos que devem ao Mauricio, depois a próxima pessoa). A seta à direita passa para o próximo. A lista de antes continua embaixo.
+- **"Todos pagos"** saiu da tela de editar e ficou embaixo de cada despesa na caderneta (um toque marca, outro desmarca, com Desfazer).
+- **Pagamento ligado a despesas excluídas e ativas:** continua valendo para as que ficaram, até o que se deve nelas (antes saía inteiro).

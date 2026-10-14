@@ -27,6 +27,8 @@ interface Props {
   onExplain?: (id: string) => void;
   /** A despesa parcelada da linha (só na Viagem). */
   expenseOf?: (id: string) => { description: string; category: TripCategory } | undefined;
+  /** Mostra também um pagamento por vez, com a seta para o próximo (Viagem). */
+  carousel?: boolean;
 }
 
 /**
@@ -34,8 +36,9 @@ interface Props {
  * por quem paga) ou escolher uma pessoa e ver quem deve para ela e para quem ela deve.
  * Usado na Viagem e no resumo do grupo do Rolê.
  */
-export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf }: Props) {
+export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf, carousel }: Props) {
   const [who, setWho] = useState('');
+  const [slide, setSlide] = useState(0);
   const person = (id: string) => people.find((p) => p.id === id)!;
   const called = (id: string, lower = false) => (id === meId ? (lower ? 'você' : 'Você') : person(id).name);
   const valid = who && people.some((p) => p.id === who) ? who : '';
@@ -132,8 +135,41 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
   const viewed = valid ? person(valid) : null;
   const sponsor = viewed && account !== viewed.id ? person(account) : null;
 
+  // Carrossel: um pagamento por vez, agrupado por quem recebe (todos que devem ao Mauricio,
+  // depois os que devem à próxima pessoa). A seta passa para o próximo; no último, volta ao primeiro.
+  const pos = (id: string) => people.findIndex((p) => p.id === id);
+  const slides = [...rows].sort((a, b) => pos(a.to) - pos(b.to) || pos(a.from) - pos(b.from));
+  const at = slides.length ? slide % slides.length : 0;
+  const current = slides[at];
+  const following = slides.length > 1 ? slides[(at + 1) % slides.length] : null;
+
   return (
     <>
+      {carousel && current && (
+        <section className="pay-carousel" aria-label="Um pagamento por vez">
+          <div className="pay-group pay-slide" aria-live="polite">
+            <div className="pay-head">
+              <Avatar person={person(current.from)} size="md" />
+              <span className="pay-who">
+                <b>{called(current.from)} paga</b>
+                <small>{at + 1} de {slides.length}</small>
+              </span>
+            </div>
+            <ul className="pay-items">{row(current, 'out')}</ul>
+          </div>
+          {following && (
+            <button
+              type="button"
+              className="icon-btn carousel-next"
+              onClick={() => setSlide(at + 1)}
+              aria-label={`Próximo: ${called(following.from)} paga para ${called(following.to, true)}`}
+            >
+              <IconArrowRight size={20} />
+            </button>
+          )}
+        </section>
+      )}
+
       <label className="filter settle-filter" data-on={!!valid || undefined}>
         <span className="field-label">Ver de quem</span>
         <select value={valid} onChange={(e) => setWho(e.target.value)}>

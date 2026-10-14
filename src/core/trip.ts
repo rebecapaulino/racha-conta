@@ -346,10 +346,30 @@ function linkedExpenses(trip: Trip, from: string, to: string, pool = openExpense
  * sai junto, e ninguém fica "devendo de volta". Desfazer traz tudo de volta.
  */
 export function activeSettlements(trip: Trip): Settlement[] {
-  const open = new Set(openExpenses(trip).map((e) => e.id));
-  return trip.settlements.filter((s) =>
-    s.expenseId ? open.has(s.expenseId) : (s.expenseIds ?? legacyLinks(trip, s)).every((id) => open.has(id)),
-  );
+  const open = new Map(openExpenses(trip).map((e) => [e.id, e]));
+  const out: Settlement[] = [];
+  for (const s of trip.settlements) {
+    if (s.expenseId) {
+      if (open.has(s.expenseId)) out.push(s);
+      continue;
+    }
+    const links = s.expenseIds ?? legacyLinks(trip, s);
+    if (links.every((id) => open.has(id))) {
+      out.push(s);
+      continue;
+    }
+    // Parte das despesas saiu: o pagamento vale só para as que ficaram, até o que se deve nelas.
+    const [fa, ta] = [accountOf(trip, s.from), accountOf(trip, s.to)];
+    let owed = 0;
+    for (const id of links) {
+      const e = open.get(id);
+      if (!e || accountOf(trip, e.payerId) !== ta) continue;
+      for (const [pid, c] of Object.entries(e.shares)) if (accountOf(trip, chargedTo(e, pid)) === fa) owed += c;
+    }
+    const cents = Math.min(s.cents, owed);
+    if (cents > 0) out.push({ ...s, cents });
+  }
+  return out;
 }
 
 /**

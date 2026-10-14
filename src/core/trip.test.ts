@@ -827,6 +827,18 @@ describe('editar e excluir não deixam sobra nas contas', () => {
 });
 
 describe('despesa "Todos pagos"', () => {
+  it('pagamento antigo que acertou exemplo excluído + almoço continua valendo para o almoço', () => {
+    let t = tripWith(['Rebeca', 'Mauricio']);
+    t = add(t, { description: 'Exemplo', cents: 10000, payerId: 'mauricio' });
+    t = add(t, { description: 'Almoço', cents: 10000, payerId: 'mauricio' });
+    t = { ...t, expenses: t.expenses.map((e) => ({ ...e, createdAt: '2026-12-01T00:00:00.000Z' })) };
+    t = { ...t, settlements: [{ id: 's1', from: 'rebeca', to: 'mauricio', cents: 5000, at: '2026-12-02T00:00:00.000Z' }] };
+    const gone = setExpenseDeleted(t, t.expenses[0].id, true, '2026-12-03T00:00:00.000Z');
+    // Almoço: Rebeca deve 50, e os 50 pagos continuam valendo.
+    expect(balances(gone)).toEqual({ rebeca: 0, mauricio: 0 });
+    expect(tripSummary(gone).plan.direct).toEqual([{ from: 'rebeca', to: 'mauricio', cents: 5000, paid: 5000, remaining: 0 }]);
+  });
+
   // O caso da Rebeca: pagou R$ 433,32 ao Mauricio por despesas de exemplo, que depois excluiu.
   // A única despesa que sobrou é o almoço de 200 (Mauricio pagou, 4 pessoas).
   it('pagamentos de despesas excluídas não viram dívida de volta', () => {
@@ -886,8 +898,12 @@ describe('despesa "Todos pagos"', () => {
     const r = addSettlement(t, { from: 'bia', to: 'ana', cents: 3000 }, 's1', NOW);
     if (!r.ok) throw new Error(r.error);
     expect(balances(r.trip)).toEqual({ ana: 0, bia: 0 });
-    // Marcou A como "Todos pagos": o pagamento (que acertava A e B) sai; B volta a aparecer.
+    // Marcou A como "Todos pagos": o pagamento continua valendo para B, até os 20 de B.
     const a = setExpenseSettled(r.trip, t.expenses[0].id, true, NOW);
-    expect(balances(a)).toEqual({ ana: 2000, bia: -2000 });
+    expect(balances(a)).toEqual({ ana: 0, bia: 0 });
+    // Excluiu B também: o pagamento não vale para mais nada.
+    const ab = setExpenseDeleted(a, t.expenses[1].id, true, NOW);
+    expect(balances(ab)).toEqual({ ana: 0, bia: 0 });
+    expect(tripSummary(ab).plan.direct).toEqual([]);
   });
 });

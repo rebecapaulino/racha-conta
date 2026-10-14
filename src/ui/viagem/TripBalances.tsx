@@ -179,6 +179,7 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
               meId={meId}
               onSettle={onSettle}
               onUnpay={unpay}
+              carousel
               expenseOf={(id) => trip.expenses.find((e) => e.id === id)}
             />
           </>
