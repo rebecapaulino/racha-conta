@@ -43,14 +43,20 @@ export function useInvite(kind: 'trip' | 'role', signedIn: boolean) {
     clearInviteUrl();
     setInvite(null);
   }
-  return { invite, setInvite, close };
+  /** Depois de um erro: confere o convite de novo (e entra, se der). */
+  function retry() {
+    setInvite((i) => (i ? { ...i, status: i.preview ? 'ready' : 'loading' } : i));
+  }
+  return { invite, setInvite, close, retry };
 }
 
-/** "Fulano te chamou para a viagem X" → Entrar no grupo. */
-export function InviteSheet({ invite, noun, onJoin, onClose }: { invite: Invite | null; noun: 'viagem' | 'rolê'; onJoin: () => void; onClose: () => void }) {
-  const p = invite?.preview;
+/**
+ * Com a conta já aberta, o link entra no grupo sozinho (sem "Entrar no grupo"). Esta janela só
+ * aparece quando não deu: convite que não vale mais, ou sem internet.
+ */
+export function InviteSheet({ invite, noun, onRetry, onClose }: { invite: Invite | null; noun: 'viagem' | 'rolê'; onRetry: () => void; onClose: () => void }) {
   return (
-    <Sheet open={!!invite && invite.status !== 'loading'} onClose={onClose} labelledBy="h-invite">
+    <Sheet open={invite?.status === 'invalid' || invite?.status === 'error'} onClose={onClose} labelledBy="h-invite">
       <div className="sheet-body">
         <span className="sheet-grip" aria-hidden="true" />
         <h2 id="h-invite" tabIndex={-1}>{noun === 'viagem' ? 'Convite para viagem' : 'Convite para rolê'}</h2>
@@ -58,18 +64,11 @@ export function InviteSheet({ invite, noun, onJoin, onClose }: { invite: Invite 
           <p>Esse convite não vale mais. Peça um link novo para quem te chamou.</p>
         ) : invite?.status === 'error' ? (
           <p className="field-error" role="alert">Não deu para abrir o convite. Confira a internet e tente de novo.</p>
-        ) : p ? (
-          <p>
-            <b>{p.ownerName || 'Alguém'}</b> te chamou para {noun === 'viagem' ? 'a viagem' : 'o rolê'} <b>{p.title || (noun === 'viagem' ? 'sem nome' : 'Conta da mesa')}</b>
-            {' '}({p.members} {p.members === 1 ? 'pessoa' : 'pessoas'} no grupo). Entrando, você vê e edita junto.
-          </p>
         ) : null}
         <div className="sheet-actions">
           <button type="button" className="btn secondary" onClick={onClose}>Agora não</button>
-          {invite && p && invite.status !== 'invalid' && (
-            <button type="button" className="btn primary" onClick={onJoin} disabled={invite.status === 'joining'}>
-              {invite.status === 'joining' ? 'Entrando…' : 'Entrar no grupo'}
-            </button>
+          {invite?.status === 'error' && (
+            <button type="button" className="btn primary" onClick={onRetry}>Tentar de novo</button>
           )}
         </div>
       </div>

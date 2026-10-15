@@ -13,8 +13,13 @@ interface GoogleId {
     use_fedcm_for_prompt?: boolean;
     use_fedcm_for_button?: boolean;
     button_auto_select?: boolean;
+    auto_select?: boolean;
+    itp_support?: boolean;
+    cancel_on_tap_outside?: boolean;
   }) => void;
   renderButton: (el: HTMLElement, options: Record<string, string | number>) => void;
+  /** Janelinha "Continuar como Fulano" (One Tap); com auto_select, quem já entrou antes entra sozinho. */
+  prompt: () => void;
 }
 
 declare global {

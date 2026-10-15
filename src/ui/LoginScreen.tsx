@@ -71,7 +71,7 @@ export function LoginScreen() {
             <p>Rapidinho e sem criar senha.</p>
           </div>
 
-          <GoogleButton onDone={done} onError={setError} shape="rounded" fill text="continue_with" />
+          <GoogleButton onDone={done} onError={setError} shape="rounded" fill text="continue_with" oneTap />
           <p className="field-error" role="alert">{error}</p>
 
           {/* palavras curtas de propósito: nenhuma quebra de linha, nem no celular pequeno */}

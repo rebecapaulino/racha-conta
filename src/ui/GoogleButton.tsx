@@ -9,6 +9,7 @@ export function GoogleButton({
   shape = 'pill',
   fill = false,
   text = 'signin_with',
+  oneTap = false,
 }: {
   onDone: () => void;
   onError: (msg: string) => void;
@@ -18,6 +19,12 @@ export function GoogleButton({
   fill?: boolean;
   /** "Fazer login com o Google" ou "Continuar com o Google". */
   text?: 'signin_with' | 'continue_with';
+  /**
+   * Também abre a janelinha do Google "Continuar como Fulano". Quem já entrou no app antes com
+   * essa conta Google entra sozinho, sem tocar em nada (ex.: abriu o link do convite num
+   * navegador em que o app ainda não estava logado).
+   */
+  oneTap?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [problem, setProblem] = useState('');
@@ -36,6 +43,7 @@ export function GoogleButton({
           client_id: GOOGLE_CLIENT_ID,
           nonce: nonce.hashed,
           use_fedcm_for_button: true,
+          ...(oneTap ? { use_fedcm_for_prompt: true, auto_select: true, itp_support: true, cancel_on_tap_outside: false } : {}),
           callback: async ({ credential }) => {
             try {
               await signInWithGoogleToken(credential, nonce.raw);
@@ -66,6 +74,7 @@ export function GoogleButton({
           });
         };
         draw();
+        if (oneTap) google.prompt();
         // O Google desenha o botão com largura fixa: se a coluna mudar (ex.: celular deitado), desenha de novo.
         if (fill && typeof ResizeObserver !== 'undefined') {
           observer = new ResizeObserver(draw);
@@ -79,7 +88,7 @@ export function GoogleButton({
       alive = false;
       observer?.disconnect();
     };
-  }, [onDone, onError, shape, fill, text]);
+  }, [onDone, onError, shape, fill, text, oneTap]);
 
   if (!GOOGLE_CLIENT_ID) return <p className="hint">O login ainda não está configurado neste endereço.</p>;
   return (

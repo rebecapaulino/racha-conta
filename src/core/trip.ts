@@ -155,6 +155,8 @@ export interface Trip {
    * Quem está aqui não é adicionado de novo, nem se a pessoa dela for tirada ou juntada a outra.
    */
   joined?: string[];
+  /** Contas que já responderam "Você paga a parte de alguém?" (ver payFor). Pergunta uma vez só. */
+  payAsked?: string[];
 }
 
 /** Uma linha do registro de alterações da viagem. */
@@ -647,6 +649,32 @@ export function accountMembers(trip: Trip, id: string): Traveler[] {
 /** Dá para `by` pagar a parte de `id`? Não pode ser a mesma pessoa nem fechar um círculo. */
 export function canCover(trip: Trip, id: string, by: string): boolean {
   return canCoverIn(trip.people, id, by);
+}
+
+/**
+ * Resposta de "Você paga a parte de alguém?" de quem entrou pelo convite (o pai que paga a da
+ * filha): `by` passa a pagar a parte de `ids` na viagem toda, e deixa de pagar a de quem estava
+ * com ele e saiu da lista. A conta `userId` fica marcada como já respondida.
+ */
+export function payFor(trip: Trip, by: string, ids: string[], userId: string): Trip {
+  if (!trip.people.some((p) => p.id === by)) return trip;
+  let people = trip.people;
+  for (const p of trip.people) {
+    const want = ids.includes(p.id);
+    if (want && p.coveredBy !== by && canCoverIn(people, p.id, by)) {
+      people = people.map((x) => (x.id === p.id ? { ...x, coveredBy: by } : x));
+    } else if (!want && p.coveredBy === by) {
+      people = people.map((x) => {
+        if (x.id !== p.id) return x;
+        const next = { ...x };
+        delete next.coveredBy;
+        return next;
+      });
+    }
+  }
+  const asked = trip.payAsked ?? [];
+  if (people === trip.people && asked.includes(userId)) return trip;
+  return { ...trip, people, payAsked: asked.includes(userId) ? asked : [...asked, userId] };
 }
 
 /** Nome da conta no acerto: "Robin (com Rebeca)". */

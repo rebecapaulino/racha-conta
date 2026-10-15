@@ -15,6 +15,7 @@ import {
   installmentsOf,
   joinTraveler,
   newTrip,
+  payFor,
   removeTraveler,
   setExpenseDeleted,
   setExpenseSettled,
@@ -77,6 +78,8 @@ export type TripAction =
    * pôs foi outro aparelho (a pessoa ainda não escolheu quem é).
    */
   | { type: 'joinTraveler'; tripId: string; userId: string; name: string; id: string; prefer?: string; self?: boolean; claim?: boolean; auto?: boolean }
+  /** "Você paga a parte de alguém?": `by` paga a parte de `ids` na viagem toda (ver payFor). */
+  | { type: 'payFor'; tripId: string; userId: string; by: string; ids: string[] }
   | { type: 'setMe'; id: string | null }
   | { type: 'addExpense'; id: string; input: ExpenseInput }
   | { type: 'editExpense'; id: string; input: ExpenseInput }
@@ -180,6 +183,13 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       const n = after.people.find((p) => p.userId === a.userId);
       if (!n) return null;
       return before.people.some((p) => p.id === n.id) ? `${a.name} entrou no grupo como ${n.name}` : `${n.name} entrou na viagem`;
+    }
+    case 'payFor': {
+      const now = after.people.filter((p) => p.coveredBy === a.by && before.people.find((b) => b.id === p.id)?.coveredBy !== a.by);
+      if (!now.length) return null;
+      const names = now.map((p) => p.name);
+      const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0];
+      return `${who(after, a.by)} paga a parte de ${list} na viagem toda`;
     }
     case 'removeTraveler':
       return a.to ? `Tirou ${who(before, a.id)} (as despesas passaram para ${who(after, a.to)})` : `Tirou ${who(before, a.id)}`;
@@ -419,6 +429,12 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       const next = r.trip === trip ? s : { ...s, trips: s.trips.map((t) => (t.id === trip.id ? r.trip : t)) };
       return a.self && r.id ? { ...next, me: { ...next.me, [trip.id]: r.id } } : next;
     }
+    case 'payFor': {
+      const trip = openTrip(s);
+      if (!trip || trip.id !== a.tripId || !a.userId) return s;
+      const next = payFor(trip, a.by, a.ids, a.userId);
+      return next === trip ? s : { ...s, trips: s.trips.map((t) => (t.id === trip.id ? next : t)) };
+    }
     case 'setMe': {
       const trip = openTrip(s);
       if (!trip) return s;
@@ -509,6 +525,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.categoryNames === undefined || (isObj(t.categoryNames) && Object.values(t.categoryNames).every(isStr))) &&
     (t.photoId === undefined || (isStr(t.photoId) && PHOTO_ID.test(t.photoId))) &&
     (t.joined === undefined || (Array.isArray(t.joined) && t.joined.every(isStr))) &&
+    (t.payAsked === undefined || (Array.isArray(t.payAsked) && t.payAsked.every(isStr))) &&
     (t.log === undefined || (Array.isArray(t.log) && t.log.every((e) => isObj(e) && typeof e.at === 'number' && isStr(e.text))))
   );
 }

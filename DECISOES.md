@@ -435,3 +435,11 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Saiu o botão "Atualizar agora" da janela de compartilhar (Viagem e Rolê). O app já confere o grupo a cada 20 s com ele na tela, ao voltar para ele e quando a internet volta; agora também **toda vez que a janela de compartilhar abre** (era o que o botão fazia).
 - As mensagens de erro do grupo deixaram de pedir "tente Atualizar agora": dizem que o app tenta de novo sozinho.
 - Com a versão nova do app trocando sozinha (14/10), não sobra nenhum "Atualizar" para a pessoa tocar.
+
+## "Você paga a parte de alguém?" e convite que entra sozinho (15/10/2026)
+
+- **Quem entra pelo convite** (Viagem), logo depois de "Quem é você nesta viagem?", responde **"Você paga a parte de alguém?"**: marca uma ou mais pessoas (os filhos, por exemplo) ou "Não, só a minha parte". As despesas continuam no nome de cada pessoa; no acerto, a parte delas entra na conta de quem paga (o mesmo "Quem paga" que já existia em cada pessoa). Dá para mudar depois, tocando na pessoa.
+- Pergunta **uma vez por conta**, em qualquer aparelho (a viagem guarda quem já respondeu, `payAsked`). **Quem entrou antes desta pergunta existir também é perguntado uma vez** ao abrir a viagem: é o jeito de ajustar os grupos que já existem. Quem criou o grupo não é perguntado (ele mesmo monta a viagem).
+- **Convite com a conta já aberta entra sozinho**, sem o "Entrar no grupo". Se a pessoa já está naquela viagem (clicou no link de novo), a viagem só abre. A janela do convite só aparece quando não deu (convite que não vale mais, ou sem internet, com "Tentar de novo"). Vale para Viagem e Rolê.
+- **Login automático:** a tela de login também abre a janelinha do Google "Continuar como Fulano"; quem já entrou no app com aquela conta Google entra sozinho. Isso ajuda quando o link abre num navegador em que o app ainda não estava logado. No iPhone, o app da tela inicial e o Safari não dividem a sessão: o primeiro acesso por um deles ainda passa pelo Google, mas sem precisar digitar nada.
+- Testes: `payFor` (core/tripJoin) e integração com dois celulares (sync/tripEngine): o Robin entra, paga a da Lara e o acerto vai para ele; quem entrou antes é perguntado uma vez; quem criou não é. Conferido no navegador com Supabase simulado.

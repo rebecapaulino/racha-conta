@@ -3,10 +3,10 @@
 // funções do Supabase (create_group, join_group, save_group com conferência de versão).
 
 import { describe, expect, it } from 'vitest';
-import { tripSummary, type Trip } from '../core/trip';
+import { accountMembers, directTransfers, tripSummary, type Trip } from '../core/trip';
 import { blankTrips, meOf, openTrip, tripsReducer, type TripAction, type TripsState } from '../state/tripState';
 import type { Member, MyGroup, RemoteTrip } from './groups';
-import { adoptAction, CHOOSE_MS, joinByInvite, memberActions, pullTrip, pushTrip, selfJoin, type TripApi } from './tripEngine';
+import { adoptAction, CHOOSE_MS, joinByInvite, memberActions, payQuestion, pullTrip, pushTrip, selfJoin, type TripApi } from './tripEngine';
 
 /** O banco: grupos com a viagem, a versão, o convite e quem está nele. */
 class Server {
@@ -164,6 +164,17 @@ class Phone {
   }
   names() {
     return this.trip.people.map((p) => p.name);
+  }
+  /** "Você paga a parte de alguém?" agora: os nomes oferecidos, ou null (não pergunta). */
+  payAsk() {
+    const e = this.entry();
+    if (!e) return null;
+    return payQuestion(this.trip, this.server.members(e.groupId), this.account, this.me)?.map((p) => p.name) ?? null;
+  }
+  /** Responde "Você paga a parte de alguém?" com os nomes marcados ([] = só a minha parte). */
+  payFor(names: string[]) {
+    const ids = this.trip.people.filter((p) => names.includes(p.name)).map((p) => p.id);
+    this.do({ type: 'payFor', tripId: this.trip.id, userId: this.account.id, by: this.me!, ids });
   }
   /** O que o app faz ao abrir (e a cada minuto): busca as viagens da conta. */
   adopt(hidden: string[] = []) {
@@ -557,5 +568,85 @@ describe('a viagem fica na conta, em qualquer aparelho', () => {
     bia.adopt();
     expect(bia.state.trips).toHaveLength(0);
     expect(server.list('u-bia')).toHaveLength(0);
+  });
+});
+
+describe('"Você paga a parte de alguém?"', () => {
+  async function family() {
+    const { server, rebeca } = setup();
+    const robin = new Phone(server, { id: 'u-robin', name: 'Robin Costa', photo: null });
+    rebeca.do(
+      { type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca', meId: 'reb' },
+      { type: 'addTraveler', id: 'lara', name: 'Lara' },
+      { type: 'addExpense', id: 'e1', input: expense('reb', ['reb', 'lara'], 20000) },
+    );
+    const code = rebeca.share();
+    await rebeca.sync();
+    return { server, rebeca, robin, code };
+  }
+
+  it('Robin entra e paga a da Lara (filha): no acerto, a parte dela entra na conta dele, nos dois celulares', async () => {
+    const { rebeca, robin, code } = await family();
+    await robin.join(code, null); // "Quem é você?" → pessoa nova
+    expect(robin.payAsk()).toEqual(['Rebeca', 'Lara']);
+    robin.payFor(['Lara']);
+    expect(robin.payAsk()).toBeNull(); // uma vez só
+    await robin.push();
+    await rebeca.sync();
+    const robinId = rebeca.trip.people.find((p) => p.userId === 'u-robin')!.id;
+    expect(rebeca.trip.people.find((p) => p.id === 'lara')!.coveredBy).toBe(robinId);
+    expect(accountMembers(rebeca.trip, robinId).map((p) => p.name)).toEqual(['Lara']);
+    // Os R$ 100 da Lara são o Robin quem paga para a Rebeca.
+    expect(directTransfers(rebeca.trip).map(({ from, to, cents }) => ({ from, to, cents }))).toEqual([{ from: robinId, to: 'reb', cents: 10000 }]);
+    expect(rebeca.trip.log?.some((l) => l.text === 'Robin paga a parte de Lara na viagem toda' && l.by === 'Robin Costa')).toBe(true);
+    expect(robin.trip).toEqual(rebeca.trip);
+  });
+
+  it('não pergunta antes de dizer quem é, nem para quem criou o grupo', async () => {
+    const { rebeca, robin, code } = await family();
+    await robin.join(code, 'sem resposta');
+    expect(robin.asked).toBe(true); // ainda em "Quem é você nesta viagem?"
+    expect(robin.payAsk()).toBeNull();
+    robin.answer = null;
+    robin.self();
+    expect(robin.payAsk()).toEqual(['Rebeca', 'Lara']);
+    expect(rebeca.payAsk()).toBeNull();
+  });
+
+  it('quem entrou antes desta pergunta existir é perguntado uma vez; "só a minha parte" não muda nada', async () => {
+    const { rebeca, robin, code } = await family();
+    await robin.join(code, null);
+    await robin.push();
+    await rebeca.sync();
+    // Viagem de antes: ninguém tinha respondido (sem payAsked).
+    expect(rebeca.trip.payAsked).toBeUndefined();
+    expect(robin.payAsk()).toEqual(['Rebeca', 'Lara']);
+    const before = robin.trip.people;
+    robin.payFor([]);
+    expect(robin.trip.people).toEqual(before);
+    expect(robin.payAsk()).toBeNull();
+    await robin.push();
+    await rebeca.sync();
+    expect(rebeca.trip.payAsked).toEqual(['u-robin']);
+    expect(rebeca.trip.log?.some((l) => l.kind === 'payFor')).toBe(false);
+    // Outro aparelho do Robin (mesma conta): também não pergunta de novo.
+    const robin2 = new Phone(rebeca.server, robin.account);
+    robin2.adopt();
+    robin2.do({ type: 'openTrip', id: 'A' });
+    expect(robin2.payAsk()).toBeNull();
+  });
+
+  it('a pessoa que entrou é quem paga por duas (os dois filhos)', async () => {
+    const { rebeca, robin, code } = await family();
+    rebeca.do({ type: 'addTraveler', id: 'theo', name: 'Theo' }, { type: 'addExpense', id: 'e2', input: expense('reb', ['reb', 'lara', 'theo'], 30000) });
+    await rebeca.push();
+    await robin.join(code, null);
+    robin.payFor(['Lara', 'Theo']);
+    await robin.push();
+    await rebeca.sync();
+    const robinId = robin.me!;
+    expect(accountMembers(rebeca.trip, robinId).map((p) => p.name).sort()).toEqual(['Lara', 'Theo']);
+    expect(directTransfers(rebeca.trip).map(({ from, to, cents }) => ({ from, to, cents }))).toEqual([{ from: robinId, to: 'reb', cents: 10000 + 10000 + 10000 }]);
+    expect(rebeca.trip.log?.some((l) => l.text === 'Robin paga a parte de Lara e Theo na viagem toda')).toBe(true);
   });
 });

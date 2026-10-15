@@ -61,7 +61,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     const g = await createGroup('role', roleDoc(state), account.name, account.photo);
     dispatch({ type: 'syncLink', groupId: g.groupId, code: g.code, version: g.version });
   }
-  const { invite, setInvite, close: closeInvite } = useInvite('role', !!account);
+  const { invite, setInvite, close: closeInvite, retry: retryInvite } = useInvite('role', !!account);
 
   // Quem está no grupo está na mesa. Você: diz quem é em "Quem é você neste rolê?" (ou entra
   // direto, sem ninguém para escolher). Os outros: se em 10 minutos não disseram, este aparelho
@@ -210,8 +210,20 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     toast('Rolê apagado');
   }
 
+  // Com a conta aberta, o link entra no grupo sozinho (sem perguntar).
+  const joinRef = useRef(join);
+  useEffect(() => { joinRef.current = join; });
+  useEffect(() => {
+    if (invite?.status === 'ready') joinRef.current();
+  }, [invite?.status]);
   async function join() {
     if (!invite || !account) return;
+    // Já está neste rolê, aberto (clicou no link de novo): só mostra a conta.
+    if (state.shared?.code === invite.code) {
+      setScreen('conta');
+      closeInvite();
+      return;
+    }
     setInvite({ ...invite, status: 'joining' });
     try {
       const groupId = await joinGroup(invite.code, account.name, account.photo);
@@ -255,7 +267,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         toast={toast}
         onClose={() => setSharing(false)}
       />
-      <InviteSheet invite={invite} noun="rolê" onJoin={join} onClose={closeInvite} />
+      <InviteSheet invite={invite} noun="rolê" onRetry={retryInvite} onClose={closeInvite} />
       <WhoAmISheet
         key={state.id}
         open={self?.kind === 'ask'}

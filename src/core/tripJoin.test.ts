@@ -5,6 +5,7 @@ import {
   joinTraveler,
   mergeTraveler,
   newTrip,
+  payFor,
   personStatement,
   transferTraveler,
   travelerUsage,
@@ -228,5 +229,33 @@ describe('assumir as despesas de outra pessoa', () => {
       expect(bal(after, to)).toBe(bal(before, to) + bal(before, from));
       expect(bal(after, from)).toBe(0);
     }
+  });
+});
+
+describe('payFor ("Você paga a parte de alguém?")', () => {
+  it('marca quem a pessoa paga, desmarca quem saiu da lista, e anota que a conta respondeu', () => {
+    let t = tripWith(['Robin', 'Lara', 'Theo', 'Ana']);
+    t = payFor(t, 'robin', ['lara', 'theo'], 'u-robin');
+    expect(t.people.filter((p) => p.coveredBy === 'robin').map((p) => p.id)).toEqual(['lara', 'theo']);
+    expect(t.payAsked).toEqual(['u-robin']);
+    t = payFor(t, 'robin', ['lara'], 'u-robin');
+    expect(t.people.find((p) => p.id === 'theo')!.coveredBy).toBeUndefined();
+    expect(t.payAsked).toEqual(['u-robin']);
+  });
+
+  it('não fecha círculo, não paga por si mesmo e não mexe em quem outro paga sem ser marcado', () => {
+    let t = tripWith(['Robin', 'Lara', 'Ana', 'Bia']);
+    t = { ...t, people: t.people.map((p) => (p.id === 'robin' ? { ...p, coveredBy: 'lara' } : p.id === 'bia' ? { ...p, coveredBy: 'ana' } : p)) };
+    t = payFor(t, 'robin', ['lara', 'robin'], 'u-robin');
+    expect(t.people.find((p) => p.id === 'lara')!.coveredBy).toBeUndefined(); // Lara já paga a do Robin
+    expect(t.people.find((p) => p.id === 'robin')!.coveredBy).toBe('lara');
+    expect(t.people.find((p) => p.id === 'bia')!.coveredBy).toBe('ana');
+  });
+
+  it('marcar alguém que outra pessoa pagava passa para quem respondeu', () => {
+    let t = tripWith(['Robin', 'Lara', 'Ana']);
+    t = { ...t, people: t.people.map((p) => (p.id === 'lara' ? { ...p, coveredBy: 'ana' } : p)) };
+    t = payFor(t, 'robin', ['lara'], 'u-robin');
+    expect(t.people.find((p) => p.id === 'lara')!.coveredBy).toBe('robin');
   });
 });

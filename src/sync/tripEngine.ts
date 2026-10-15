@@ -117,6 +117,21 @@ export function selfJoin(trip: Trip, members: Member[], account: { id: string; n
 }
 
 /**
+ * "Você paga a parte de alguém?": para quem entrou pelo convite (o pai que paga a da filha),
+ * logo depois de dizer quem é. Pergunta uma vez por conta (`payAsked`), inclusive a quem entrou
+ * antes desta pergunta existir. Quem criou o grupo não: ele mesmo já monta a viagem.
+ * Devolve as outras pessoas da viagem, ou null se não é para perguntar.
+ */
+export function payQuestion(trip: Trip, members: Member[], account: { id: string } | null, meId: string | null): Traveler[] | null {
+  const me = account && members.find((m) => m.userId === account.id);
+  if (!account || !me || me.role === 'owner' || (trip.payAsked ?? []).includes(account.id)) return null;
+  const mine = trip.people.find((p) => p.id === meId);
+  if (!mine || mine.userId !== account.id || mine.auto) return null;
+  const others = trip.people.filter((p) => p.id !== mine.id);
+  return others.length ? others : null;
+}
+
+/**
  * As viagens dos grupos da conta, para aparecerem em qualquer aparelho em que ela entrar (ver a
  * ação syncAdopt). `hidden`: grupos que a pessoa excluiu da lista dela.
  */

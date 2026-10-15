@@ -8,7 +8,7 @@ import { loadTrips, meOf, openTrip, saveTrips, tripsReducer, type TripAction } f
 import { hideGroup, unhideGroup } from '../../state/hiddenGroups';
 import { usePwa } from '../../pwa/pwa';
 import { createTripGroup } from '../../sync/groups';
-import { joinByInvite, memberActions, selfJoin } from '../../sync/tripEngine';
+import { joinByInvite, memberActions, payQuestion, selfJoin } from '../../sync/tripEngine';
 import { newcomerName } from '../../core/faces';
 import { WhoAmISheet } from '../WhoAmISheet';
 import { InviteSheet, useInvite } from '../useInvite';
@@ -20,6 +20,7 @@ import { PwaBars } from '../PwaBars';
 import { useMediaQuery } from '../useMediaQuery';
 import { activeVisual } from '../visual';
 import { ExpenseSheet, type ExpenseMode } from './ExpenseSheet';
+import { PayForSheet } from './PayForSheet';
 import { PersonSheet } from './PersonSheet';
 import { ShareSheet } from './ShareSheet';
 import { SettleSheet, type SettleTarget } from './SettleSheet';
@@ -70,6 +71,17 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     const who = id ? trip.people.find((p) => p.id === id)?.name : null;
     toast(who ? `Pronto: você é ${who} nesta viagem` : 'Pronto: você entrou na viagem');
   }
+  // Em seguida (e uma vez, também para quem entrou antes desta pergunta): "Você paga a parte de alguém?".
+  const payPeople = useMemo(
+    () => (trip && entry && self?.kind === 'none' ? payQuestion(trip, members, account, meId) : null),
+    [trip, entry, self, members, account, meId],
+  );
+  function answerPay(ids: string[]) {
+    if (!trip || !account || !meId) return;
+    dispatch({ type: 'payFor', tripId: trip.id, userId: account.id, by: meId, ids });
+    const names = trip.people.filter((p) => ids.includes(p.id)).map((p) => p.name);
+    if (names.length) toast(`Pronto: a parte de ${names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0]} entra na sua conta`);
+  }
   const [sharing, setSharing] = useState(false);
 
   /** Foto do "Ler nota fiscal": guarda no aparelho e abre a despesa nova com ela. */
@@ -89,10 +101,22 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     dispatch({ type: 'syncLink', tripId: trip.id, groupId: g.groupId, code: g.code, version: g.version });
   }
 
-  // Convite (?convite=código): mostra de quem é e entra no grupo.
-  const { invite, setInvite, close: closeInvite } = useInvite('trip', !!account);
+  // Convite (?convite=código): com a conta aberta, entra no grupo sozinho (sem perguntar).
+  const { invite, setInvite, close: closeInvite, retry: retryInvite } = useInvite('trip', !!account);
+  const joinRef = useRef(join);
+  useEffect(() => { joinRef.current = join; });
+  useEffect(() => {
+    if (invite?.status === 'ready') joinRef.current();
+  }, [invite?.status]);
   async function join() {
     if (!invite || !account) return;
+    // Já está nesta viagem (clicou no link de novo): só abre.
+    const linked = Object.entries(state.sync ?? {}).find(([, e]) => e.code === invite.code);
+    if (linked && state.trips.some((t) => t.id === linked[0])) {
+      dispatch({ type: 'openTrip', id: linked[0] });
+      closeInvite();
+      return;
+    }
     setInvite({ ...invite, status: 'joining' });
     try {
       // A viagem chega e abre; em seguida, "Quem é você nesta viagem?".
@@ -180,7 +204,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     dispatch(a);
   };
   const tripSheet = <TripSheet mode={tripMode} dispatch={act} toast={toast} accountName={account?.name ?? null} onClose={() => setTripMode(null)} />;
-  const inviteSheet = <InviteSheet invite={invite} noun="viagem" onJoin={join} onClose={closeInvite} />;
+  const inviteSheet = <InviteSheet invite={invite} noun="viagem" onRetry={retryInvite} onClose={closeInvite} />;
 
 
   if (!trip || !summary) {
@@ -340,6 +364,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         newName={newcomerName(trip.people.filter((p) => p.userId !== account?.id).map((p) => p.name), account?.name ?? '')}
         onChoose={chooseSelf}
       />
+      <PayForSheet key={`${trip.id}-${meId}`} open={!!payPeople} people={payPeople ?? []} meId={meId ?? ''} onAnswer={answerPay} />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />
       <ShareSheet
