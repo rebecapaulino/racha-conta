@@ -14,7 +14,7 @@ export interface TripApi {
   join(code: string, name: string, photo: string | null): Promise<string>;
 }
 
-export const NO_ACCESS = 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). A viagem continua ligada; tente Atualizar agora.';
+export const NO_ACCESS = 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). A viagem continua ligada, e o app tenta de novo sozinho.';
 export const UNKNOWN_DATA = 'A versão do grupo veio com algum dado que o app não reconhece.';
 
 export interface Step {

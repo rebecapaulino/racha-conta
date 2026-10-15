@@ -13,7 +13,7 @@ export interface RoleApi {
   fetch(groupId: string): Promise<{ content: unknown; version: number; code: string } | null>;
 }
 
-export const NO_ACCESS = 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). O rolê continua ligado; tente Atualizar agora.';
+export const NO_ACCESS = 'O grupo não respondeu para esta conta (sem acesso ou sessão expirada). O rolê continua ligado, e o app tenta de novo sozinho.';
 export const UNKNOWN_DATA = 'A versão do grupo veio com algum dado que o app não reconhece.';
 
 export interface RoleStep {

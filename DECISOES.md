@@ -429,3 +429,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - O app confere se há versão nova ao voltar para a tela e de hora em hora com ele aberto.
 - Quem ainda está numa versão anterior a esta vê o aviso antigo uma última vez (ou recebe a nova ao fechar e abrir o app).
 - Conferido com um servidor de produção local: com o convite de instalar aberto, a versão nova esperou; ao fechar, trocou em segundos. Sem janela aberta, trocou direto.
+
+## Sem "Atualizar agora": o grupo é conferido sozinho (15/10/2026)
+
+- Saiu o botão "Atualizar agora" da janela de compartilhar (Viagem e Rolê). O app já confere o grupo a cada 20 s com ele na tela, ao voltar para ele e quando a internet volta; agora também **toda vez que a janela de compartilhar abre** (era o que o botão fazia).
+- As mensagens de erro do grupo deixaram de pedir "tente Atualizar agora": dizem que o app tenta de novo sozinho.
+- Com a versão nova do app trocando sozinha (14/10), não sobra nenhum "Atualizar" para a pessoa tocar.

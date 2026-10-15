@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Account } from '../../auth/account';
 import { whatsappUrl } from '../../core/bill';
 import { memberInitials } from '../../core/initials';
@@ -40,8 +40,9 @@ interface Props {
   code: string | null;
   /** Mudanças feitas aqui que ainda não chegaram ao grupo. */
   pending?: number;
-  /** Como está a conversa com o grupo, e o "Atualizar agora". */
+  /** Como está a conversa com o grupo. */
   status?: SyncStatus;
+  /** Confere o grupo na hora (chamado sozinho ao abrir a janela; não tem botão). */
   onRefresh?: () => void;
   members: Member[];
   account: Account | null;
@@ -56,6 +57,14 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const linkRef = useRef<HTMLInputElement>(null);
+  // Abriu a janela: confere o grupo na hora (antes era o botão "Atualizar agora").
+  const refresh = useRef(onRefresh);
+  useEffect(() => {
+    refresh.current = onRefresh;
+  });
+  useEffect(() => {
+    if (open && code) refresh.current?.();
+  }, [open, code]);
   const url = code ? inviteUrl(code) : '';
   const art = noun === 'viagem' ? 'na viagem' : 'no rolê';
   const message = `Entra ${art} "${title}" no Racha Conta, para a gente dividir as contas juntos: ${url}`;
@@ -135,11 +144,6 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
                     ? `Conferido às ${new Date(status.checkedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}: o que os outros mudaram já aparece aqui.`
                     : 'Conferindo o grupo…'}
                 </p>
-              )}
-              {onRefresh && (
-                <button type="button" className="btn secondary" onClick={onRefresh}>
-                  Atualizar agora
-                </button>
               )}
             </div>
             <h3 className="field-label">No grupo ({members.length})</h3>
