@@ -1,19 +1,12 @@
-import { applyUpdate, dismissInstall, install, usePwa } from '../pwa/pwa';
+import { dismissInstall, install, usePwa } from '../pwa/pwa';
 import { IconX, Logo } from './icons';
 
-/** Avisos do app instalável: versão nova e convite para instalar na tela inicial. */
+/**
+ * Aviso do app instalável: convite para instalar na tela inicial. (A versão nova não tem mais
+ * aviso nem botão: troca sozinha, ver updateWhenSafe em pwa.ts.)
+ */
 export function PwaBars() {
   const pwa = usePwa();
-
-  if (pwa.updateReady) {
-    return (
-      <div className="notice" role="status">
-        <span className="notice-icon"><Logo size={20} /></span>
-        <p><b>Versão nova do app</b><small>Atualize para usar as novidades.</small></p>
-        <button type="button" className="btn primary small" onClick={applyUpdate}>Atualizar</button>
-      </div>
-    );
-  }
 
   // O convite pequeno só aparece depois do "Agora não" no popup (ver InstallSheet).
   if (pwa.standalone || pwa.dismissed || !pwa.snoozed || !(pwa.canInstall || pwa.iosHint)) return null;

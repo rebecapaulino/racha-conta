@@ -421,3 +421,11 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Link abrindo o app:** no iPhone não é possível (o iOS sempre abre links no Safari). No Android, com o app instalado pelo Chrome, o manifesto pede que links do site abram no app (`handle_links`, `launch_handler`). Quem entra pelo navegador do celular vê "Ela já aparece também no app Racha Conta da sua tela inicial".
 - Avisos longos ficam mais tempo na tela (proporcional ao texto).
 - Testes: `syncAdopt` (state/tripShare), `adoptRoles` (sync/roleEngine), lista de excluídos (state/hiddenGroups) e integração com a mesma conta em dois aparelhos (sync/tripEngine). Conferido no navegador com Supabase simulado: entra pelo navegador, aparece no "atalho"; exclui no atalho, some do navegador.
+
+## Versão nova do app troca sozinha (14/10/2026)
+
+- **Antes:** aparecia o aviso "Versão nova do app" com o botão Atualizar, e nem todo mundo sabia que precisava tocar.
+- **Agora:** sem aviso e sem botão. Quando a versão nova termina de baixar, o app troca sozinho num momento em que nada se perde: na hora, se não há janela aberta (lançando uma despesa, por exemplo) nem alguém digitando; senão, assim que a janela fecha ou a pessoa sai do app. O que já foi salvo, inclusive mudanças que ainda vão para o grupo, fica guardado e segue depois da troca.
+- O app confere se há versão nova ao voltar para a tela e de hora em hora com ele aberto.
+- Quem ainda está numa versão anterior a esta vê o aviso antigo uma última vez (ou recebe a nova ao fechar e abrir o app).
+- Conferido com um servidor de produção local: com o convite de instalar aberto, a versão nova esperou; ao fechar, trocou em segundos. Sem janela aberta, trocou direto.

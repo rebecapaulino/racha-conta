@@ -98,6 +98,7 @@ function start() {
           if (sw.state === 'installed' && navigator.serviceWorker.controller) {
             waiting = sw;
             set({ updateReady: true });
+            updateWhenSafe();
           }
         };
         check();
@@ -105,10 +106,11 @@ function start() {
       };
       track(reg.waiting);
       reg.addEventListener('updatefound', () => track(reg.installing));
-      // Confere atualização quando o app volta para a frente.
+      // Confere atualização quando o app volta para a frente, e de hora em hora com ele aberto.
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') reg.update().catch(() => {});
       });
+      window.setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
     })
     .catch(() => {
       /* sem service worker o app continua funcionando online */
@@ -156,4 +158,31 @@ export function snoozeInstall(): void {
 
 export function applyUpdate(): void {
   waiting?.postMessage('SKIP_WAITING');
+}
+
+/**
+ * Versão nova pronta: troca sozinha (ninguém precisa saber que existe um "Atualizar"). A troca
+ * recarrega a página, então espera um momento em que nada se perde: sem janela aberta (uma
+ * despesa sendo lançada, por exemplo) e sem ninguém digitando, ou quando a pessoa sai do app.
+ * O que já foi salvo (inclusive o que ainda vai para o grupo) fica guardado no aparelho.
+ */
+let watching = false;
+function updateWhenSafe() {
+  if (watching) return;
+  watching = true;
+  const busy = () => {
+    const el = document.activeElement;
+    const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable);
+    return !!document.querySelector('dialog[open]') || typing;
+  };
+  const tryNow = () => {
+    if (document.visibilityState === 'hidden' || !busy()) {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tryNow);
+      applyUpdate();
+    }
+  };
+  const timer = window.setInterval(tryNow, 3000);
+  document.addEventListener('visibilitychange', tryNow);
+  tryNow();
 }
