@@ -215,6 +215,11 @@ h3.field-label { margin: 0; }
   width: 40px; height: 40px; flex: none; display: grid; place-items: center;
   border-radius: 12px; background: var(--fill); color: var(--ink);
 }
+/* "Onde guardar esta foto?": as despesas da viagem para escolher */
+.receipt-target-group h3 { margin: 10px 0 0; font-size: .86rem; font-weight: 700; color: var(--muted); }
+.receipt-target-list::before { display: none; }
+.receipt-target-list .line { padding-inline: 2px; gap: 14px; min-height: 58px; }
+
 .deleted { padding-inline: 4px; }
 .deleted .list { margin-top: 6px; }
 

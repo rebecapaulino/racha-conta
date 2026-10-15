@@ -444,3 +444,11 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **Login automático:** a tela de login também abre a janelinha do Google "Continuar como Fulano"; quem já entrou no app com aquela conta Google entra sozinho. Isso ajuda quando o link abre num navegador em que o app ainda não estava logado. No iPhone, o app da tela inicial e o Safari não dividem a sessão: o primeiro acesso por um deles ainda passa pelo Google, mas sem precisar digitar nada.
 - Testes: `payFor` (core/tripJoin) e integração com dois celulares (sync/tripEngine): o Robin entra, paga a da Lara e o acerto vai para ele; quem entrou antes é perguntado uma vez; quem criou não é. Conferido no navegador com Supabase simulado.
 - Ajuste (15/10/2026): **toda lista de escolher pessoa mostra todo mundo, em linhas.** Antes rolava para o lado sem barra, e quem ficava fora da tela parecia não estar na lista (no teste real, a Clari sumiu de "Você paga a parte de alguém?"). Vale para: "Quem é você", "Você paga a parte de alguém?", "Quem pagou" (despesa da viagem, divisão do rolê e nota), "De quem são as despesas" e "Quem fica com as despesas". A faixa de várias notas fiscais do rolê também passou a quebrar em linhas. Conferido com 12 pessoas no celular: ninguém fora da tela.
+
+## Foto numa despesa que já existe (15/10/2026)
+
+- **Antes:** o "Ler nota fiscal" sempre abria uma despesa nova. Para guardar a nota (ou um comprovante) numa despesa já lançada, era preciso abrir a despesa e passar pelas etapas.
+- **Agora:** depois de tirar ou escolher a foto, o app pergunta **"Onde guardar esta foto?"**: **Criar uma despesa nova** (como antes, lendo o total) ou tocar numa **despesa que já existe**. Serve para nota fiscal que chegou depois, comprovante, print do extrato do banco.
+- Guardar numa despesa existente **não muda mais nada nela** (valor, divisão, quem pagou, saldos); só a foto. Se a despesa já tinha foto, a lista avisa "troca a foto atual". O aviso tem "Desfazer". Fica no registro ("Adicionou a nota fiscal de Aluguel") e vai para o grupo como as outras mudanças.
+- A lista mostra primeiro as despesas que você pagou, depois as outras, da mais nova para a mais antiga. Sem nenhuma despesa na viagem, vai direto para a despesa nova.
+- Testes: `setExpenseReceipt` (core/tripJoin) e integração com dois celulares (sync/tripEngine). Conferido no navegador: guardar, desfazer e criar nova.

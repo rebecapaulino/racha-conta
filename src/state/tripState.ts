@@ -18,6 +18,7 @@ import {
   payFor,
   removeTraveler,
   setExpenseDeleted,
+  setExpenseReceipt,
   setExpenseSettled,
   TRIP_CATEGORIES,
   transferTraveler,
@@ -86,6 +87,8 @@ export type TripAction =
   | { type: 'deleteExpense'; id: string; deleted: boolean }
   /** "Todos pagos": a despesa sai (ou volta) do painel de acerto. */
   | { type: 'settleExpense'; id: string; settled: boolean }
+  /** Foto (nota, comprovante, extrato) numa despesa que já existe; null tira. */
+  | { type: 'setReceipt'; id: string; receipt: string | null }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
   | { type: 'unsettle'; id: string }
   // ---- compartilhamento (só o app manda; não entram no registro) ----
@@ -212,6 +215,12 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
     case 'settleExpense': {
       const e = exp(after, a.id);
       return e ? (a.settled ? `Marcou ${e.description}: todos pagos` : `${e.description} voltou para o acerto`) : null;
+    }
+    case 'setReceipt': {
+      const [b, e] = [exp(before, a.id), exp(after, a.id)];
+      if (!b || !e) return null;
+      if (!e.receipt) return `Tirou a nota fiscal de ${e.description}`;
+      return b.receipt ? `Trocou a nota fiscal de ${e.description}` : `Adicionou a nota fiscal de ${e.description}`;
     }
     case 'settle':
       return `${who(after, a.from)} pagou ${formatBRL(a.cents)} para ${who(after, a.to)}`;
@@ -457,6 +466,9 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       return onOpen(s, (t) => setExpenseDeleted(t, a.id, a.deleted, now()));
     case 'settleExpense':
       return onOpen(s, (t) => setExpenseSettled(t, a.id, a.settled, now()));
+    case 'setReceipt':
+      if (a.receipt !== null && !PHOTO_ID.test(a.receipt)) return s;
+      return onOpen(s, (t) => setExpenseReceipt(t, a.id, a.receipt, now()));
     case 'settle':
       return onOpen(s, (t) => {
         const r = addSettlement(t, { from: a.from, to: a.to, cents: a.cents, expenseId: a.expenseId }, a.id, now());

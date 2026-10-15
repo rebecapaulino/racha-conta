@@ -650,3 +650,35 @@ describe('"Você paga a parte de alguém?"', () => {
     expect(rebeca.trip.log?.some((l) => l.text === 'Robin paga a parte de Lara e Theo na viagem toda')).toBe(true);
   });
 });
+
+describe('foto numa despesa que já existe', () => {
+  it('a Bia guarda o comprovante na despesa que a Rebeca lançou: chega no celular da Rebeca, com o registro', async () => {
+    const { rebeca, bia } = setup();
+    rebeca.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca', meId: 'reb' });
+    await bia.join(rebeca.share(), null);
+    await bia.push();
+    await rebeca.sync();
+    const biaId = rebeca.trip.people.find((p) => p.userId === 'u-bia')!.id;
+    rebeca.do({ type: 'addExpense', id: 'e1', input: expense('reb', ['reb', biaId], 20000, 'Aluguel') });
+    await rebeca.push();
+    await bia.pull();
+    const shares = bia.trip.expenses[0].shares;
+    bia.do({ type: 'setReceipt', id: 'e1', receipt: 'extrato123' });
+    await bia.push();
+    await rebeca.sync();
+    const e = rebeca.trip.expenses[0];
+    expect(e.receipt).toBe('extrato123');
+    expect(e.shares).toEqual(shares);
+    expect(e.cents).toBe(20000);
+    expect(rebeca.trip.log?.some((l) => l.text === 'Adicionou a nota fiscal de Aluguel' && l.by === 'Bia Souza')).toBe(true);
+    expect(bia.trip).toEqual(rebeca.trip);
+  });
+
+  it('id de foto inválido é ignorado', () => {
+    const { rebeca } = setup();
+    rebeca.do({ type: 'createTrip', id: 'A', name: 'Chácara', meName: 'Rebeca', meId: 'reb' }, { type: 'addExpense', id: 'e1', input: expense('reb', ['reb'], 1000) });
+    const before = rebeca.trip;
+    rebeca.do({ type: 'setReceipt', id: 'e1', receipt: '../x' });
+    expect(rebeca.trip).toBe(before);
+  });
+});

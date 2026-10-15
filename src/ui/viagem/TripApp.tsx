@@ -21,6 +21,7 @@ import { useMediaQuery } from '../useMediaQuery';
 import { activeVisual } from '../visual';
 import { ExpenseSheet, type ExpenseMode } from './ExpenseSheet';
 import { PayForSheet } from './PayForSheet';
+import { ReceiptTargetSheet } from './ReceiptTargetSheet';
 import { PersonSheet } from './PersonSheet';
 import { ShareSheet } from './ShareSheet';
 import { SettleSheet, type SettleTarget } from './SettleSheet';
@@ -33,7 +34,7 @@ import { TripPeople } from './TripPeople';
 import { TripSheet, type TripMode } from './TripSheet';
 import { supabaseTripApi, useTripSync } from './useTripSync';
 import { newId } from '../../state/billState';
-import { putPhoto } from '../../state/photos';
+import { deletePhoto, putPhoto } from '../../state/photos';
 import { rememberPhotoUrl } from '../usePhotoUrl';
 
 type Tab = 'pessoas' | 'despesas' | 'saldos';
@@ -84,7 +85,11 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   }
   const [sharing, setSharing] = useState(false);
 
-  /** Foto do "Ler nota fiscal": guarda no aparelho e abre a despesa nova com ela. */
+  /**
+   * Foto do "Ler nota fiscal": guarda no aparelho e pergunta onde ela vai (despesa nova, ou uma
+   * que já existe). Sem despesa nenhuma ainda, abre direto a despesa nova.
+   */
+  const [scan, setScan] = useState<{ id: string; blob: Blob } | null>(null);
   async function scanned(blob: Blob) {
     const id = newId();
     if (!(await putPhoto(id, blob))) {
@@ -92,7 +97,24 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       return;
     }
     rememberPhotoUrl(id, blob);
-    setExpenseMode({ kind: 'new', scan: { id, blob } });
+    if (trip && activeExpenses(trip).length) setScan({ id, blob });
+    else setExpenseMode({ kind: 'new', scan: { id, blob } });
+  }
+  function scanToNew() {
+    if (!scan) return;
+    setExpenseMode({ kind: 'new', scan });
+    setScan(null);
+  }
+  function scanToExpense(e: Expense) {
+    if (!scan) return;
+    const old = e.receipt ?? null;
+    dispatch({ type: 'setReceipt', id: e.id, receipt: scan.id });
+    setScan(null);
+    toast(old ? `Foto trocada em ${e.description}` : `Foto guardada em ${e.description}`, () => dispatch({ type: 'setReceipt', id: e.id, receipt: old }));
+  }
+  function scanCancel() {
+    if (scan) void deletePhoto(scan.id);
+    setScan(null);
   }
 
   async function share() {
@@ -364,6 +386,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         newName={newcomerName(trip.people.filter((p) => p.userId !== account?.id).map((p) => p.name), account?.name ?? '')}
         onChoose={chooseSelf}
       />
+      <ReceiptTargetSheet open={!!scan} trip={trip} meId={meId} onNew={scanToNew} onPick={scanToExpense} onCancel={scanCancel} />
       <PayForSheet key={`${trip.id}-${meId}`} open={!!payPeople} people={payPeople ?? []} meId={meId ?? ''} onAnswer={answerPay} />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />

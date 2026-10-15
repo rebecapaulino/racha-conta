@@ -6,6 +6,7 @@ import {
   mergeTraveler,
   newTrip,
   payFor,
+  setExpenseReceipt,
   personStatement,
   transferTraveler,
   travelerUsage,
@@ -257,5 +258,28 @@ describe('payFor ("Você paga a parte de alguém?")', () => {
     t = { ...t, people: t.people.map((p) => (p.id === 'lara' ? { ...p, coveredBy: 'ana' } : p)) };
     t = payFor(t, 'robin', ['lara'], 'u-robin');
     expect(t.people.find((p) => p.id === 'lara')!.coveredBy).toBe('robin');
+  });
+});
+
+describe('setExpenseReceipt (foto numa despesa que já existe)', () => {
+  it('guarda, troca e tira a foto sem mexer no valor, na divisão nem no saldo', () => {
+    let t = add(tripWith(['Ana', 'Bia']), 'e1', { cents: 10000, payerId: 'ana', people: ['ana', 'bia'] });
+    const before = tripSummary(t);
+    t = setExpenseReceipt(t, 'e1', 'foto1abc', NOW);
+    const e = t.expenses[0];
+    expect(e.receipt).toBe('foto1abc');
+    expect(e.shares).toEqual({ ana: 5000, bia: 5000 });
+    expect(tripSummary(t).people).toEqual(before.people);
+    t = setExpenseReceipt(t, 'e1', 'foto2abc', NOW);
+    expect(t.expenses[0].receipt).toBe('foto2abc');
+    t = setExpenseReceipt(t, 'e1', null, NOW);
+    expect(t.expenses[0].receipt).toBeUndefined();
+  });
+
+  it('despesa excluída ou inexistente não muda', () => {
+    const t = add(tripWith(['Ana', 'Bia']), 'e1', { cents: 10000, payerId: 'ana', people: ['ana', 'bia'] });
+    const gone = { ...t, expenses: t.expenses.map((e) => ({ ...e, deleted: true })) };
+    expect(setExpenseReceipt(gone, 'e1', 'foto1abc', NOW)).toBe(gone);
+    expect(setExpenseReceipt(t, 'nada', 'foto1abc', NOW)).toBe(t);
   });
 });

@@ -4,8 +4,8 @@ import { IconCamera, IconChevron, IconImage, IconReceipt } from '../icons';
 import { Sheet } from './Sheet';
 
 /**
- * "Ler nota fiscal" na caderneta (como no Rolê): tira ou escolhe a foto, e abre a despesa nova
- * com a nota guardada e o total lido.
+ * "Ler nota fiscal" na caderneta (como no Rolê): tira ou escolhe a foto; depois a pessoa escolhe
+ * se lança uma despesa nova com ela (o total é lido) ou guarda numa que já existe.
  */
 export function TripScanCard({ onPhoto, toast }: { onPhoto: (blob: Blob) => void; toast: (msg: string) => void }) {
   const [choosing, setChoosing] = useState(false);
@@ -30,7 +30,7 @@ export function TripScanCard({ onPhoto, toast }: { onPhoto: (blob: Blob) => void
         <span className="scan-cta-icon" aria-hidden="true"><IconReceipt size={24} /></span>
         <span className="row-main">
           <b>Ler nota fiscal</b>
-          <small>Tire uma foto e o app lança a despesa com o total.</small>
+          <small>Lance uma despesa nova com o total, ou guarde a foto numa que já existe.</small>
         </span>
         <span className="scan-cta-go" aria-hidden="true"><IconChevron size={20} /></span>
       </button>
@@ -40,7 +40,7 @@ export function TripScanCard({ onPhoto, toast }: { onPhoto: (blob: Blob) => void
         <div className="sheet-body">
           <span className="sheet-grip" aria-hidden="true" />
           <h2 id="h-trip-scan" tabIndex={-1}>Ler nota fiscal</h2>
-          <p>A nota fica guardada na despesa{' '}e o app lê o total. Depois é só conferir e escolher quem pagou.</p>
+          <p>Nota fiscal, comprovante ou print do extrato. Depois você escolhe: criar uma despesa nova com ela (o app lê o total) ou só guardar numa despesa que já existe.</p>
           <button type="button" className="btn primary big" onClick={() => cameraRef.current?.click()}>
             <IconCamera /> Tirar foto
           </button>

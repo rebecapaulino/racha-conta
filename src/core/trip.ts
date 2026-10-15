@@ -344,6 +344,25 @@ export const activeExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.del
 export const openExpenses = (trip: Trip) => trip.expenses.filter((e) => !e.deleted && !e.settled);
 
 /** Marca (ou desmarca) "Todos pagos": a despesa sai (ou volta) do painel de acerto. */
+/**
+ * Guarda (ou tira) a foto de uma despesa que já existe, sem mexer em mais nada dela: a nota
+ * fiscal que chegou depois, um comprovante, um print do extrato. Despesa excluída não muda.
+ */
+export function setExpenseReceipt(trip: Trip, id: string, receipt: string | null, now: string): Trip {
+  const e = trip.expenses.find((x) => x.id === id);
+  if (!e || e.deleted || (e.receipt ?? null) === receipt) return trip;
+  return {
+    ...trip,
+    expenses: trip.expenses.map((x) => {
+      if (x.id !== id) return x;
+      const next: Expense = { ...x, updatedAt: now };
+      if (receipt) next.receipt = receipt;
+      else delete next.receipt;
+      return next;
+    }),
+  };
+}
+
 export function setExpenseSettled(trip: Trip, id: string, settled: boolean, now: string): Trip {
   return {
     ...trip,
