@@ -31,7 +31,7 @@ export function PayForSheet({ open, people, meId, onAnswer }: Props) {
         <p>
           Por exemplo, a de um filho. As despesas continuam no nome da pessoa, mas no acerto a parte dela entra na sua conta. Dá para mudar depois, tocando na pessoa.
         </p>
-        <div className="picker whoami-picker" role="group" aria-labelledby="h-payfor">
+        <div className="picker whoami-picker pay-picker" role="group" aria-labelledby="h-payfor">
           {people.map((p) => {
             const on = picked.includes(p.id);
             const other = by(p);
