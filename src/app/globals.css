@@ -569,12 +569,12 @@ h1, h2, p { margin: 0; }
   font-size: .72rem; font-weight: 800;
 }
 
+/* Escolher uma pessoa: todo mundo à vista, em linhas. (Rolando para o lado sem barra, quem
+   ficava fora da tela parecia não estar na lista.) */
 .picker {
-  display: flex; gap: 6px;
-  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  display: flex; flex-wrap: wrap; gap: 10px 6px;
   margin-inline: -18px; padding: 4px 18px;
 }
-.picker::-webkit-scrollbar { display: none; }
 .pick {
   flex: none; width: 70px;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -1271,12 +1271,11 @@ input, textarea, select { font-size: max(16px, 1em); }
 
 /* ---------- várias notas fiscais na mesma conta ---------- */
 .notes-bar { display: flex; flex-direction: column; gap: 4px; }
+/* Em linhas, como as pessoas: nenhuma nota fica escondida fora da tela. */
 .notes-strip {
-  display: flex; gap: 8px;
-  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  display: flex; flex-wrap: wrap; gap: 8px;
   margin-inline: calc(-1 * var(--gutter, 16px)); padding: 2px var(--gutter, 16px) 4px;
 }
-.notes-strip::-webkit-scrollbar { display: none; }
 .note-chip {
   flex: none; display: inline-flex; align-items: center; gap: 10px;
   min-height: 52px; max-width: 220px; padding: 6px 16px 6px 8px;
@@ -1401,10 +1400,8 @@ input, textarea, select { font-size: max(16px, 1em); }
 @media (max-width: 374px) { .tabs button { gap: 5px; padding-inline: 4px; } }
 
 /* "Quem é você?" (ao entrar num grupo): "Sou uma pessoa nova" com um + no lugar da inicial. */
-.whoami-picker .pick { width: 84px; }
 .whoami-picker .pick small { font-size: .72rem; text-align: center; line-height: 1.25; }
-/* "Você paga a parte de alguém?": todo mundo à vista, em linhas (rolando para o lado, quem ficava fora da tela parecia não estar na lista) */
-.pay-picker { flex-wrap: wrap; overflow: visible; row-gap: 10px; }
-.pay-picker .pick { width: 76px; }
+/* Com o texto embaixo do nome, 76px: ainda cabem 4 por linha no celular. */
+.whoami-picker .pick { width: 76px; }
 .whoami-new-icon { background: transparent; border: 2px dashed var(--line); color: var(--muted); }
 .whoami-new[aria-checked="true"] .whoami-new-icon { border-style: solid; border-color: var(--primary); color: var(--primary); }
