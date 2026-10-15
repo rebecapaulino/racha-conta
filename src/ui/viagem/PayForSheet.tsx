@@ -39,12 +39,12 @@ export function PayForSheet({ open, people, meId, onAnswer }: Props) {
               <button key={p.id} type="button" role="checkbox" aria-checked={on} className="pick" style={personStyle(p)} onClick={() => toggle(p.id)}>
                 <Avatar person={p} size="md" checked={on} />
                 <span className="pick-name">{p.name}</span>
-                {other && !on && <small className="muted">pago por {other}</small>}
+                {other && !on && <small className="muted pick-note" title={`pago por ${other}`}>por {other.split(' ')[0]}</small>}
               </button>
             );
           })}
         </div>
-        <div className="sheet-actions">
+        <div className="sheet-actions sheet-actions-end">
           <button type="button" className="btn primary" onClick={() => onAnswer(picked)}>{label}</button>
         </div>
       </div>

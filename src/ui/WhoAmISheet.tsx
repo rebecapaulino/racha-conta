@@ -54,7 +54,7 @@ export function WhoAmISheet({ open, noun, people, suggested, newName, onChoose }
             </button>
           </div>
         </FacesProvider>
-        <div className="sheet-actions">
+        <div className="sheet-actions sheet-actions-end">
           <button type="button" className="btn primary" onClick={() => onChoose(pick)}>
             {pick ? `Sou ${people.find((p) => p.id === pick)?.name}` : `Entrar como ${newName}`}
           </button>

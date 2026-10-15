@@ -1403,5 +1403,15 @@ input, textarea, select { font-size: max(16px, 1em); }
 .whoami-picker .pick small { font-size: .72rem; text-align: center; line-height: 1.25; }
 /* Com o texto embaixo do nome, 76px: ainda cabem 4 por linha no celular. */
 .whoami-picker .pick { width: 76px; }
+.whoami-picker .pick.whoami-new { width: 96px; } /* "Pessoa nova" inteiro */
+/* "por Mauricio" (quem já paga a parte dela): uma linha só, para não empurrar a fila de baixo */
+.whoami-picker .pick small.pick-note {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  height: 14px; margin-bottom: -20px; /* não aumenta a fila (14px + o espaço de 6px acima): ocupa o espaço entre as filas */
+}
+.whoami-picker:has(.pick-note) { row-gap: 22px; }
+/* Um botão só, no canto de baixo à direita ("Não, só a minha parte", "Entrar como Robin") */
+.sheet-actions-end { display: flex; justify-content: flex-end; }
+.sheet-actions-end .btn { max-width: 100%; }
 .whoami-new-icon { background: transparent; border: 2px dashed var(--line); color: var(--muted); }
 .whoami-new[aria-checked="true"] .whoami-new-icon { border-style: solid; border-color: var(--primary); color: var(--primary); }
