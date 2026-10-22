@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type Dispatch } from 'react';
 import { computeSplit, noteBill, noteLabel, notePhotos, summaryText, type Bill, type Note } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { newId, type Action } from '../state/billState';
-import { getPhoto } from '../state/photos';
+import { deletePhoto, getPhoto } from '../state/photos';
 import { downloadUrl, fileName } from './download';
-import { IconDownload, IconImage, IconPencil, IconPlus, IconReceipt, IconShare, IconX } from './icons';
+import { IconCheck, IconDownload, IconImage, IconPencil, IconPlus, IconReceipt, IconShare, IconTrash, IconX } from './icons';
+import { forgetPhotoUrl } from './usePhotoUrl';
 import { Sheet } from './viagem/Sheet';
 import { categoryEmoji } from '../core/noteCategory';
 import { NoteSheet, type NoteSheetMode } from './NoteSheet';
@@ -39,6 +40,18 @@ function BigPhoto({ id, groupId, alt, name }: { id: string; groupId: string | nu
   );
 }
 
+/** Miniatura para marcar ao escolher quais fotos da nota excluir. */
+function PickPhoto({ id, groupId, index, on, onToggle }: { id: string; groupId: string | null; index: number; on: boolean; onToggle: () => void }) {
+  const url = useReceiptUrl(id, groupId);
+  return (
+    <button type="button" className="photo-pick" aria-pressed={on} onClick={onToggle} aria-label={`Foto ${index + 1}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
+      {url ? <img src={url} alt="" /> : <IconReceipt size={24} />}
+      <span className="photo-pick-check" aria-hidden="true">{on && <IconCheck size={14} />}</span>
+    </button>
+  );
+}
+
 /**
  * Notas fiscais da conta (ex.: a do bar e a dos doces): troca a nota aberta em Pedidos e
  * Divisão, cria uma nova e edita a aberta (categoria, quem pagou, quem divide, foto).
@@ -48,6 +61,8 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
   // Nota a apagar (pelo X em cima dela), esperando a confirmação.
   const [deleting, setDeleting] = useState<{ id: string; label: string; items: number } | null>(null);
   const [receiptsOpen, setReceiptsOpen] = useState(false);
+  // Fotos marcadas para excluir; null fora da escolha.
+  const [picking, setPicking] = useState<string[] | null>(null);
   const photoRef = useRef<HTMLDialogElement>(null);
   const notes = bill.notes ?? [];
   // Conta de uma nota só: ela aparece como "Nota 1" e vira nota de verdade ao ser editada.
@@ -112,6 +127,17 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
       () => toast(file ? 'Foto baixada e resumo copiado' : 'Resumo copiado'),
       () => toast(file ? 'Foto baixada' : 'Não deu para copiar'),
     );
+  }
+
+  function removePhotos(ids: string[]) {
+    for (const id of ids) {
+      dispatch({ type: 'removeNotePhoto', id: current.id, photoId: id });
+      forgetPhotoUrl(id);
+      deletePhoto(id);
+    }
+    toast(ids.length === 1 ? 'Foto excluída' : `${ids.length} fotos excluídas`);
+    setPicking(null);
+    if (ids.length === photos.length) photoRef.current?.close();
   }
 
   function edit(intro?: string) {
@@ -237,19 +263,50 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
         className="sheet"
         aria-labelledby="h-note-photo"
         onClick={(e) => e.target === e.currentTarget && photoRef.current?.close()}
+        onClose={() => setPicking(null)}
       >
         <div className="sheet-body">
           <span className="sheet-grip" aria-hidden="true" />
           <h2 id="h-note-photo"><IconImage size={20} /> {named}</h2>
-          {photos.map((id, i) => (
-            <BigPhoto key={id} id={id} groupId={groupId} alt={`Foto ${i + 1} da ${named.toLowerCase()}`} name={photos.length > 1 ? `${label} ${i + 1}` : label} />
-          ))}
-          <div className="sheet-actions sheet-actions-end">
-            <button type="button" className="btn primary" onClick={share}>
-              <IconShare /> Compartilhar
-            </button>
-          </div>
-          <p className="hint">{photos.length > 1 ? 'Vão as fotos' : 'Vai a foto'} e quanto cada um paga nesta nota.</p>
+          {picking ? (
+            <>
+              <p className="hint">Toque nas fotos que você quer excluir.</p>
+              <div className="receipt-grid">
+                {photos.map((id, i) => (
+                  <PickPhoto
+                    key={id}
+                    id={id}
+                    groupId={groupId}
+                    index={i}
+                    on={picking.includes(id)}
+                    onToggle={() => setPicking((l) => (l?.includes(id) ? l.filter((x) => x !== id) : [...(l ?? []), id]))}
+                  />
+                ))}
+              </div>
+              <div className="sheet-actions">
+                <button type="button" className="btn secondary" onClick={() => setPicking(null)}>Cancelar</button>
+                <button type="button" className="btn primary danger" disabled={!picking.length} onClick={() => removePhotos(picking)}>
+                  <IconTrash /> {picking.length > 1 ? `Excluir ${picking.length} fotos` : 'Excluir foto'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {photos.map((id, i) => (
+                <BigPhoto key={id} id={id} groupId={groupId} alt={`Foto ${i + 1} da ${named.toLowerCase()}`} name={photos.length > 1 ? `${label} ${i + 1}` : label} />
+              ))}
+              <div className="sheet-actions">
+                {/* Uma foto só: já vem marcada. */}
+                <button type="button" className="btn secondary danger" onClick={() => setPicking(photos.length === 1 ? photos : [])}>
+                  <IconTrash /> Excluir
+                </button>
+                <button type="button" className="btn primary" onClick={share}>
+                  <IconShare /> Compartilhar
+                </button>
+              </div>
+              <p className="hint">{photos.length > 1 ? 'Vão as fotos' : 'Vai a foto'} e quanto cada um paga nesta nota.</p>
+            </>
+          )}
           <button type="button" className="btn ghost" onClick={() => photoRef.current?.close()}>Fechar</button>
         </div>
       </dialog>
