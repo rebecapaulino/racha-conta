@@ -463,3 +463,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Dados: a primeira foto continua em `receipt` (despesa) e `photoId` (nota), que é o que versões antigas leem; as outras ficam em `photos`. Novas ações: `addExpensePhoto`/`removeExpensePhoto` (Viagem) e `addNotePhoto`/`removeNotePhoto` (Rolê). Tudo vai para o grupo e para o registro ("Adicionou uma foto em Amazon", "Guardou uma foto na Nota 1").
 - Corrigido junto: o registro dizia "Nota Nota 1" para nota sem categoria.
 - Testes: várias fotos na despesa (state/tripState) e na nota (state/notes). Conferido no navegador nas duas áreas: anexar soma, o X tira só aquela, a foto vai para a nota escolhida.
+
+## Quem criou o grupo tira alguém dele (22/10/2026)
+
+- **Onde:** janela "Compartilhar" (Viagem e Rolê), lista "No grupo". Só quem criou o grupo vê o botão **Tirar** nas outras pessoas; pede confirmação na própria linha.
+- **O que acontece:** a pessoa para de ver e editar o grupo. O que ela lançou continua, e ela continua em Pessoas (as despesas e a divisão não mudam). Com o link de convite, ela consegue entrar de novo.
+- **Banco:** função `remove_member` (só o dono; não tira a si mesmo) em `supabase/migrations/20261022_tirar_do_grupo.sql`. **Precisa rodar uma vez no SQL Editor do Supabase.**
+- No celular de quem saiu, a janela de compartilhar mostra "O grupo não respondeu para esta conta (sem acesso…)".

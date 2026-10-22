@@ -7,7 +7,7 @@ import { loginEnabled, useAccount } from '../../auth/account';
 import { loadTrips, meOf, openTrip, saveTrips, tripsReducer, type TripAction } from '../../state/tripState';
 import { hideGroup, unhideGroup } from '../../state/hiddenGroups';
 import { usePwa } from '../../pwa/pwa';
-import { createTripGroup } from '../../sync/groups';
+import { createTripGroup, removeMember } from '../../sync/groups';
 import { joinByInvite, memberActions, payQuestion, selfJoin } from '../../sync/tripEngine';
 import { newcomerName } from '../../core/faces';
 import { WhoAmISheet } from '../WhoAmISheet';
@@ -402,6 +402,12 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
         members={members}
         account={account}
         onCreate={share}
+        onRemove={async (m) => {
+          const groupId = entry?.groupId;
+          if (!groupId) return;
+          await removeMember(groupId, m.userId);
+          syncRefresh();
+        }}
         toast={toast}
         onClose={() => setSharing(false)}
       />

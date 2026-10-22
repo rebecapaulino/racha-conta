@@ -123,3 +123,9 @@ export async function fetchMembers(groupId: string): Promise<Member[]> {
   if (error) throw error;
   return (data ?? []).map((m) => ({ userId: m.user_id, name: m.name, photo: m.photo, role: m.role, joinedAt: m.joined_at }));
 }
+
+/** Quem criou o grupo tira alguém dele (a pessoa para de ver e editar). Ver supabase/migrations/20261022_tirar_do_grupo.sql. */
+export async function removeMember(groupId: string, userId: string): Promise<void> {
+  const { error } = await db().rpc('remove_member', { p_group: groupId, p_user: userId });
+  if (error) throw error;
+}

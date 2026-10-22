@@ -660,7 +660,10 @@ h3.field-label { margin: 0; }
 .member-dot-lg { width: 44px; height: 44px; font-size: .95rem; box-shadow: none; }
 .member-dots-btn { min-height: 44px; padding: 0 4px; border: 0; background: none; cursor: pointer; display: inline-flex; align-items: center; }
 .share-sheet .share-link { font-size: .9rem; }
-.member-list .row { gap: 12px; }
+.member-list .row { gap: 12px; flex-wrap: wrap; }
+.member-list .row > .row-main { flex: 1; min-width: 0; }
+.member-remove { flex-basis: 100%; }
+.member-remove p { margin: 0 0 8px; }
 
 /* ---------- nota fiscal na despesa ---------- */
 .receipt-add, .receipt-chip {

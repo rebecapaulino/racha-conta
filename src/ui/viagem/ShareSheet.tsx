@@ -48,13 +48,19 @@ interface Props {
   account: Account | null;
   /** Cria o grupo e o link (só quem ainda não compartilhou). */
   onCreate: () => Promise<void>;
+  /** Tira alguém do grupo (só aparece para quem criou o grupo). */
+  onRemove?: (m: Member) => Promise<void>;
   toast: (msg: string) => void;
   onClose: () => void;
 }
 
 /** Compartilhar a viagem (ou o rolê): cria o link de convite e mostra quem já está no grupo. */
-export function ShareSheet({ open, noun, title, code, pending = 0, status, onRefresh, members, account, onCreate, toast, onClose }: Props) {
+export function ShareSheet({ open, noun, title, code, pending = 0, status, onRefresh, members, account, onCreate, onRemove, toast, onClose }: Props) {
   const [busy, setBusy] = useState(false);
+  // Quem está para ser tirado (pede confirmação na própria linha) e quem está saindo agora.
+  const [asking, setAsking] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const isOwner = !!account && members.some((m) => m.userId === account.id && m.role === 'owner');
   const [error, setError] = useState('');
   const linkRef = useRef<HTMLInputElement>(null);
   // Abriu a janela: confere o grupo na hora (antes era o botão "Atualizar agora").
@@ -69,6 +75,25 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
   const art = noun === 'viagem' ? 'na viagem' : 'no rolê';
   const message = `Entra ${art} "${title}" no Racha Conta, para a gente dividir as contas juntos: ${url}`;
   const initials = memberInitials(members.map((m) => m.name));
+
+  const close = () => {
+    setAsking(null);
+    onClose();
+  };
+
+  async function remove(m: Member) {
+    if (!onRemove) return;
+    setRemoving(m.userId);
+    try {
+      await onRemove(m);
+      setAsking(null);
+      toast(`${m.name} saiu do grupo`);
+    } catch {
+      toast(`Não deu para tirar ${m.name}. Confira a internet e tente de novo.`);
+    } finally {
+      setRemoving(null);
+    }
+  }
 
   async function create() {
     setBusy(true);
@@ -101,7 +126,7 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
   }
 
   return (
-    <Sheet open={open} onClose={onClose} labelledBy="h-share-trip">
+    <Sheet open={open} onClose={close} labelledBy="h-share-trip">
       <div className="sheet-body share-sheet">
         <span className="sheet-grip" aria-hidden="true" />
         <h2 id="h-share-trip" tabIndex={-1}>{noun === 'viagem' ? 'Compartilhar viagem' : 'Compartilhar rolê'}</h2>
@@ -163,13 +188,32 @@ export function ShareSheet({ open, noun, title, code, pending = 0, status, onRef
                       </b>
                       <small>{m.role === 'owner' ? 'criou o grupo' : 'pode ver e editar'}</small>
                     </span>
+                    {isOwner && onRemove && m.role !== 'owner' && m.userId !== account.id && asking !== m.userId && (
+                      <button type="button" className="btn secondary small danger" onClick={() => setAsking(m.userId)} aria-label={`Tirar ${m.name} do grupo`}>
+                        Tirar
+                      </button>
+                    )}
+                    {asking === m.userId && (
+                      <div className="member-remove" role="group" aria-label={`Tirar ${m.name} do grupo?`}>
+                        <p>
+                          Tirar <b>{m.name}</b> do grupo? Não vê nem edita mais {noun === 'viagem' ? 'a viagem' : 'o rolê'}. O que já foi lançado continua.
+                          Com o link de convite, dá para entrar de novo.
+                        </p>
+                        <div className="sheet-actions">
+                          <button type="button" className="btn ghost" onClick={() => setAsking(null)} disabled={removing === m.userId}>Cancelar</button>
+                          <button type="button" className="btn primary danger" onClick={() => remove(m)} disabled={removing === m.userId}>
+                            {removing === m.userId ? 'Tirando…' : 'Tirar do grupo'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </>
         )}
-        <button type="button" className="btn ghost" onClick={onClose}>Fechar</button>
+        <button type="button" className="btn ghost" onClick={close}>Fechar</button>
       </div>
     </Sheet>
   );

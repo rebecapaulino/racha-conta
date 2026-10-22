@@ -9,7 +9,7 @@ import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, newId, r
 import { adoptRoles, roleMemberActions, selfJoinRole } from '../sync/roleEngine';
 import { newcomerName } from '../core/faces';
 import { WhoAmISheet } from './WhoAmISheet';
-import { createGroup, fetchGroup, joinGroup, listMyGroups } from '../sync/groups';
+import { createGroup, fetchGroup, joinGroup, listMyGroups, removeMember } from '../sync/groups';
 import { fetchHiddenGroups } from '../auth/account';
 import { usePwa } from '../pwa/pwa';
 import { hideGroup, hiddenFor, unhideGroup } from '../state/hiddenGroups';
@@ -264,6 +264,12 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         members={members}
         account={account}
         onCreate={share}
+        onRemove={async (m) => {
+          const groupId = state.shared?.groupId;
+          if (!groupId) return;
+          await removeMember(groupId, m.userId);
+          syncRefresh();
+        }}
         toast={toast}
         onClose={() => setSharing(false)}
       />
