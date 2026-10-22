@@ -244,7 +244,7 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
           {photos.map((id, i) => (
             <BigPhoto key={id} id={id} groupId={groupId} alt={`Foto ${i + 1} da ${named.toLowerCase()}`} name={photos.length > 1 ? `${label} ${i + 1}` : label} />
           ))}
-          <div className="sheet-actions">
+          <div className="sheet-actions sheet-actions-end">
             <button type="button" className="btn primary" onClick={share}>
               <IconShare /> Compartilhar
             </button>
