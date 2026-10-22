@@ -3,11 +3,13 @@ import { formatBRL, parseBRL } from '../../core/money';
 import {
   accountOf,
   categoryLabel,
+  expensePhotos,
   findDuplicate,
   installmentInfo,
   installmentsOf,
   MAX_DESCRIPTION,
   MAX_INSTALLMENTS,
+  photoFields,
   splitExpense,
   TRIP_CATEGORIES,
   type Expense,
@@ -82,7 +84,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const [amount, setAmount] = useState(editing ? typed(editing.cents) : '');
   const [description, setDescription] = useState(editing?.description ?? '');
   const scan = mode.kind === 'new' ? mode.scan ?? null : null;
-  const [receipt, setReceipt] = useState<string | null>(editing?.receipt ?? scan?.id ?? null);
+  // Fotos da despesa (nota, print da compra, comprovante): anexar soma, cada uma sai no X dela.
+  const [photos, setPhotos] = useState<string[]>(() => (editing ? expensePhotos(editing) : scan ? [scan.id] : []));
   // Total lido na foto da nota: preenche o valor (se vazio) ou oferece "Usar".
   const [readTotal, setReadTotal] = useState<{ cents: number | null } | null>(null);
   const [category, setCategory] = useState<TripCategory>(editing?.category ?? lastCategory);
@@ -152,7 +155,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     people: who,
     ...(split === 'exact' ? { exact: Object.fromEntries(who.map((id) => [id, exactCents(id) ?? -1])) } : {}),
     ...(parts > 1 ? { installments: parts } : {}),
-    ...(receipt ? { receipt } : {}),
+    ...photoFields(photos),
     ...(cover.scope === 'expense' && cover.ids.some((id) => who.includes(id))
       ? { coveredBy: Object.fromEntries(cover.ids.filter((id) => who.includes(id)).map((id) => [id, payerId])) }
       : {}),
@@ -306,11 +309,12 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
         {key === 'valor' && (
           <>
             <ReceiptField
-              receipt={receipt}
+              photos={photos}
               groupId={groupId}
-              onChange={(id) => {
-                setReceipt(id);
-                if (!id) setReadTotal(null);
+              onAdd={(id) => setPhotos((l) => (l.includes(id) ? l : [...l, id]))}
+              onRemove={(id) => {
+                setPhotos((l) => l.filter((x) => x !== id));
+                setReadTotal(null);
               }}
               onTotal={(c) => {
                 setReadTotal({ cents: c });

@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
-import { MAX_ITEM_NAME, MAX_QTY, SERVICE_OPTIONS, type Bill, type ServicePct } from '../core/bill';
+import { computeSplit, MAX_ITEM_NAME, MAX_QTY, noteBill, noteLabel, notePhotos, SERVICE_OPTIONS, type Bill, type Note, type ServicePct } from '../core/bill';
 import { formatBRL, parseBRL } from '../core/money';
 import { expectedItemsTotal, type ParsedReceipt } from '../receipt/parse';
 import { defaultReader, type ReadProgress } from '../receipt/reader';
 import { newId, type Action } from '../state/billState';
-import { deletePhoto, putPhoto, shrinkPhoto } from '../state/photos';
-import { forgetPhotoUrl, rememberPhotoUrl } from './usePhotoUrl';
+import { putPhoto, shrinkPhoto } from '../state/photos';
+import { rememberPhotoUrl } from './usePhotoUrl';
 import { IconAlert, IconCamera, IconCheck, IconChevron, IconImage, IconMinus, IconPlus, IconReceipt, IconTrash } from './icons';
 
 interface Props {
+  /** A nota aberta vista como conta (ou a conta inteira, quando é de uma nota só). */
   bill: Bill;
+  /** A conta inteira, com todas as notas: onde dá para guardar só a foto. */
+  fullBill: Bill;
   example: boolean;
-  /** Foto já guardada na nota aberta (guardar a nova substitui). */
+  /** Foto já guardada na nota aberta (a nova soma a ela; nunca troca). */
   notePhotoId: string | null;
   dispatch: Dispatch<Action>;
   toast: (msg: string) => void;
-  /** Os itens foram para uma nota nova: abre a nota para escolher quem pagou e quem divide. */
+  /** Os itens (ou só a foto) foram para uma nota nova: abre a nota para escolher quem pagou e quem divide. */
   onNewNote?: () => void;
 }
 
@@ -30,7 +33,8 @@ interface Row {
   price: string;
 }
 
-type Phase = 'idle' | 'reading' | 'review';
+/** 'what': ler os itens ou só guardar a foto; 'target': em qual nota guardar. */
+type Phase = 'idle' | 'what' | 'target' | 'reading' | 'review';
 
 let rowSeq = 0;
 const toRow = (name: string, qty: number, cents: number): Row => ({
@@ -44,8 +48,10 @@ const toRow = (name: string, qty: number, cents: number): Row => ({
  * Foto da nota fiscal → itens da conta.
  * Lê no próprio celular, mostra uma revisão rápida (corrigir valor, apagar ou incluir linha,
  * conferir com o total da nota) e só então lança os itens.
+ * Ou só guarda a foto (print da compra, comprovante) numa nota que já existe ou numa nova,
+ * sem ler nada. Uma foto nova nunca apaga as que a nota já tem.
  */
-export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNewNote }: Props) {
+export function ReceiptScan({ bill, fullBill, example, notePhotoId, dispatch, toast, onNewNote }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<ReadProgress>({ fraction: 0, label: '' });
   const [photo, setPhoto] = useState<string | null>(null);
@@ -59,6 +65,8 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
   const fileRef = useRef<File | null>(null);
 
   const chooseRef = useRef<HTMLDialogElement>(null);
+  const whatRef = useRef<HTMLDialogElement>(null);
+  const targetRef = useRef<HTMLDialogElement>(null);
   const readingRef = useRef<HTMLDialogElement>(null);
   const reviewRef = useRef<HTMLDialogElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -76,6 +84,8 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
       }
       if (!on && d.open) d.close();
     };
+    open(whatRef.current, phase === 'what');
+    open(targetRef.current, phase === 'target');
     open(readingRef.current, phase === 'reading');
     open(reviewRef.current, phase === 'review');
   }, [phase]);
@@ -88,16 +98,22 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
     input?.click();
   }
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ''; // permite escolher a mesma foto de novo
     if (!file) return;
+    fileRef.current = file;
+    setPhoto(URL.createObjectURL(file));
+    // Na mesa de exemplo não há nota de verdade para guardar a foto: lê direto.
+    if (example) void readFile(file);
+    else setPhase('what');
+  }
 
+  /** Lê os itens da foto (no próprio celular). */
+  async function readFile(file: File) {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    fileRef.current = file;
-    setPhoto(URL.createObjectURL(file));
     setProgress({ fraction: 0, label: 'Ajustando a foto…' });
     setPhase('reading');
 
@@ -158,18 +174,15 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
   const pctUsable = pct !== null && (SERVICE_OPTIONS as readonly number[]).includes(pct) && pct !== currentPct;
 
   // Guarda a foto da nota no aparelho (reduzida), para ver e mandar depois. Falhar não impede lançar.
-  async function storePhoto(): Promise<string | undefined> {
+  // Soma às fotos que a nota já tem (nunca troca).
+  async function storePhoto(force = false): Promise<string | undefined> {
     const file = fileRef.current;
-    if (!keepPhoto || !file) return undefined;
+    if ((!keepPhoto && !force) || !file) return undefined;
     try {
       const blob = await shrinkPhoto(file);
       const id = newId();
       if (!(await putPhoto(id, blob))) return undefined;
       rememberPhotoUrl(id, blob);
-      if (notePhotoId && !example && !(canMerge && mode === 'nova')) {
-        forgetPhotoUrl(notePhotoId);
-        deletePhoto(notePhotoId);
-      }
       return id;
     } catch {
       return undefined;
@@ -208,13 +221,46 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
     );
   }
 
+  // Só guardar a foto: as notas onde ela pode ficar (a conta de nota só aparece como uma nota, id '').
+  const single: Note = { id: '', category: '', servicePct: fullBill.servicePct, payerId: fullBill.payerId, people: fullBill.people.map((p) => p.id), photoId: null };
+  const targets: Note[] = fullBill.notes?.length ? fullBill.notes : fullBill.items.length ? [single] : [];
+
+  function closeAll() {
+    setPhase('idle');
+    setParsed(null);
+    setRows([]);
+    fileRef.current = null;
+  }
+
+  async function keepOnly(note: Note | null, index = 0) {
+    if (saving) return;
+    setSaving(true);
+    const photoId = await storePhoto(true);
+    setSaving(false);
+    if (!photoId) {
+      toast('Não deu para guardar a foto neste aparelho.');
+      return;
+    }
+    closeAll();
+    if (note) {
+      dispatch({ type: 'addNotePhoto', id: note.id, photoId });
+      const label = noteLabel(note, index);
+      // "na Nota 2", mas "na nota Doces".
+      toast(targets.length > 1 ? `Foto guardada na ${/^Nota \d/.test(label) ? label : `nota ${label}`}` : 'Foto guardada na nota');
+      return;
+    }
+    dispatch({ type: 'addNote', category: '', payerId: null, people: fullBill.people.map((p) => p.id), photoId, photos: [photoId] });
+    if (onNewNote) onNewNote();
+    else toast('Foto guardada numa nota nova. Lance os itens dela.');
+  }
+
   return (
     <>
       <button type="button" className="card scan-cta" onClick={() => chooseRef.current?.showModal?.()}>
         <span className="scan-cta-icon" aria-hidden="true"><IconReceipt size={24} /></span>
         <span className="row-main">
           <b>Ler nota fiscal</b>
-          <small>Tire uma foto e o app lança os itens.</small>
+          <small>O app lança os itens, ou só guarda a foto (print, comprovante) numa nota.</small>
         </span>
         <span className="scan-cta-go" aria-hidden="true"><IconChevron size={20} /></span>
       </button>
@@ -232,10 +278,10 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
         <div className="sheet-body">
           <span className="sheet-grip" aria-hidden="true" />
           <h2 id="h-scan-choose">Ler nota fiscal</h2>
-          <p>Estique a nota numa mesa, com boa luz e sem sombra. A leitura acontece no seu celular.</p>
+          <p>Nota fiscal, print da compra ou comprovante. Depois você escolhe se o app lê os itens ou só guarda a foto.</p>
           <div className="sheet-list">
             <button type="button" className="btn secondary" onClick={() => pick(cameraRef.current)}>
-              <IconCamera /> Tirar foto da nota
+              <IconCamera /> Tirar foto
             </button>
             <button type="button" className="btn secondary" onClick={() => pick(galleryRef.current)}>
               <IconImage /> Escolher da galeria
@@ -243,6 +289,74 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
             <button type="button" className="btn ghost" onClick={() => chooseRef.current?.close()}>
               Cancelar
             </button>
+          </div>
+        </div>
+      </dialog>
+
+      {/* 1b. Ler os itens ou só guardar a foto */}
+      <dialog
+        ref={whatRef}
+        className="sheet"
+        aria-labelledby="h-scan-what"
+        onCancel={(e) => {
+          e.preventDefault();
+          closeAll();
+        }}
+      >
+        <div className="sheet-body">
+          <span className="sheet-grip" aria-hidden="true" />
+          <h2 id="h-scan-what" tabIndex={-1}>O que fazer com esta foto?</h2>
+          {photo && (
+            // eslint-disable-next-line @next/next/no-img-element -- prévia da foto escolhida
+            <img className="scan-what-photo" src={photo} alt="Foto escolhida" />
+          )}
+          <div className="sheet-list">
+            <button type="button" className="btn primary" onClick={() => fileRef.current && void readFile(fileRef.current)}>
+              <IconReceipt /> Ler os itens da nota
+            </button>
+            <button type="button" className="btn secondary" onClick={() => setPhase('target')}>
+              <IconImage /> Só guardar a foto
+            </button>
+            <p className="hint">Só guardar: para print da compra, comprovante ou extrato. Os itens você lança à mão; as fotos que a nota já tem continuam.</p>
+            <button type="button" className="btn ghost" onClick={closeAll}>Cancelar</button>
+          </div>
+        </div>
+      </dialog>
+
+      {/* 1c. Em qual nota guardar a foto */}
+      <dialog
+        ref={targetRef}
+        className="sheet"
+        aria-labelledby="h-scan-target"
+        onCancel={(e) => {
+          e.preventDefault();
+          closeAll();
+        }}
+      >
+        <div className="sheet-body">
+          <span className="sheet-grip" aria-hidden="true" />
+          <h2 id="h-scan-target" tabIndex={-1}>Onde guardar esta foto?</h2>
+          <p>Numa nota que já existe (as fotos dela continuam) ou numa nota nova.</p>
+          <div className="sheet-list">
+            {targets.map((n, i) => {
+              const sum = computeSplit(noteBill(fullBill, n.id || null));
+              const count = notePhotos(n).length;
+              return (
+                <button key={n.id || 'unica'} type="button" className="btn secondary scan-target" onClick={() => void keepOnly(n, i)} disabled={saving}>
+                  <span className="scan-target-text">
+                    <b>{noteLabel(n, i)}</b>
+                    <small>
+                      {formatBRL(sum.total + sum.unassigned)}
+                      {count > 0 && ` · já tem ${count === 1 ? '1 foto' : `${count} fotos`}`}
+                    </small>
+                  </span>
+                </button>
+              );
+            })}
+            <button type="button" className="btn primary" onClick={() => void keepOnly(null)} disabled={saving}>
+              <IconPlus /> Numa nota nova
+            </button>
+            <button type="button" className="btn ghost" onClick={() => setPhase('what')}>Voltar</button>
           </div>
         </div>
       </dialog>
@@ -311,6 +425,11 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
                 <button type="button" className="btn secondary" onClick={addRow}>
                   <IconPlus /> Digitar os itens aqui
                 </button>
+                {!example && (
+                  <button type="button" className="btn secondary" onClick={() => setPhase('target')}>
+                    <IconImage /> Só guardar a foto
+                  </button>
+                )}
                 <button type="button" className="btn ghost" onClick={closeReview}>Fechar</button>
               </div>
             </>
@@ -432,7 +551,7 @@ export function ReceiptScan({ bill, example, notePhotoId, dispatch, toast, onNew
               {photo && (
                 <label className="scan-option">
                   <input type="checkbox" checked={keepPhoto} onChange={(e) => setKeepPhoto(e.target.checked)} />
-                  <span>{notePhotoId && !example && !(canMerge && mode === 'nova') ? 'Guardar esta foto no lugar da anterior' : 'Guardar a foto da nota neste celular'}</span>
+                  <span>{notePhotoId && !example && !(canMerge && mode === 'nova') ? 'Guardar esta foto junto com as que a nota já tem' : 'Guardar a foto da nota neste celular'}</span>
                 </label>
               )}
 

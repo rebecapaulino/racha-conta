@@ -1302,6 +1302,17 @@ input, textarea, select { font-size: max(16px, 1em); }
   border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--fill);
 }
 .note-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* "O que fazer com esta foto?" (Rolê): prévia e as notas para escolher */
+.scan-what-photo { max-height: 30dvh; width: 100%; object-fit: contain; border-radius: 12px; background: var(--fill); }
+.scan-target { justify-content: flex-start; text-align: left; min-height: 60px; }
+.scan-target-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.scan-target-text small { color: var(--muted); font-weight: 600; }
+/* Nota com várias fotos: quantas, no canto da miniatura */
+.note-thumb-count {
+  position: absolute; right: 2px; bottom: 2px; min-width: 18px; height: 18px; padding: 0 4px;
+  display: grid; place-items: center; border-radius: 999px;
+  background: var(--ink); color: var(--surface); font-size: .7rem; font-weight: 800;
+}
 .note-sheet .sheet-body { gap: 14px; }
 .note-field { display: flex; flex-direction: column; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
 .note-field .field-label { font-size: .95rem; }

@@ -13,6 +13,8 @@ import {
   SERVICE_OPTIONS,
   noteBill,
   noteLabel,
+  notePhotoFields,
+  notePhotos,
   payments,
   removePerson,
   withNotes,
@@ -118,9 +120,16 @@ export type Action =
   | { type: 'markPaid'; personId: string; paid: boolean }
   | { type: 'photo'; photoId: string | null }
   /** Nova nota fiscal na conta (a que já existia vira a primeira); passa a ser a nota aberta. */
-  | { type: 'addNote'; category: string; payerId: string | null; people: string[]; photoId: string | null }
-  /** Muda categoria, quem pagou, quem divide e/ou a foto de uma nota. */
-  | { type: 'editNote'; id: string; category?: string; payerId?: string | null; people?: string[]; photoId?: string | null }
+  | { type: 'addNote'; category: string; payerId: string | null; people: string[]; photoId: string | null; /** Todas as fotos (vale no lugar de photoId). */ photos?: string[] }
+  /**
+   * Muda categoria, quem pagou, quem divide e/ou as fotos de uma nota. `photos`: a lista inteira
+   * (a primeira vira a principal). `photoId`: o jeito antigo (uma foto só), para filas antigas.
+   */
+  | { type: 'editNote'; id: string; category?: string; payerId?: string | null; people?: string[]; photoId?: string | null; photos?: string[] }
+  /** Mais uma foto (nota, print da compra, comprovante) numa nota que já existe; '' = a conta de nota só. */
+  | { type: 'addNotePhoto'; id: string; photoId: string }
+  /** Tira uma foto da nota (as outras ficam). */
+  | { type: 'removeNotePhoto'; id: string; photoId: string }
   /** Apaga a nota e os itens dela (a última nota não pode ser apagada). */
   | { type: 'removeNote'; id: string }
   | { type: 'selectNote'; id: string }
@@ -196,6 +205,14 @@ export function exampleState(): AppState {
 }
 
 /** Nota aberta (a escolhida, ou a primeira), ou null quando a conta não tem notas. */
+/** Tira o `photos` vazio (a nota fica como as versões antigas salvavam). */
+function dropEmpty(n: Note): Note {
+  if (n.photos?.length) return n;
+  const out = { ...n };
+  delete out.photos;
+  return out;
+}
+
 export function activeNote(state: Pick<AppState, 'bill' | 'noteId'>): Note | null {
   const notes = state.bill.notes;
   if (!notes?.length) return null;
@@ -291,7 +308,8 @@ function apply(state: AppState, action: Action): AppState {
         nextBill.notes = base.bill.notes!.map((n) =>
           n.id !== target.id
             ? n
-            : { ...n, servicePct: action.servicePct ?? n.servicePct, ...(action.photoId ? { photoId: action.photoId } : {}) },
+            // A foto soma às que a nota já tem (nunca troca).
+            : { ...n, servicePct: action.servicePct ?? n.servicePct, ...(action.photoId ? notePhotoFields([...notePhotos(n), action.photoId]) : {}) },
         );
       } else if (action.servicePct !== undefined) {
         nextBill.servicePct = action.servicePct;
@@ -364,6 +382,7 @@ function apply(state: AppState, action: Action): AppState {
         payerId: action.payerId && bill.people.some((p) => p.id === action.payerId) ? action.payerId : null,
         people: valid(action.people),
         photoId: action.photoId,
+        ...(action.photos ? notePhotoFields(action.photos.filter((p) => PHOTO_ID.test(p))) : {}),
       };
       return { ...state, example: false, noteId: created.id, bill: { ...base, notes: [...base.notes!, created] } };
     }
@@ -377,6 +396,7 @@ function apply(state: AppState, action: Action): AppState {
       if (action.category !== undefined) fields.category = cleanCategory(action.category);
       if (action.payerId !== undefined) fields.payerId = action.payerId;
       if (action.photoId !== undefined) fields.photoId = action.photoId;
+      if (action.photos !== undefined) Object.assign(fields, { photos: undefined }, notePhotoFields(action.photos.filter((p) => PHOTO_ID.test(p))));
       let items = base.items;
       if (action.people !== undefined) {
         const people = valid(action.people);
@@ -401,8 +421,23 @@ function apply(state: AppState, action: Action): AppState {
         ...state,
         example: false,
         noteId: state.noteId ?? old.id,
-        bill: { ...base, items, notes: base.notes!.map((n) => (n.id === old.id ? { ...n, ...fields } : n)) },
+        bill: { ...base, items, notes: base.notes!.map((n) => (n.id === old.id ? dropEmpty({ ...n, ...fields }) : n)) },
       };
+    }
+
+    case 'addNotePhoto':
+    case 'removeNotePhoto': {
+      if (!PHOTO_ID.test(action.photoId)) return state;
+      // A conta de uma nota só ganha notas para guardar a foto (como ao ler a nota).
+      const base = bill.notes?.length ? bill : withNotes(bill, newId());
+      const id = action.id || base.notes![0].id;
+      const old = base.notes!.find((n) => n.id === id);
+      if (!old) return state;
+      const had = notePhotos(old);
+      const list = action.type === 'addNotePhoto' ? [...had, action.photoId] : had.filter((p) => p !== action.photoId);
+      if (action.type === 'addNotePhoto' ? had.includes(action.photoId) : list.length === had.length) return state;
+      const changed = dropEmpty({ ...old, photos: undefined, ...notePhotoFields(list) });
+      return { ...state, example: false, bill: { ...base, notes: base.notes!.map((n) => (n.id === id ? changed : n)) } };
     }
 
     case 'removeNote': {
@@ -562,7 +597,14 @@ function describe(before: AppState, after: AppState, action: Action): string | n
       if (action.payerId !== undefined && (was?.payerId ?? bill.payerId) !== now.payerId) changes.push(now.payerId ? `paga por ${person(now.payerId)}` : 'sem quem pagou');
       if (action.people !== undefined && (was?.people ?? bill.people.map((p) => p.id)).join() !== now.people.join()) changes.push(`dividem ${now.people.length}`);
       if (action.photoId !== undefined && (was?.photoId ?? null) !== now.photoId) changes.push(now.photoId ? 'foto da nota guardada' : 'foto da nota removida');
-      return changes.length ? `Nota ${labelOf(now.id)}: ${changes.join(' · ')}` : null;
+      if (action.photos !== undefined) {
+        const [a, b] = [was ? notePhotos(was).length : 0, notePhotos(now).length];
+        if (b > a) changes.push(b - a === 1 ? 'uma foto guardada' : `${b - a} fotos guardadas`);
+        if (b < a) changes.push(a - b === 1 ? 'uma foto removida' : `${a - b} fotos removidas`);
+      }
+      // "Nota Doces", mas "Nota 2" (e não "Nota Nota 2").
+      const label = labelOf(now.id);
+      return changes.length ? `${/^Nota \d/.test(label) ? label : `Nota ${label}`}: ${changes.join(' · ')}` : null;
     }
     case 'settle':
       return `${person(action.from)} pagou ${formatBRL(action.cents)} a ${person(action.to)}`;
@@ -587,6 +629,14 @@ function describe(before: AppState, after: AppState, action: Action): string | n
       })()}`;
     case 'photo':
       return !action.photoId ? 'Removeu a foto' : before.photoId ? 'Trocou a foto' : 'Adicionou a foto';
+    case 'addNotePhoto':
+    case 'removeNotePhoto': {
+      const list = after.bill.notes ?? [];
+      const n = list.find((x) => x.id === action.id) ?? (action.id ? undefined : list[0]);
+      const label = n ? noteLabel(n, list.indexOf(n)) : '';
+      const where = n && list.length > 1 ? ` na ${/^Nota \d/.test(label) ? label : `nota ${label}`}` : '';
+      return action.type === 'addNotePhoto' ? `Guardou uma foto${where}` : `Tirou uma foto${where.replace(' na ', ' da ')}`;
+    }
     default:
       return null;
   }
@@ -687,6 +737,7 @@ export function isValidBill(b: unknown): b is Bill {
             Array.isArray(n.people) &&
             n.people.every((id) => typeof id === 'string') &&
             (n.photoId === null || typeof n.photoId === 'string') &&
+            (n.photos === undefined || (Array.isArray(n.photos) && n.photos.every((p) => typeof p === 'string' && PHOTO_ID.test(p)))) &&
             validPaid(n.paid),
         )))
   );

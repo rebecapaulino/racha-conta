@@ -1,3 +1,4 @@
+import { notePhotos } from '../core/bill';
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../auth/account';
 import type { Action, AppState } from '../state/billState';
@@ -113,7 +114,7 @@ export function useBillSync(
   }, [groupId, userId, dispatch]);
 
   // Fotos das notas (e a do cartão) tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
-  const photos = [state.photoId, ...(state.bill.notes ?? []).map((n) => n.photoId)].filter((r): r is string => !!r).join(',');
+  const photos = [state.photoId, ...(state.bill.notes ?? []).flatMap((n) => notePhotos(n))].filter((r): r is string => !!r).join(',');
   useEffect(() => {
     if (!groupId || !userId || !photos || navigator.onLine === false) return;
     let alive = true;

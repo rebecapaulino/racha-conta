@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
 import type { Account } from '../../auth/account';
+import { expensePhotos } from '../../core/trip';
 import { openTrip, type TripAction, type TripsState } from '../../state/tripState';
 import { getPhoto } from '../../state/photos';
 import { errorText, fetchMembers, fetchTripGroup, joinGroup, listMyGroups, saveTripGroup, type Member, type SyncStatus } from '../../sync/groups';
@@ -155,7 +156,7 @@ export function useTripSync(
   }, [groupId, tripId, userId, dispatch]);
 
   // Fotos das notas (e a do cartão) tiradas neste aparelho: vão para a pasta do grupo (uma vez cada).
-  const receipts = [open?.photoId, ...(open?.expenses ?? []).map((e) => e.receipt)].filter((r): r is string => !!r).join(',');
+  const receipts = [open?.photoId, ...(open?.expenses ?? []).flatMap((e) => expensePhotos(e))].filter((r): r is string => !!r).join(',');
   useEffect(() => {
     if (!groupId || !userId || !receipts || navigator.onLine === false) return;
     let alive = true;

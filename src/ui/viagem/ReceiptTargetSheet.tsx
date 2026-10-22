@@ -1,5 +1,5 @@
 import { formatBRL } from '../../core/money';
-import { activeExpenses, type Expense, type Trip } from '../../core/trip';
+import { activeExpenses, expensePhotos, type Expense, type Trip } from '../../core/trip';
 import { IconPlus, IconReceipt } from '../icons';
 import { CategoryIcon } from './CategoryIcon';
 import { Sheet } from './Sheet';
@@ -42,7 +42,7 @@ export function ReceiptTargetSheet({ open, trip, meId, onNew, onPick, onCancel }
                     <span>{shortDay(e.date)}</span>
                     {' · '}
                     <span><span className="payer">{name(e.payerId)}</span> pagou</span>
-                    {e.receipt && <> · <span className="receipt-tag"><IconReceipt size={13} /> troca a foto atual</span></>}
+                    {expensePhotos(e).length > 0 && <> · <span className="receipt-tag"><IconReceipt size={13} /> {expensePhotos(e).length === 1 ? 'já tem 1 foto' : `já tem ${expensePhotos(e).length} fotos`}</span></>}
                   </small>
                 </span>
                 <span className="line-end"><b className="num">{formatBRL(e.cents)}</b></span>
@@ -58,7 +58,7 @@ export function ReceiptTargetSheet({ open, trip, meId, onNew, onPick, onCancel }
       <div className="sheet-body">
         <span className="sheet-grip" aria-hidden="true" />
         <h2 id="h-receipt-target" tabIndex={-1}>Onde guardar esta foto?</h2>
-        <p>Lance uma despesa nova com ela, ou só guarde numa despesa que já existe (a nota que chegou depois, um comprovante, um print do extrato).</p>
+        <p>Lance uma despesa nova com ela, ou só guarde numa despesa que já existe (a nota que chegou depois, o print da compra, um comprovante, o extrato). As fotos que a despesa já tem continuam.</p>
         <button type="button" className="btn primary big" onClick={onNew}>
           <IconPlus /> Criar uma despesa nova
         </button>

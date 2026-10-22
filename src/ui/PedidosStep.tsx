@@ -16,8 +16,10 @@ interface Props {
   title: string;
   result: SplitResult;
   example: boolean;
-  /** Foto guardada da nota aberta (a leitura da nota pode trocá-la). */
+  /** Foto guardada da nota aberta (a foto lida soma a ela, nunca troca). */
   notePhotoId: string | null;
+  /** A conta inteira, com todas as notas (para escolher em qual nota guardar só a foto). */
+  fullBill: Bill;
   /** Barra das notas fiscais (fica logo abaixo do nome do lugar). */
   notesBar?: React.ReactNode;
   /** A leitura da foto criou uma nota nova. */
@@ -27,7 +29,7 @@ interface Props {
 }
 
 /** Etapa 2: nome da conta, itens, quem consumiu e serviço (referência: "Split The Bill"). */
-export function PedidosStep({ bill, title, result, example, notePhotoId, notesBar, onNewNote, dispatch, toast }: Props) {
+export function PedidosStep({ bill, fullBill, title, result, example, notePhotoId, notesBar, onNewNote, dispatch, toast }: Props) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [error, setError] = useState('');
@@ -82,7 +84,7 @@ export function PedidosStep({ bill, title, result, example, notePhotoId, notesBa
 
       {notesBar}
 
-      <ReceiptScan bill={bill} example={example} notePhotoId={notePhotoId} dispatch={dispatch} toast={toast} onNewNote={onNewNote} />
+      <ReceiptScan bill={bill} fullBill={fullBill} example={example} notePhotoId={notePhotoId} dispatch={dispatch} toast={toast} onNewNote={onNewNote} />
 
       <section className="card" aria-labelledby="h-add">
         <h2 id="h-add" className="field-label">Adicionar item</h2>

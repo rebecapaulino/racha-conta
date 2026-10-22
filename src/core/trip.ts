@@ -79,6 +79,22 @@ export interface ExpenseInput {
    * Supabase Storage, para o grupo todo ver.
    */
   receipt?: string;
+  /**
+   * Mais fotos da despesa, depois da primeira (`receipt`): print da compra, comprovante, extrato.
+   * Anexar nunca apaga as que já estão; cada uma sai só quando a pessoa tira.
+   */
+  photos?: string[];
+}
+
+/** Todas as fotos da despesa, na ordem: a primeira (`receipt`) e as outras. */
+export function expensePhotos(e: Pick<ExpenseInput, 'receipt' | 'photos'>): string[] {
+  return [...(e.receipt ? [e.receipt] : []), ...(e.photos ?? [])];
+}
+
+/** Os campos de foto para uma lista: a primeira em `receipt` (versões antigas leem só ela), as outras em `photos`. */
+export function photoFields(list: string[]): Pick<ExpenseInput, 'receipt' | 'photos'> {
+  const unique = [...new Set(list.filter(Boolean))];
+  return { ...(unique[0] ? { receipt: unique[0] } : {}), ...(unique.length > 1 ? { photos: unique.slice(1) } : {}) };
 }
 
 /** Quem acerta a parte de `pid` nesta despesa: quem paga por ela aqui, ou ela mesma. */
@@ -286,6 +302,7 @@ export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: str
   const r = splitExpense(input, trip.people, seq);
   if (!r.ok) return r;
   const expense: Expense = { ...input, id, seq, shares: r.shares, createdAt: now };
+  if (!input.photos?.length) delete expense.photos;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
   else delete expense.coveredBy;
@@ -303,6 +320,7 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   // Voltou para à vista: deixa de ser parcelada (sem isso, a parcela antiga continuava no acerto).
   if (installmentsOf(input) === 1) delete expense.installments;
   if (!input.receipt) delete expense.receipt;
+  if (!input.photos?.length) delete expense.photos;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
   else delete expense.coveredBy;
@@ -359,6 +377,33 @@ export function setExpenseReceipt(trip: Trip, id: string, receipt: string | null
       if (receipt) next.receipt = receipt;
       else delete next.receipt;
       return next;
+    }),
+  };
+}
+
+/** Mais uma foto na despesa, sem tirar as que já estão (nem mexer em mais nada dela). */
+export function addExpensePhoto(trip: Trip, id: string, photo: string, now: string): Trip {
+  const e = trip.expenses.find((x) => x.id === id);
+  if (!e || e.deleted || expensePhotos(e).includes(photo)) return trip;
+  return withPhotos(trip, id, [...expensePhotos(e), photo], now);
+}
+
+/** Tira uma foto da despesa (as outras ficam). */
+export function removeExpensePhoto(trip: Trip, id: string, photo: string, now: string): Trip {
+  const e = trip.expenses.find((x) => x.id === id);
+  if (!e || !expensePhotos(e).includes(photo)) return trip;
+  return withPhotos(trip, id, expensePhotos(e).filter((p) => p !== photo), now);
+}
+
+function withPhotos(trip: Trip, id: string, list: string[], now: string): Trip {
+  return {
+    ...trip,
+    expenses: trip.expenses.map((x) => {
+      if (x.id !== id) return x;
+      const next: Expense = { ...x, updatedAt: now };
+      delete next.receipt;
+      delete next.photos;
+      return { ...next, ...photoFields(list) };
     }),
   };
 }

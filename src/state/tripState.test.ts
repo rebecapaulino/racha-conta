@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, photoFields, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -283,12 +283,40 @@ describe('nota fiscal na despesa', () => {
     let s = run(s0, { type: 'addExpense', id: 'e1', input });
     s = run(s, { type: 'editExpense', id: 'e1', input: { ...input, receipt: 'foto123abc' } });
     expect(trip(s).expenses[0].receipt).toBe('foto123abc');
-    expect(trip(s).log!.at(-1)!.text).toBe('Adicionou a nota fiscal de Mercado');
+    expect(trip(s).log!.at(-1)!.text).toBe('Adicionou uma foto em Mercado');
     expect(isValidTrip(trip(s))).toBe(true);
     s = run(s, { type: 'editExpense', id: 'e1', input });
     expect(trip(s).expenses[0].receipt).toBeUndefined();
-    expect(trip(s).log!.at(-1)!.text).toBe('Tirou a nota fiscal de Mercado');
+    expect(trip(s).log!.at(-1)!.text).toBe('Tirou uma foto de Mercado');
     // Id estranho (vindo de outro aparelho) não passa.
     expect(isValidTrip({ ...trip(s), expenses: [{ ...trip(s).expenses[0], receipt: '../x' }] })).toBe(false);
+    expect(isValidTrip({ ...trip(s), expenses: [{ ...trip(s).expenses[0], photos: ['../x'] }] })).toBe(false);
+  });
+
+  it('várias fotos: anexar não apaga as que já estão; cada uma sai só quando a pessoa tira', () => {
+    const s0 = run(blankTrips(), { type: 'createTrip', id: 'v', name: 'Praia', meName: 'Rebeca', meId: 'r' });
+    const input = { description: 'Amazon', cents: 15990, date: '2026-10-14', category: 'compras' as const, payerId: 'r', split: 'equal' as const, people: ['r'] };
+    let s = run(s0, { type: 'addExpense', id: 'e1', input: { ...input, receipt: 'nota111aaa' } });
+    s = run(s, { type: 'addExpensePhoto', id: 'e1', photo: 'print222bbb' });
+    s = run(s, { type: 'addExpensePhoto', id: 'e1', photo: 'extrato333c' });
+    expect(expensePhotos(trip(s).expenses[0])).toEqual(['nota111aaa', 'print222bbb', 'extrato333c']);
+    expect(trip(s).expenses[0].cents).toBe(15990);
+    expect(trip(s).log!.at(-1)!.text).toBe('Adicionou uma foto em Amazon');
+    expect(isValidTrip(trip(s))).toBe(true);
+    // A mesma foto de novo não duplica; id estranho não entra.
+    expect(run(s, { type: 'addExpensePhoto', id: 'e1', photo: 'print222bbb' })).toBe(s);
+    expect(run(s, { type: 'addExpensePhoto', id: 'e1', photo: '../x' })).toBe(s);
+    // Tirar a primeira: a segunda vira a principal (a que versões antigas mostram).
+    s = run(s, { type: 'removeExpensePhoto', id: 'e1', photo: 'nota111aaa' });
+    expect(trip(s).expenses[0].receipt).toBe('print222bbb');
+    expect(trip(s).expenses[0].photos).toEqual(['extrato333c']);
+    expect(trip(s).log!.at(-1)!.text).toBe('Tirou uma foto de Amazon');
+    // Editar a despesa (valor) mantém as fotos.
+    s = run(s, { type: 'editExpense', id: 'e1', input: { ...input, cents: 16990, ...photoFields(expensePhotos(trip(s).expenses[0])) } });
+    expect(expensePhotos(trip(s).expenses[0])).toEqual(['print222bbb', 'extrato333c']);
+    // Editar só com `photos` (sem `receipt`) arruma: a primeira vira a principal.
+    s = run(s, { type: 'editExpense', id: 'e1', input: { ...input, photos: ['print222bbb'] } });
+    expect(trip(s).expenses[0].receipt).toBe('print222bbb');
+    expect(trip(s).expenses[0].photos).toBeUndefined();
   });
 });

@@ -64,8 +64,24 @@ export interface Note {
   people: string[];
   /** Quanto cada pessoa já pagou desta nota, em centavos. */
   paid?: Record<string, number>;
-  /** Foto da nota guardada no aparelho (IndexedDB), ou null. */
+  /** Foto da nota guardada no aparelho (IndexedDB), ou null. É a primeira; as outras ficam em `photos`. */
   photoId: string | null;
+  /**
+   * Mais fotos da nota, depois da primeira: print da compra, comprovante, extrato. Anexar nunca
+   * apaga as que já estão; cada uma sai só quando a pessoa tira.
+   */
+  photos?: string[];
+}
+
+/** Todas as fotos da nota, na ordem: a primeira (`photoId`) e as outras. */
+export function notePhotos(n: Pick<Note, 'photoId' | 'photos'>): string[] {
+  return [...(n.photoId ? [n.photoId] : []), ...(n.photos ?? [])];
+}
+
+/** Os campos de foto da nota para uma lista: a primeira em `photoId` (versões antigas leem só ela). */
+export function notePhotoFields(list: string[]): Pick<Note, 'photoId' | 'photos'> {
+  const unique = [...new Set(list.filter(Boolean))];
+  return { photoId: unique[0] ?? null, ...(unique.length > 1 ? { photos: unique.slice(1) } : {}) };
 }
 
 export interface Bill {

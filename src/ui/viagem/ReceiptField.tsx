@@ -11,28 +11,47 @@ import { Sheet } from './Sheet';
 import { useReceiptUrl } from './useReceiptUrl';
 
 interface Props {
-  /** Foto da nota na despesa (id), ou null. */
-  receipt: string | null;
+  /** Fotos da despesa (ids), na ordem. */
+  photos: string[];
   /** Grupo da viagem compartilhada (para baixar a foto que outra pessoa tirou). */
   groupId: string | null;
-  onChange: (id: string | null) => void;
-  /** Total lido na nota (null: não deu para ler). */
+  /** Mais uma foto (já guardada no aparelho). Nunca troca as que já estão. */
+  onAdd: (id: string) => void;
+  /** A pessoa tirou esta foto (no X dela). */
+  onRemove: (id: string) => void;
+  /** Total lido na foto (null: não deu para ler). */
   onTotal: (cents: number | null) => void;
   toast: (msg: string) => void;
   /** Foto que acabou de chegar pelo "Ler nota fiscal": lê o total assim que abre. */
   autoRead?: Blob | null;
 }
 
+/** Uma foto da lista: miniatura (abre grande) com o X para tirar. */
+function PhotoThumb({ id, groupId, index, onOpen, onRemove }: { id: string; groupId: string | null; index: number; onOpen: (url: string | null) => void; onRemove: () => void }) {
+  const url = useReceiptUrl(id, groupId);
+  return (
+    <span className="photo-thumb-wrap">
+      <button type="button" className="receipt-thumb" onClick={() => onOpen(url)} aria-label={`Ver a foto ${index + 1}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- foto da despesa no aparelho */}
+        {url ? <img src={url} alt="" /> : <IconReceipt size={22} />}
+      </button>
+      <button type="button" className="photo-x" onClick={onRemove} aria-label={`Tirar a foto ${index + 1}`}>
+        <IconX size={14} />
+      </button>
+    </span>
+  );
+}
+
 /**
- * Foto da nota fiscal na despesa: tira (ou escolhe) a foto, o app lê o total e a nota fica
- * guardada na despesa. Na viagem compartilhada, o grupo todo vê.
+ * Fotos da despesa: nota fiscal, print da compra (ex.: o carrinho da Amazon), comprovante,
+ * extrato. Anexar soma às que já estão; cada uma sai só no X dela. O app tenta ler o total da
+ * foto nova (o valor só é preenchido se ainda estiver vazio). Na viagem compartilhada, o grupo todo vê.
  */
-export function ReceiptField({ receipt, groupId, onChange, onTotal, toast, autoRead = null }: Props) {
+export function ReceiptField({ photos, groupId, onAdd, onRemove, onTotal, toast, autoRead = null }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState<string | null>(null);
-  const [viewing, setViewing] = useState(false);
-  const url = useReceiptUrl(receipt, groupId);
+  const [viewing, setViewing] = useState<{ url: string | null } | null>(null);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -53,7 +72,7 @@ export function ReceiptField({ receipt, groupId, onChange, onTotal, toast, autoR
       return;
     }
     rememberPhotoUrl(id, blob);
-    onChange(id);
+    onAdd(id);
     void read(blob);
   }
 
@@ -85,61 +104,54 @@ export function ReceiptField({ receipt, groupId, onChange, onTotal, toast, autoR
 
   return (
     <div className="receipt-field">
-      {receipt ? (
-        <div className="receipt-chip">
-          <button type="button" className="receipt-thumb" onClick={() => setViewing(true)} aria-label="Ver a foto da nota fiscal">
-            {/* eslint-disable-next-line @next/next/no-img-element -- foto da nota no aparelho */}
-            {url ? <img src={url} alt="" /> : <IconReceipt size={22} />}
+      <div className="receipt-add">
+        <span className="scan-cta-icon" aria-hidden="true"><IconReceipt size={22} /></span>
+        <span className="row-main">
+          <b>{photos.length ? `Fotos (${photos.length})` : 'Fotos'}</b>
+          <small aria-live="polite">{reading ?? 'Nota fiscal, print da compra, comprovante ou extrato.'}</small>
+        </span>
+        <span className="receipt-add-btns">
+          <button type="button" className="icon-btn" onClick={() => cameraRef.current?.click()} aria-label="Tirar foto">
+            <IconCamera size={20} />
           </button>
-          <span className="row-main">
-            <b>Nota fiscal</b>
-            <small aria-live="polite">{reading ?? 'Guardada nesta despesa.'}</small>
-          </span>
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Tirar a foto da nota"
-            onClick={() => {
-              abort.current?.abort();
-              setReading(null);
-              onChange(null);
-            }}
-          >
-            <IconX size={18} />
+          <button type="button" className="icon-btn" onClick={() => galleryRef.current?.click()} aria-label="Escolher foto ou print da galeria">
+            <IconImage size={20} />
           </button>
-        </div>
-      ) : (
-        <div className="receipt-add">
-          <span className="scan-cta-icon" aria-hidden="true"><IconReceipt size={22} /></span>
-          <span className="row-main">
-            <b>Nota fiscal</b>
-            <small>O app lê o total e guarda a nota na despesa.</small>
-          </span>
-          <span className="receipt-add-btns">
-            <button type="button" className="icon-btn" onClick={() => cameraRef.current?.click()} aria-label="Tirar foto da nota">
-              <IconCamera size={20} />
-            </button>
-            <button type="button" className="icon-btn" onClick={() => galleryRef.current?.click()} aria-label="Escolher foto da nota">
-              <IconImage size={20} />
-            </button>
-          </span>
+        </span>
+      </div>
+      {photos.length > 0 && (
+        <div className="photo-strip">
+          {photos.map((id, i) => (
+            <PhotoThumb
+              key={id}
+              id={id}
+              index={i}
+              groupId={groupId}
+              onOpen={(url) => setViewing({ url })}
+              onRemove={() => {
+                abort.current?.abort();
+                setReading(null);
+                onRemove(id);
+              }}
+            />
+          ))}
         </div>
       )}
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onFile} />
       <input ref={galleryRef} type="file" accept="image/*" hidden onChange={onFile} />
 
-      <Sheet open={viewing} onClose={() => setViewing(false)} labelledBy="h-receipt-view">
+      <Sheet open={!!viewing} onClose={() => setViewing(null)} labelledBy="h-receipt-view">
         <div className="sheet-body">
           <span className="sheet-grip" aria-hidden="true" />
-          <h2 id="h-receipt-view" tabIndex={-1}>Nota fiscal</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element -- foto da nota no aparelho */}
-          {url ? <img className="note-photo-big" src={url} alt="Foto da nota fiscal" /> : <p className="hint">Baixando a foto…</p>}
-          {url && (
-            <button type="button" className="btn secondary" onClick={() => downloadUrl(url, fileName('fiscal'))}>
-              <IconDownload /> Baixar nota
+          <h2 id="h-receipt-view" tabIndex={-1}>Foto da despesa</h2>
+          {/* eslint-disable-next-line @next/next/no-img-element -- foto da despesa no aparelho */}
+          {viewing?.url ? <img className="note-photo-big" src={viewing.url} alt="Foto da despesa" /> : <p className="hint">Baixando a foto…</p>}
+          {viewing?.url && (
+            <button type="button" className="btn secondary" onClick={() => downloadUrl(viewing.url!, fileName('foto'))}>
+              <IconDownload /> Baixar foto
             </button>
           )}
-          <button type="button" className="btn ghost" onClick={() => setViewing(false)}>Fechar</button>
+          <button type="button" className="btn ghost" onClick={() => setViewing(null)}>Fechar</button>
         </div>
       </Sheet>
     </div>
@@ -147,4 +159,4 @@ export function ReceiptField({ receipt, groupId, onChange, onTotal, toast, autoR
 }
 
 /** "Total lido: R$ 120,00" para mostrar depois da leitura. */
-export const totalText = (cents: number) => `Total lido na nota: ${formatBRL(cents)}`;
+export const totalText = (cents: number) => `Total lido na foto: ${formatBRL(cents)}`;

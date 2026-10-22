@@ -18,6 +18,10 @@ import {
   payFor,
   removeTraveler,
   setExpenseDeleted,
+  addExpensePhoto,
+  expensePhotos,
+  photoFields,
+  removeExpensePhoto,
   setExpenseReceipt,
   setExpenseSettled,
   TRIP_CATEGORIES,
@@ -87,8 +91,12 @@ export type TripAction =
   | { type: 'deleteExpense'; id: string; deleted: boolean }
   /** "Todos pagos": a despesa sai (ou volta) do painel de acerto. */
   | { type: 'settleExpense'; id: string; settled: boolean }
-  /** Foto (nota, comprovante, extrato) numa despesa que já existe; null tira. */
+  /** (Antiga: trocava a foto. Fica para filas de versões anteriores.) */
   | { type: 'setReceipt'; id: string; receipt: string | null }
+  /** Mais uma foto (nota, print da compra, comprovante, extrato) numa despesa que já existe. */
+  | { type: 'addExpensePhoto'; id: string; photo: string }
+  /** Tira uma foto da despesa (as outras ficam). */
+  | { type: 'removeExpensePhoto'; id: string; photo: string }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
   | { type: 'unsettle'; id: string }
   // ---- compartilhamento (só o app manda; não entram no registro) ----
@@ -204,8 +212,9 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       const [b, e] = [exp(before, a.id), exp(after, a.id)];
       if (!b || !e) return null;
       if (b.cents !== e.cents) return `Editou ${e.description}: ${formatBRL(b.cents)} → ${formatBRL(e.cents)}`;
-      if (!b.receipt && e.receipt) return `Adicionou a nota fiscal de ${e.description}`;
-      if (b.receipt && !e.receipt) return `Tirou a nota fiscal de ${e.description}`;
+      const [nb, ne] = [expensePhotos(b).length, expensePhotos(e).length];
+      if (ne > nb) return ne - nb === 1 ? `Adicionou uma foto em ${e.description}` : `Adicionou ${ne - nb} fotos em ${e.description}`;
+      if (ne < nb) return nb - ne === 1 ? `Tirou uma foto de ${e.description}` : `Tirou ${nb - ne} fotos de ${e.description}`;
       return `Editou ${e.description}`;
     }
     case 'deleteExpense': {
@@ -221,6 +230,14 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       if (!b || !e) return null;
       if (!e.receipt) return `Tirou a nota fiscal de ${e.description}`;
       return b.receipt ? `Trocou a nota fiscal de ${e.description}` : `Adicionou a nota fiscal de ${e.description}`;
+    }
+    case 'addExpensePhoto': {
+      const e = exp(after, a.id);
+      return e ? `Adicionou uma foto em ${e.description}` : null;
+    }
+    case 'removeExpensePhoto': {
+      const e = exp(after, a.id);
+      return e ? `Tirou uma foto de ${e.description}` : null;
     }
     case 'settle':
       return `${who(after, a.from)} pagou ${formatBRL(a.cents)} para ${who(after, a.to)}`;
@@ -469,6 +486,11 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
     case 'setReceipt':
       if (a.receipt !== null && !PHOTO_ID.test(a.receipt)) return s;
       return onOpen(s, (t) => setExpenseReceipt(t, a.id, a.receipt, now()));
+    case 'addExpensePhoto':
+      if (!PHOTO_ID.test(a.photo)) return s;
+      return onOpen(s, (t) => addExpensePhoto(t, a.id, a.photo, now()));
+    case 'removeExpensePhoto':
+      return onOpen(s, (t) => removeExpensePhoto(t, a.id, a.photo, now()));
     case 'settle':
       return onOpen(s, (t) => {
         const r = addSettlement(t, { from: a.from, to: a.to, cents: a.cents, expenseId: a.expenseId }, a.id, now());
@@ -490,8 +512,11 @@ function cleanInput(input: ExpenseInput): ExpenseInput {
   if (input.split !== 'exact') delete out.exact;
   if (installmentsOf(input) === 1) delete out.installments;
   if (!out.coveredBy || !Object.keys(out.coveredBy).length) delete out.coveredBy;
-  if (!out.receipt) delete out.receipt;
-  return out;
+  // Fotos: a primeira em `receipt`, as outras em `photos` (sem repetir, só nomes válidos).
+  const photos = expensePhotos(out).filter((p) => PHOTO_ID.test(p));
+  delete out.receipt;
+  delete out.photos;
+  return { ...out, ...photoFields(photos) };
 }
 
 // ---------- guardar e ler ----------
@@ -517,7 +542,8 @@ function isValidExpense(e: unknown): e is Expense {
     (e.settled === undefined || e.settled === true) &&
     (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
     (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr))) &&
-    (e.receipt === undefined || (isStr(e.receipt) && PHOTO_ID.test(e.receipt)))
+    (e.receipt === undefined || (isStr(e.receipt) && PHOTO_ID.test(e.receipt))) &&
+    (e.photos === undefined || (Array.isArray(e.photos) && e.photos.every((p) => isStr(p) && PHOTO_ID.test(p))))
   );
 }
 

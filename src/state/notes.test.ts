@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSplit, groupSummary, groupSummaryText, payments, settleUp, summaryText, type GroupSummary } from '../core/bill';
+import { computeSplit, notePhotos, groupSummary, groupSummaryText, payments, settleUp, summaryText, type GroupSummary } from '../core/bill';
 import { activeBill, activeNote, blankState, isValidBill, reducer, type Action, type AppState } from './billState';
 
 const run = (s: AppState, ...actions: Action[]) => actions.reduce(reducer, s);
@@ -415,5 +415,59 @@ describe('primeira nota numa conta vazia', () => {
     expect(s.bill.notes!.map((n) => n.category)).toEqual(['Pizza']);
     expect(s.bill.notes![0].servicePct).toBe(s0.bill.servicePct);
     expect(isValidBill(s.bill)).toBe(true);
+  });
+});
+
+describe('várias fotos na nota (nota fiscal, print da compra, comprovante)', () => {
+  it('ler outra nota na mesma nota soma a foto, sem apagar a que já estava', () => {
+    let s = run(bar(), { type: 'addItems', items: [{ name: 'Pastel', cents: 800, qty: 1 }], replace: false, photoId: 'foto111aa' });
+    s = run(s, { type: 'addItems', items: [{ name: 'Coxinha', cents: 700, qty: 1 }], replace: false, photoId: 'foto222bb' });
+    expect(notePhotos(s.bill.notes![0])).toEqual(['foto111aa', 'foto222bb']);
+  });
+
+  it('só guardar a foto numa nota que já existe: os itens e o total não mudam; tirar uma deixa as outras', () => {
+    const s0 = bar();
+    // Conta de nota só (id ''): passa a ter notas para a foto ficar.
+    let s = run(s0, { type: 'addNotePhoto', id: '', photoId: 'amazon111' });
+    expect(s.bill.notes).toHaveLength(1);
+    expect(notePhotos(s.bill.notes![0])).toEqual(['amazon111']);
+    expect(computeSplit(activeBill(s)).total).toBe(computeSplit(s0.bill).total);
+    const id = s.bill.notes![0].id;
+    s = run(s, { type: 'addNotePhoto', id, photoId: 'extrato222' }, { type: 'addNotePhoto', id, photoId: 'nota333cc' });
+    expect(notePhotos(s.bill.notes![0])).toEqual(['amazon111', 'extrato222', 'nota333cc']);
+    expect(s.log.at(-1)!.text).toBe('Guardou uma foto');
+    expect(isValidBill(s.bill)).toBe(true);
+    // A mesma de novo não duplica; nome estranho não entra.
+    expect(run(s, { type: 'addNotePhoto', id, photoId: 'extrato222' })).toBe(s);
+    expect(run(s, { type: 'addNotePhoto', id, photoId: '../x' })).toBe(s);
+    // Tirar a primeira: a segunda vira a principal.
+    s = run(s, { type: 'removeNotePhoto', id, photoId: 'amazon111' });
+    expect(s.bill.notes![0].photoId).toBe('extrato222');
+    expect(s.bill.notes![0].photos).toEqual(['nota333cc']);
+    s = run(s, { type: 'removeNotePhoto', id, photoId: 'extrato222' }, { type: 'removeNotePhoto', id, photoId: 'nota333cc' });
+    expect(s.bill.notes![0].photoId).toBeNull();
+    expect(s.bill.notes![0]).not.toHaveProperty('photos');
+  });
+
+  it('com várias notas, a foto vai só para a escolhida, e o registro diz qual', () => {
+    let s = run(bar(), { type: 'addNote', category: 'Doces', payerId: null, people: [], photoId: null });
+    const [bar1, doces] = s.bill.notes!;
+    s = run(s, { type: 'addNotePhoto', id: bar1.id, photoId: 'print1234' });
+    expect(notePhotos(s.bill.notes![0])).toEqual(['print1234']);
+    expect(notePhotos(s.bill.notes![1])).toEqual([]);
+    expect(s.log.at(-1)!.text).toBe('Guardou uma foto na Nota 1');
+    expect(doces.id).not.toBe(bar1.id);
+  });
+
+  it('editar a nota com a lista de fotos: guarda a lista inteira', () => {
+    let s = run(bar(), { type: 'addNotePhoto', id: '', photoId: 'foto111aa' });
+    const id = s.bill.notes![0].id;
+    s = run(s, { type: 'editNote', id, photos: ['foto111aa', 'foto222bb'] });
+    expect(notePhotos(s.bill.notes![0])).toEqual(['foto111aa', 'foto222bb']);
+    expect(s.log.at(-1)!.text).toContain('uma foto guardada');
+    s = run(s, { type: 'editNote', id, photos: ['foto222bb'] });
+    expect(notePhotos(s.bill.notes![0])).toEqual(['foto222bb']);
+    expect(s.bill.notes![0]).not.toHaveProperty('photos');
+    expect(isValidBill({ ...s.bill, notes: [{ ...s.bill.notes![0], photos: ['../x'] }] })).toBe(false);
   });
 });

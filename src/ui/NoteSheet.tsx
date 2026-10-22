@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
-import { MAX_CATEGORY, NOTE_CATEGORIES, type Note, type Person } from '../core/bill';
+import { MAX_CATEGORY, NOTE_CATEGORIES, notePhotos, type Note, type Person } from '../core/bill';
 import { newId, type Action } from '../state/billState';
 import { deletePhoto, putPhoto, shrinkPhoto } from '../state/photos';
 import { Avatar, personStyle } from './Avatar';
-import { IconCamera, IconCheck, IconImage, IconTrash } from './icons';
+import { IconCamera, IconCheck, IconImage, IconReceipt, IconTrash, IconX } from './icons';
 import { categoryEmoji } from '../core/noteCategory';
 import { forgetPhotoUrl, rememberPhotoUrl } from './usePhotoUrl';
 import { useReceiptUrl } from './viagem/useReceiptUrl';
@@ -23,7 +23,25 @@ interface Props {
   onClose: () => void;
 }
 
-type Photo = { kind: 'keep' } | { kind: 'none' } | { kind: 'new'; blob: Blob; url: string };
+/** Foto nova escolhida nesta janela (só vai para o aparelho ao salvar). */
+type NewPhoto = { key: number; blob: Blob; url: string };
+let photoSeq = 0;
+
+/** Foto que a nota já tem: miniatura com o X para tirar. */
+function SavedThumb({ id, groupId, index, onRemove }: { id: string; groupId: string | null; index: number; onRemove: () => void }) {
+  const url = useReceiptUrl(id, groupId);
+  return (
+    <span className="photo-thumb-wrap">
+      <span className="receipt-thumb">
+        {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
+        {url ? <img src={url} alt={`Foto ${index + 1} da nota`} /> : <IconReceipt size={22} />}
+      </span>
+      <button type="button" className="photo-x" onClick={onRemove} aria-label={`Tirar a foto ${index + 1}`}>
+        <IconX size={14} />
+      </button>
+    </span>
+  );
+}
 
 /** Nova nota / editar nota: categoria, quem pagou, quem divide e a foto da nota. */
 export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, toast, onClose }: Props) {
@@ -35,10 +53,11 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
   const [category, setCategory] = useState('');
   const [payerId, setPayerId] = useState<string | null>(null);
   const [who, setWho] = useState<string[]>([]);
-  const [photo, setPhoto] = useState<Photo>({ kind: 'keep' });
+  // Fotos: as que a nota já tem (e continuam) e as novas. Anexar soma; cada uma sai no X dela.
+  const [kept, setKept] = useState<string[]>([]);
+  const [added, setAdded] = useState<NewPhoto[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
-  const savedUrl = useReceiptUrl(editing?.photoId ?? null, groupId);
 
   // Ao abrir, começa com o que a nota já tem (ou, na nova, com todo mundo dividindo).
   // Abrir/fechar a janela segue o modo; os campos começam do zero a cada abertura.
@@ -49,7 +68,8 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
       setCategory(editing?.category ?? '');
       setPayerId(editing ? editing.payerId : null);
       setWho(editing ? editing.people : people.map((p) => p.id));
-      setPhoto({ kind: 'keep' });
+      setKept(editing ? notePhotos(editing) : []);
+      setAdded([]);
       setConfirmDelete(false);
     }
   }
@@ -64,8 +84,12 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
     if (!mode && d.open) d.close();
   }, [mode]);
 
-  // Libera a prévia da foto nova quando ela sai de cena.
-  useEffect(() => () => void (photo.kind === 'new' && URL.revokeObjectURL(photo.url)), [photo]);
+  // Libera as prévias das fotos novas quando a janela fecha.
+  const addedRef = useRef(added);
+  useEffect(() => {
+    addedRef.current = added;
+  });
+  useEffect(() => () => addedRef.current.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
   function pick(input: HTMLInputElement | null) {
     input?.click();
@@ -75,7 +99,7 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setPhoto({ kind: 'new', blob: file, url: URL.createObjectURL(file) });
+    setAdded((l) => [...l, { key: ++photoSeq, blob: file, url: URL.createObjectURL(file) }]);
   }
 
   const toggle = (id: string) => setWho((w) => (w.includes(id) ? w.filter((x) => x !== id) : [...w, id]));
@@ -85,35 +109,36 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
     if (busy || !mode) return;
     setBusy(true);
     try {
-      // Foto: só vai para o aparelho na hora de salvar (cancelar não deixa sobra).
-      let photoId: string | null | undefined;
-      if (photo.kind === 'new') {
+      // Fotos novas: só vão para o aparelho na hora de salvar (cancelar não deixa sobra).
+      const fresh: string[] = [];
+      for (const p of added) {
         try {
-          const blob = await shrinkPhoto(photo.blob);
+          const blob = await shrinkPhoto(p.blob);
           const id = newId();
           if (await putPhoto(id, blob)) {
             rememberPhotoUrl(id, blob);
-            photoId = id;
+            fresh.push(id);
           } else {
             toast('Não deu para guardar a foto neste aparelho.');
           }
         } catch {
           toast('Não deu para abrir essa foto. Tente outra.');
         }
-      } else if (photo.kind === 'none') {
-        photoId = null;
       }
-      const old = editing?.photoId ?? null;
-      if (old && photoId !== undefined && photoId !== old) {
-        forgetPhotoUrl(old);
-        deletePhoto(old);
+      const photos = [...kept, ...fresh];
+      const before = editing ? notePhotos(editing) : [];
+      // Só apaga do aparelho as fotos que a pessoa tirou no X.
+      for (const id of before.filter((x) => !photos.includes(x))) {
+        forgetPhotoUrl(id);
+        deletePhoto(id);
       }
+      const changed = photos.join() !== before.join();
 
       if (mode.kind === 'create') {
-        dispatch({ type: 'addNote', category, payerId, people: who, photoId: photoId ?? null });
+        dispatch({ type: 'addNote', category, payerId, people: who, photoId: photos[0] ?? null, photos });
         toast(`Nota ${category.trim() || 'nova'} criada. Lance os itens dela.`);
       } else {
-        dispatch({ type: 'editNote', id: mode.note.id, category, payerId, people: who, ...(photoId !== undefined ? { photoId } : {}) });
+        dispatch({ type: 'editNote', id: mode.note.id, category, payerId, people: who, ...(changed ? { photos } : {}) });
         toast('Nota salva');
       }
       onClose();
@@ -124,16 +149,15 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
 
   function remove() {
     if (!editing) return;
-    if (editing.photoId) {
-      forgetPhotoUrl(editing.photoId);
-      deletePhoto(editing.photoId);
+    for (const id of notePhotos(editing)) {
+      forgetPhotoUrl(id);
+      deletePhoto(id);
     }
     dispatch({ type: 'removeNote', id: editing.id });
     toast('Nota apagada');
     onClose();
   }
 
-  const shownPhoto = photo.kind === 'new' ? photo.url : photo.kind === 'keep' ? savedUrl : null;
   const typed = category.trim().toLowerCase();
 
   return (
@@ -235,31 +259,42 @@ export function NoteSheet({ mode, people, notesCount, groupId = null, dispatch, 
         )}
 
         <div className="note-field">
-          <h3 className="field-label">Foto da nota</h3>
-          {shownPhoto ? (
-            <div className="note-photo">
-              {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
-              <img src={shownPhoto} alt="Foto da nota fiscal" />
-              <div className="sheet-actions">
-                <button type="button" className="btn secondary" onClick={() => pick(galleryRef.current)}>
-                  <IconImage /> Trocar
-                </button>
-                <button type="button" className="btn secondary danger" onClick={() => setPhoto({ kind: 'none' })}>
-                  <IconTrash /> Remover
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="sheet-actions">
-              <button type="button" className="btn secondary" onClick={() => pick(cameraRef.current)}>
-                <IconCamera /> Tirar foto
-              </button>
-              <button type="button" className="btn secondary" onClick={() => pick(galleryRef.current)}>
-                <IconImage /> Da galeria
-              </button>
+          <h3 className="field-label">Fotos da nota</h3>
+          {kept.length + added.length > 0 && (
+            <div className="photo-strip">
+              {kept.map((id, i) => (
+                <SavedThumb key={id} id={id} index={i} groupId={groupId} onRemove={() => setKept((l) => l.filter((x) => x !== id))} />
+              ))}
+              {added.map((p, i) => (
+                <span key={p.key} className="photo-thumb-wrap">
+                  <span className="receipt-thumb">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- prévia da foto nova */}
+                    <img src={p.url} alt={`Foto nova ${i + 1}`} />
+                  </span>
+                  <button
+                    type="button"
+                    className="photo-x"
+                    aria-label={`Tirar a foto nova ${i + 1}`}
+                    onClick={() => {
+                      URL.revokeObjectURL(p.url);
+                      setAdded((l) => l.filter((x) => x.key !== p.key));
+                    }}
+                  >
+                    <IconX size={14} />
+                  </button>
+                </span>
+              ))}
             </div>
           )}
-          <p className="hint">Fica guardada só neste celular.</p>
+          <div className="sheet-actions">
+            <button type="button" className="btn secondary" onClick={() => pick(cameraRef.current)}>
+              <IconCamera /> Tirar foto
+            </button>
+            <button type="button" className="btn secondary" onClick={() => pick(galleryRef.current)}>
+              <IconImage /> Da galeria
+            </button>
+          </div>
+          <p className="hint">Nota fiscal, print da compra, comprovante. Anexar não apaga as outras; o X tira só aquela.</p>
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onFile} />
           <input ref={galleryRef} type="file" accept="image/*" hidden onChange={onFile} />
         </div>

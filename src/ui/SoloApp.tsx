@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import { computeSplit } from '../core/bill';
+import { computeSplit, notePhotos } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { loginEnabled, useAccount } from '../auth/account';
 import { activeBill, activeNote, blankState, isValidRoleDoc, loadState, newId, reducer, roleDoc, saveState, worthKeeping } from '../state/billState';
@@ -206,7 +206,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
     // Rolê compartilhado: some também dos outros aparelhos da conta (para o grupo, continua).
     if (e.shared) hideGroup(e.shared.groupId);
     if (e.photoId) deletePhoto(e.photoId);
-    e.bill.notes?.forEach((n) => n.photoId && deletePhoto(n.photoId));
+    e.bill.notes?.forEach((n) => notePhotos(n).forEach((id) => deletePhoto(id)));
     toast('Rolê apagado');
   }
 
@@ -414,6 +414,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
             {current === 'pedidos' && (
               <PedidosStep
                 bill={view}
+                fullBill={bill}
                 title={bill.title}
                 result={viewResult}
                 example={state.example}

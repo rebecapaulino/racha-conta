@@ -107,10 +107,11 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   }
   function scanToExpense(e: Expense) {
     if (!scan) return;
-    const old = e.receipt ?? null;
-    dispatch({ type: 'setReceipt', id: e.id, receipt: scan.id });
+    const photo = scan.id;
+    // Soma às fotos que a despesa já tem (nunca troca).
+    dispatch({ type: 'addExpensePhoto', id: e.id, photo });
     setScan(null);
-    toast(old ? `Foto trocada em ${e.description}` : `Foto guardada em ${e.description}`, () => dispatch({ type: 'setReceipt', id: e.id, receipt: old }));
+    toast(`Foto guardada em ${e.description}`, () => dispatch({ type: 'removeExpensePhoto', id: e.id, photo }));
   }
   function scanCancel() {
     if (scan) void deletePhoto(scan.id);

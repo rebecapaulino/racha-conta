@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch } from 'react';
-import { computeSplit, noteBill, noteLabel, summaryText, type Bill, type Note } from '../core/bill';
+import { computeSplit, noteBill, noteLabel, notePhotos, summaryText, type Bill, type Note } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { newId, type Action } from '../state/billState';
 import { getPhoto } from '../state/photos';
@@ -9,7 +9,7 @@ import { Sheet } from './viagem/Sheet';
 import { categoryEmoji } from '../core/noteCategory';
 import { NoteSheet, type NoteSheetMode } from './NoteSheet';
 import { useReceiptUrl } from './viagem/useReceiptUrl';
-import { notesWithPhoto, RoleReceiptsSheet } from './RoleReceiptsSheet';
+import { photosCount, RoleReceiptsSheet } from './RoleReceiptsSheet';
 
 interface Props {
   /** A conta inteira (com todas as notas). */
@@ -22,6 +22,21 @@ interface Props {
   editRequest?: number;
   /** Grupo do rolê compartilhado: as fotos das notas que outra pessoa tirou vêm de lá. */
   groupId?: string | null;
+}
+
+/** Uma foto da nota, grande, com o botão de baixar. */
+function BigPhoto({ id, groupId, alt, name }: { id: string; groupId: string | null; alt: string; name: string }) {
+  const url = useReceiptUrl(id, groupId);
+  if (!url) return <p className="hint">Carregando a foto…</p>;
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
+      <img className="note-photo-big" src={url} alt={alt} />
+      <button type="button" className="btn secondary" onClick={() => downloadUrl(url, fileName(name))}>
+        <IconDownload /> Baixar
+      </button>
+    </>
+  );
 }
 
 /**
@@ -44,20 +59,24 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
   const label = noteLabel(current, index);
   // "Nota Doces", mas "Nota 2" (e não "Nota Nota 2").
   const named = current.category.trim() ? `Nota ${label}` : label;
-  const photoUrl = useReceiptUrl(current.photoId, groupId);
+  const photos = notePhotos(current);
+  const photoKey = photos.join(',');
+  const photoUrl = useReceiptUrl(photos[0] ?? null, groupId);
 
-  // A foto fica pronta antes do toque: o celular só abre o menu de compartilhar logo depois dele.
-  const photoBlob = useRef<Blob | null>(null);
+  // As fotos ficam prontas antes do toque: o celular só abre o menu de compartilhar logo depois dele.
+  const photoBlobs = useRef<Blob[]>([]);
   useEffect(() => {
-    photoBlob.current = null;
-    if (!current.photoId) return;
+    photoBlobs.current = [];
+    if (!photoKey) return;
     let alive = true;
-    getPhoto(current.photoId).then((b) => alive && (photoBlob.current = b));
+    Promise.all(photoKey.split(',').map((id) => getPhoto(id))).then((bs) => {
+      if (alive) photoBlobs.current = bs.filter((b): b is Blob => !!b);
+    });
     return () => {
       alive = false;
     };
     // photoUrl: a foto que veio do grupo acabou de ser guardada no aparelho.
-  }, [current.photoId, photoUrl]);
+  }, [photoKey, photoUrl]);
 
   const payer = bill.people.find((p) => p.id === current.payerId);
   const meta: string[] = [];
@@ -69,11 +88,12 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
 
   async function share() {
     const text = summaryText(noteBill(bill, current.id || null));
-    const blob = photoBlob.current;
-    const file = blob ? new File([blob], `nota-${label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-')}.jpg`, { type: blob.type || 'image/jpeg' }) : null;
-    if (file && navigator.canShare?.({ files: [file] })) {
+    const slug = label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-');
+    const files = photoBlobs.current.map((b, i) => new File([b], `nota-${slug}${i ? `-${i + 1}` : ''}.jpg`, { type: b.type || 'image/jpeg' }));
+    const file = files[0] ?? null;
+    if (file && navigator.canShare?.({ files })) {
       try {
-        await navigator.share({ files: [file], text });
+        await navigator.share({ files, text });
       } catch (e) {
         if ((e as DOMException).name === 'NotAllowedError') toast('Toque de novo em Compartilhar.');
       }
@@ -104,7 +124,11 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
   if (editRequest !== seenRequest) {
     setSeenRequest(editRequest);
     const n = noteBill(bill, current.id || null).items.length;
-    edit(`${n === 1 ? 'O item da foto foi' : `Os ${n} itens da foto foram`} para esta nota. Diga a categoria, quem pagou e quem divide.`);
+    edit(
+      n === 0
+        ? 'A foto foi guardada nesta nota nova. Diga a categoria, quem pagou e quem divide; depois lance os itens em Pedidos.'
+        : `${n === 1 ? 'O item da foto foi' : `Os ${n} itens da foto foram`} para esta nota. Diga a categoria, quem pagou e quem divide.`,
+    );
   }
 
   return (
@@ -123,8 +147,8 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
                 aria-pressed={on}
                 onClick={() => {
                   if (!on) dispatch({ type: 'selectNote', id: n.id });
-                  // Nota com foto: abre a nota fiscal (para ver, baixar ou compartilhar).
-                  if (n.photoId) photoRef.current?.showModal?.();
+                  // Nota com foto: abre as fotos (para ver, baixar ou compartilhar).
+                  if (notePhotos(n).length) photoRef.current?.showModal?.();
                 }}
               >
                 <span className="note-emoji" aria-hidden="true">{categoryEmoji(n.category)}</span>
@@ -154,9 +178,10 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
       {shown.length > 0 && <div className="notes-meta">
         <span className="notes-meta-text">{meta.join(' · ')}</span>
         {photoUrl && (
-          <button type="button" className="note-thumb" onClick={() => photoRef.current?.showModal?.()} aria-label={`Ver a foto: ${named}`}>
+          <button type="button" className="note-thumb" onClick={() => photoRef.current?.showModal?.()} aria-label={photos.length > 1 ? `Ver as ${photos.length} fotos: ${named}` : `Ver a foto: ${named}`}>
             {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
             <img src={photoUrl} alt="" />
+            {photos.length > 1 && <span className="note-thumb-count" aria-hidden="true">{photos.length}</span>}
           </button>
         )}
         <button type="button" className="link-btn notes-edit" onClick={() => edit()} aria-label={`Editar ${named}`}>
@@ -165,7 +190,7 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
       </div>}
 
       <button type="button" className="btn secondary receipts-btn" onClick={() => setReceiptsOpen(true)}>
-        <IconReceipt size={18} /> Notas fiscais ({notesWithPhoto(bill).length})
+        <IconReceipt size={18} /> Notas e fotos ({photosCount(bill)})
       </button>
       <RoleReceiptsSheet bill={bill} open={receiptsOpen} groupId={groupId} onClose={() => setReceiptsOpen(false)} />
 
@@ -216,19 +241,15 @@ export function NotesBar({ bill, active, dispatch, toast, editRequest, groupId =
         <div className="sheet-body">
           <span className="sheet-grip" aria-hidden="true" />
           <h2 id="h-note-photo"><IconImage size={20} /> {named}</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element -- foto local da nota */}
-          {photoUrl && <img className="note-photo-big" src={photoUrl} alt={`Foto da ${named.toLowerCase()}`} />}
+          {photos.map((id, i) => (
+            <BigPhoto key={id} id={id} groupId={groupId} alt={`Foto ${i + 1} da ${named.toLowerCase()}`} name={photos.length > 1 ? `${label} ${i + 1}` : label} />
+          ))}
           <div className="sheet-actions">
-            {photoUrl && (
-              <button type="button" className="btn secondary" onClick={() => downloadUrl(photoUrl, fileName(label))}>
-                <IconDownload /> Baixar
-              </button>
-            )}
             <button type="button" className="btn primary" onClick={share}>
               <IconShare /> Compartilhar
             </button>
           </div>
-          <p className="hint">Vai a foto e quanto cada um paga nesta nota.</p>
+          <p className="hint">{photos.length > 1 ? 'Vão as fotos' : 'Vai a foto'} e quanto cada um paga nesta nota.</p>
           <button type="button" className="btn ghost" onClick={() => photoRef.current?.close()}>Fechar</button>
         </div>
       </dialog>

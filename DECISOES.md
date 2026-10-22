@@ -453,3 +453,13 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - A lista mostra primeiro as despesas que você pagou, depois as outras, da mais nova para a mais antiga. Sem nenhuma despesa na viagem, vai direto para a despesa nova.
 - Testes: `setExpenseReceipt` (core/tripJoin) e integração com dois celulares (sync/tripEngine). Conferido no navegador: guardar, desfazer e criar nova.
 - Ajuste (15/10/2026): em "Você paga a parte de alguém?", quem já é pago por outra pessoa mostra "por Mauricio" (só o primeiro nome) numa linha só, sem empurrar a fila de baixo (antes "pago por Mauricio" quebrava em duas linhas e a Clari ia lá para baixo). O botão ("Não, só a minha parte"; em "Quem é você", "Entrar como Robin") fica no canto de baixo à direita.
+
+## Várias fotos por despesa e por nota; Rolê guarda foto sem ler (22/10/2026)
+
+- **Qualquer imagem, não só nota fiscal:** print da compra (ex.: o carrinho da Amazon), comprovante, extrato. Na Viagem, o campo da despesa virou **"Fotos"**: tira ou escolhe quantas quiser e digita o valor. O app ainda tenta ler o total da foto nova, mas só preenche o valor se ele estiver vazio.
+- **Anexar nunca apaga o que já existe.** Cada despesa (Viagem) e cada nota (Rolê) guarda várias fotos; cada uma tem o seu **X** e só sai quando a pessoa tira. Antes, a foto nova trocava a anterior ("troca a foto atual", "Guardar esta foto no lugar da anterior").
+- **Rolê, "Ler nota fiscal":** depois de escolher a foto, o app pergunta **"Ler os itens da nota"** ou **"Só guardar a foto"**. "Só guardar" pergunta **em qual nota** (as que já existem, com quantas fotos cada uma tem) **ou numa nota nova**, como o "Onde guardar esta foto?" da Viagem. Se a leitura não achar itens, também aparece "Só guardar a foto".
+- Os blocos "Notas fiscais" viraram **"Notas e fotos"** e mostram cada foto. No Rolê, a miniatura da nota mostra quantas fotos ela tem, e a janela da nota mostra todas (baixar e compartilhar vão com todas).
+- Dados: a primeira foto continua em `receipt` (despesa) e `photoId` (nota), que é o que versões antigas leem; as outras ficam em `photos`. Novas ações: `addExpensePhoto`/`removeExpensePhoto` (Viagem) e `addNotePhoto`/`removeNotePhoto` (Rolê). Tudo vai para o grupo e para o registro ("Adicionou uma foto em Amazon", "Guardou uma foto na Nota 1").
+- Corrigido junto: o registro dizia "Nota Nota 1" para nota sem categoria.
+- Testes: várias fotos na despesa (state/tripState) e na nota (state/notes). Conferido no navegador nas duas áreas: anexar soma, o X tira só aquela, a foto vai para a nota escolhida.
