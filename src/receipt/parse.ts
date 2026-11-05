@@ -73,7 +73,7 @@ function pctOf(norm: string): number | null {
 }
 
 /** "PICANHA NA CHAPA" → "Picanha na chapa". */
-function niceName(raw: string): string {
+export function niceName(raw: string): string {
   const s = raw.toLowerCase().replace(/\s+/g, ' ').trim();
   return (s.charAt(0).toUpperCase() + s.slice(1)).slice(0, MAX_ITEM_NAME).trim();
 }
@@ -207,7 +207,31 @@ export function parseReceipt(text: string): ParsedReceipt {
     out.items.push({ name, qty, cents });
   }
 
-  // Serviço sem percentual impresso: calcula a partir do valor, se der um número redondo.
+  return cleanReceipt(out);
+}
+
+const posCents = (v: number | null) => (v !== null && Number.isSafeInteger(v) && v > 0 && v <= MAX_LINE_CENTS * 100 ? v : null);
+
+/**
+ * Passo final de qualquer leitor (foto, Sefaz ou IA): descarta item inválido e, se a nota
+ * trouxe o serviço sem o percentual, calcula o percentual quando der um número redondo.
+ */
+export function cleanReceipt(r: ParsedReceipt): ParsedReceipt {
+  const items = r.items
+    .map((i) => ({ name: i.name.replace(/\s+/g, ' ').trim().slice(0, MAX_ITEM_NAME).trim(), qty: i.qty, cents: i.cents }))
+    .filter(
+      (i) =>
+        letters(i.name) >= 2 &&
+        Number.isInteger(i.qty) && i.qty >= 1 && i.qty <= MAX_QTY &&
+        Number.isSafeInteger(i.cents) && i.cents > 0 && i.cents * i.qty <= MAX_LINE_CENTS,
+    );
+  const out: ParsedReceipt = {
+    items,
+    servicePct: r.servicePct !== null && Number.isInteger(r.servicePct) && r.servicePct > 0 && r.servicePct <= 30 ? r.servicePct : null,
+    serviceCents: posCents(r.serviceCents),
+    subtotalCents: posCents(r.subtotalCents),
+    totalCents: posCents(r.totalCents),
+  };
   const base = out.subtotalCents ?? sumItems(out.items);
   if (out.servicePct === null && out.serviceCents && base > 0) {
     const pct = Math.round((out.serviceCents * 100) / base);

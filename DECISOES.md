@@ -470,3 +470,14 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - **O que acontece:** a pessoa para de ver e editar o grupo. O que ela lançou continua, e ela continua em Pessoas (as despesas e a divisão não mudam). Com o link de convite, ela consegue entrar de novo.
 - **Banco:** função `remove_member` (só o dono; não tira a si mesmo) em `supabase/migrations/20261022_tirar_do_grupo.sql`. **Precisa rodar uma vez no SQL Editor do Supabase.**
 - No celular de quem saiu, a janela de compartilhar mostra "O grupo não respondeu para esta conta (sem acesso…)".
+
+## Leitura da nota: Sefaz, IA e celular — 05/11/2026
+
+- **Três caminhos, do mais preciso para o menos**, todos atrás do mesmo `ReceiptReader` (Rolê e Viagem):
+  1. **QR code da NFC-e → Sefaz.** O celular acha o QR code na foto (leitor do navegador no Android, `jsqr` no iPhone, com recortes ampliados da parte de baixo). A rota `/api/nfce` consulta a página pública da Sefaz e lê o leiaute "tabResult" (SP e a maioria dos estados): nomes, quantidades e valores exatos. Peso vira 1 unidade; "taxa de serviço" lançada como item vira o serviço. Só segue endereços `https://*.gov.br`.
+  2. **IA (Claude Opus 5.5)** na rota `/api/ler-nota`: foto reduzida (lado maior 2400 px, JPEG), resposta em JSON com esquema fixo, esforço baixo. Precisa de `ANTHROPIC_API_KEY` na Vercel; sem ela, responde 503 e o app pula este passo.
+  3. **Tesseract no celular**, como antes: sem internet ou se os outros falharem.
+- A pré-conta do bar não tem QR code: nela, quem lê é a IA.
+- Funções da Vercel em São Paulo (`vercel.json`, `gru1`): a Sefaz-SP tem firewall e tende a recusar servidores de fora.
+- Todos os leitores passam por `cleanReceipt` (itens válidos e percentual do serviço).
+- Política de privacidade atualizada: com internet, a foto pode ir para a Anthropic (sem QR) e a chave da nota para a Sefaz.

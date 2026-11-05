@@ -5,7 +5,7 @@
 const TARGET_WIDTH = 1600;
 const MAX_HEIGHT = 5000;
 
-async function decode(blob: Blob): Promise<ImageBitmap | HTMLImageElement> {
+export async function decode(blob: Blob): Promise<ImageBitmap | HTMLImageElement> {
   if (typeof createImageBitmap === 'function') {
     try {
       return await createImageBitmap(blob, { imageOrientation: 'from-image' });

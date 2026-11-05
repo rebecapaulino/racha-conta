@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 // E-mail de contato mostrado na página. Deixe vazio para não mostrar nenhum.
 const CONTACT_EMAIL = "rebecaoliveir2000@gmail.com";
-const UPDATED = "13 de outubro de 2026";
+const UPDATED = "5 de novembro de 2026";
 
 export default function Privacidade() {
   return (
@@ -34,9 +34,13 @@ export default function Privacidade() {
           informações somem.
         </p>
         <p>
-          <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot;, a foto é lida no seu
-          próprio celular e não é enviada para nós nem para ninguém. Se você escolher guardar a foto na
-          nota, ela fica só neste aparelho, junto com a conta, até você removê-la ou apagar a conta.
+          <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot; com internet, o app
+          procura o QR code do cupom no próprio celular. Se achar, o endereço do QR code (com a chave da
+          nota) é consultado na Sefaz do estado, que devolve os itens. Se não houver QR code, a foto
+          é enviada, reduzida, para ser lida pela IA da <b>Anthropic</b> (Claude) e é descartada logo
+          depois: não guardamos a foto nem os itens. Sem internet, a foto é lida no próprio celular e
+          não sai dele. Se você escolher guardar a foto na nota, ela fica só neste aparelho, junto com
+          a conta, até você removê-la ou apagar a conta.
         </p>
         <p>
           <b>Viagens:</b> os nomes de quem vai, as despesas (valor, data, categoria, quem pagou) e os
@@ -77,7 +81,9 @@ export default function Privacidade() {
         <ul>
           <li><b>Google</b>: faz o login.</li>
           <li><b>Supabase</b>: guarda os rolês compartilhados e as fotos (servidores no Brasil).</li>
-          <li><b>Vercel</b>: hospeda o site.</li>
+          <li><b>Vercel</b>: hospeda o site (servidor em São Paulo).</li>
+          <li><b>Sefaz do estado da nota</b>: devolve os itens do cupom pelo QR code.</li>
+          <li><b>Anthropic</b>: lê a foto da nota quando não há QR code (a foto não é usada para treinar a IA).</li>
         </ul>
         <p>
           Não vendemos dados, não mostramos anúncios e não usamos rastreadores ou ferramentas de
