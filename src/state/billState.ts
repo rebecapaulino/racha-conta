@@ -117,7 +117,8 @@ export type Action =
   | { type: 'service'; pct: ServicePct }
   | { type: 'payer'; id: string | null }
   /** Marca/desmarca que a pessoa já pagou a parte dela (guarda o valor atual). */
-  | { type: 'markPaid'; personId: string; paid: boolean }
+  /** `cents`: quanto pagou agora (soma ao que já tinha pago). Sem ele, paga tudo o que deve. */
+  | { type: 'markPaid'; personId: string; paid: boolean; cents?: number }
   | { type: 'photo'; photoId: string | null }
   /** Nova nota fiscal na conta (a que já existia vira a primeira); passa a ser a nota aberta. */
   | { type: 'addNote'; category: string; payerId: string | null; people: string[]; photoId: string | null; /** Todas as fotos (vale no lugar de photoId). */ photos?: string[] }
@@ -364,8 +365,9 @@ function apply(state: AppState, action: Action): AppState {
       // Quem paga a parte de outras pessoas paga tudo de uma vez (a parte dele e a delas).
       const row = payments(own).rows.find((r) => r.share.person.id === action.personId);
       if (!row || (action.paid && (row.state === 'payer' || row.state === 'covered'))) return state;
+      if (action.cents !== undefined && (!Number.isSafeInteger(action.cents) || action.cents <= 0)) return state;
       const paid = { ...own.paid };
-      if (action.paid) paid[action.personId] = row.due;
+      if (action.paid) paid[action.personId] = action.cents === undefined ? row.due : row.paid + action.cents;
       else if (action.personId in paid) delete paid[action.personId];
       else return state;
       return setOwn({ paid });
@@ -579,7 +581,7 @@ function describe(before: AppState, after: AppState, action: Action): string | n
     case 'markPaid':
       return inNote(
         action.paid
-          ? `${person(action.personId)} pagou ${formatBRL(activeBill(after).paid?.[action.personId] ?? 0)}`
+          ? `${person(action.personId)} pagou ${formatBRL(action.cents ?? activeBill(after).paid?.[action.personId] ?? 0)}`
           : `Desmarcou o pagamento de ${person(action.personId)}`,
       );
     case 'addNote': {

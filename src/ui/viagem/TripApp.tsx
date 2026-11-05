@@ -34,6 +34,7 @@ import { TripPeople } from './TripPeople';
 import { TripSheet, type TripMode } from './TripSheet';
 import { supabaseTripApi, useTripSync } from './useTripSync';
 import { newId } from '../../state/billState';
+import { formatBRL } from '../../core/money';
 import { deletePhoto, putPhoto } from '../../state/photos';
 import { rememberPhotoUrl } from '../usePhotoUrl';
 
@@ -191,6 +192,14 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   const [tripMode, setTripMode] = useState<TripMode | null>(null);
   const [editing, setEditing] = useState<Traveler | null>(null);
   const [settling, setSettling] = useState<SettleTarget | null>(null);
+
+  function settle(t: SettleTarget, cents: number) {
+    if (!trip || !t.to) return;
+    const name = (pid: string) => trip.people.find((p) => p.id === pid)!.name;
+    const id = newId();
+    dispatch({ type: 'settle', id, from: t.from, to: t.to, cents, ...(t.expenseId ? { expenseId: t.expenseId } : {}) });
+    toast(`${name(t.from)} pagou ${formatBRL(cents)} para ${name(t.to)}`, () => dispatch({ type: 'unsettle', id }));
+  }
 
   function openList() {
     dispatch({ type: 'openTrip', id: null });
@@ -390,7 +399,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       <ReceiptTargetSheet open={!!scan} trip={trip} meId={meId} onNew={scanToNew} onPick={scanToExpense} onCancel={scanCancel} />
       <PayForSheet key={`${trip.id}-${meId}`} open={!!payPeople} people={payPeople ?? []} meId={meId ?? ''} onAnswer={answerPay} />
       <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
-      <SettleSheet trip={trip} transfer={settling} dispatch={dispatch} toast={toast} onClose={() => setSettling(null)} />
+      <SettleSheet people={trip.people} transfer={settling} onPay={settle} onClose={() => setSettling(null)} />
       <ShareSheet
         open={sharing}
         noun="viagem"

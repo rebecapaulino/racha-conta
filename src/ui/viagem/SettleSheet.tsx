@@ -1,22 +1,23 @@
-import { useState, type Dispatch } from 'react';
+import { useState } from 'react';
+import type { Person } from '../../core/bill';
 import { formatBRL, parseBRL } from '../../core/money';
 import type { Transfer } from '../../core/settle';
-
-/** Um pagamento a registrar. De despesa parcelada: abate só dela. */
-export type SettleTarget = Transfer & { expenseId?: string; label?: string };
-import type { Trip } from '../../core/trip';
-import { newId } from '../../state/billState';
-import type { TripAction } from '../../state/tripState';
 import { Avatar } from '../Avatar';
 import { IconArrowRight } from '../icons';
 import { Sheet } from './Sheet';
 
+/** Um pagamento a registrar. De despesa parcelada: abate só dela. Sem `to`: paga no caixa (Rolê). */
+export type SettleTarget = Omit<Transfer, 'to'> & { to: string | null; expenseId?: string; label?: string };
+
 interface Props {
-  trip: Trip;
+  /** Pessoas da viagem ou do rolê. */
+  people: Person[];
   /** O pagamento sugerido pelo acerto (dá para registrar só uma parte). */
   transfer: SettleTarget | null;
-  dispatch: Dispatch<TripAction>;
-  toast: (msg: string, undo?: () => void) => void;
+  /** Registra o valor digitado. */
+  onPay: (t: SettleTarget, cents: number) => void;
+  /** O que acontece quando pagam a mais (padrão: o app refaz o acerto). */
+  overHint?: string;
   onClose: () => void;
 }
 
@@ -29,11 +30,11 @@ export function SettleSheet({ transfer, onClose, ...rest }: Props) {
   );
 }
 
-function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { transfer: SettleTarget }) {
+function SettleForm({ people, transfer, onPay, overHint = 'o app refaz a conta de quem paga quem', onClose }: Props & { transfer: SettleTarget }) {
   const [amount, setAmount] = useState(formatBRL(transfer.cents).replace(/^R\$\s?/, ''));
   const [error, setError] = useState('');
-  const from = trip.people.find((p) => p.id === transfer.from)!;
-  const to = trip.people.find((p) => p.id === transfer.to)!;
+  const from = people.find((p) => p.id === transfer.from)!;
+  const to = people.find((p) => p.id === transfer.to);
   const cents = parseBRL(amount);
 
   function save(e: React.FormEvent) {
@@ -42,9 +43,7 @@ function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { tran
       setError('Digite quanto foi pago.');
       return;
     }
-    const id = newId();
-    dispatch({ type: 'settle', id, from: from.id, to: to.id, cents, ...(transfer.expenseId ? { expenseId: transfer.expenseId } : {}) });
-    toast(`${from.name} pagou ${formatBRL(cents)} para ${to.name}`, () => dispatch({ type: 'unsettle', id }));
+    onPay(transfer, cents);
     onClose();
   }
 
@@ -55,10 +54,14 @@ function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { tran
       {transfer.label && <p className="settle-label">{transfer.label}</p>}
       <div className="settle-pair">
         <span className="settle-who"><Avatar person={from} size="lg" /><b>{from.name}</b></span>
-        <span className="settle-arrow" aria-hidden="true"><IconArrowRight /></span>
-        <span className="settle-who"><Avatar person={to} size="lg" /><b>{to.name}</b></span>
+        {to && (
+          <>
+            <span className="settle-arrow" aria-hidden="true"><IconArrowRight /></span>
+            <span className="settle-who"><Avatar person={to} size="lg" /><b>{to.name}</b></span>
+          </>
+        )}
       </div>
-      <p className="sr">{from.name} pagou para {to.name}</p>
+      <p className="sr">{to ? `${from.name} pagou para ${to.name}` : `${from.name} pagou no caixa`}</p>
 
       <div className="money big-money">
         <span aria-hidden="true">R$</span>
@@ -80,7 +83,7 @@ function SettleForm({ trip, transfer, dispatch, toast, onClose }: Props & { tran
         {cents && cents < transfer.cents
           ? `Pagamento parcial: depois dele, faltam ${formatBRL(transfer.cents - cents)}.`
           : cents && cents > transfer.cents
-            ? `É ${formatBRL(cents - transfer.cents)} a mais do que este acerto: o app refaz a conta de quem paga quem.`
+            ? `É ${formatBRL(cents - transfer.cents)} a mais do que este acerto: ${overHint}.`
             : 'Pode ser só uma parte, como uma parcela. O resto continua no acerto.'}
       </p>
       <p className="field-error" role="alert">{error}</p>

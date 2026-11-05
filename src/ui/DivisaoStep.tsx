@@ -5,6 +5,7 @@ import type { Action, LogEntry } from '../state/billState';
 import { ActivityLog } from './ActivityLog';
 import { Avatar } from './Avatar';
 import { IconAlert, IconArrowRight, IconChat, IconCheck, IconChevron, IconCopy, IconImage, IconShare, Logo } from './icons';
+import { SettleSheet, type SettleTarget } from './viagem/SettleSheet';
 import { Signed } from './viagem/Signed';
 import { Art } from './illustrations';
 import { renderReceipt } from './receiptImage';
@@ -33,6 +34,7 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, groupId 
   const previewRef = useRef<HTMLDetailsElement>(null);
   const [slide, setSlide] = useState(0);
   const [back, setBack] = useState(false);
+  const [paying, setPaying] = useState<SettleTarget | null>(null);
   const logRef = useRef<HTMLDialogElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const text = summaryText(bill, result);
@@ -175,6 +177,7 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, groupId 
                   bill={bill}
                   total={result.total}
                   dispatch={dispatch}
+                  onPay={setPaying}
                   position={result.shares.length > 1 ? `${at + 1} de ${result.shares.length}` : ''}
                   next={next ? { name: next.person.name, go: () => go(at + 1, false) } : null}
                   prev={prev ? { name: prev.person.name, go: () => go(at - 1, true) } : null}
@@ -415,6 +418,14 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, groupId 
         </div>
       </dialog>
 
+      <SettleSheet
+        people={bill.people}
+        transfer={paying}
+        overHint="fica anotado que pagou a mais"
+        onPay={(t, cents) => dispatch({ type: 'markPaid', personId: t.from, paid: true, cents })}
+        onClose={() => setPaying(null)}
+      />
+
       <div className="share-actions">
         <button type="button" className="btn secondary" onClick={copy}>
           <IconCopy /> Copiar texto
@@ -490,6 +501,7 @@ function PersonCard({
   bill,
   total,
   dispatch,
+  onPay,
   position,
   next,
   prev,
@@ -500,6 +512,8 @@ function PersonCard({
   bill: Bill;
   total: number;
   dispatch: Dispatch<Action>;
+  /** Abre a janela para digitar quanto pagou. */
+  onPay: (t: SettleTarget) => void;
   position: string;
   next: { name: string; go: () => void } | null;
   prev: { name: string; go: () => void } | null;
@@ -565,7 +579,7 @@ function PersonCard({
                   className={`btn secondary settle-btn${on ? ' is-paid' : ''}`}
                   aria-pressed={on}
                   aria-label={on ? `${name} já pagou ${formatBRL(due)}. Toque para desmarcar` : `Marcar que ${name} já pagou ${formatBRL(due)}`}
-                  onClick={() => set(!on)}
+                  onClick={() => (on ? set(false) : onPay({ from: id, to: payer?.id ?? null, cents: left }))}
                 >
                   <IconCheck size={16} /> {state === 'partial' ? 'Pagar o resto' : 'Pago'}
                 </button>

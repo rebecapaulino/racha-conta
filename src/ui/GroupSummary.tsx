@@ -1,4 +1,4 @@
-import type { Dispatch } from 'react';
+import { useState, type Dispatch } from 'react';
 import { groupSummary, groupSummaryText, whatsappUrl, type Bill } from '../core/bill';
 import { formatBRL } from '../core/money';
 import { accountIn } from '../core/settle';
@@ -7,6 +7,7 @@ import { Avatar } from './Avatar';
 import { IconArrowRight, IconCheck, IconCopy, IconShare } from './icons';
 import { categoryEmoji } from '../core/noteCategory';
 import { SettleList, type ListRow } from './viagem/SettleList';
+import { SettleSheet, type SettleTarget } from './viagem/SettleSheet';
 
 interface Props {
   /** A conta inteira, com todas as notas. */
@@ -26,11 +27,13 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
   const text = groupSummaryText(bill, g);
   // Sempre direto para quem pagou ("Menos Pix" saiu: confundia).
   const rows = g.plan.direct;
+  const [paying, setPaying] = useState<SettleTarget | null>(null);
 
-  function pay(t: { from: string; to: string; cents: number }) {
+  function pay(t: SettleTarget, cents: number) {
+    if (!t.to) return;
     const index = settled.length;
-    dispatch({ type: 'settle', from: t.from, to: t.to, cents: t.cents });
-    toast(`${name(t.from).name} pagou ${formatBRL(t.cents)} a ${name(t.to).name}`, () => dispatch({ type: 'unsettle', index }));
+    dispatch({ type: 'settle', from: t.from, to: t.to, cents });
+    toast(`${name(t.from).name} pagou ${formatBRL(cents)} a ${name(t.to).name}`, () => dispatch({ type: 'unsettle', index }));
   }
 
   /** Desmarca a linha "Pago" (com Desfazer, caso tenha sido sem querer). */
@@ -84,7 +87,7 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
             {g.transfers.length === 0 && (
               <p className="all-square" role="status"><IconCheck size={16} /> Tudo pago! Está todo mundo quite.</p>
             )}
-            <SettleList people={bill.people} rows={rows} meId={null} onSettle={pay} onUnpay={unpay} carousel />
+            <SettleList people={bill.people} rows={rows} meId={null} onSettle={setPaying} onUnpay={unpay} carousel />
           </>
         ) : anyPayer ? (
           <p className="scan-check ok"><IconCheck size={16} /> Tudo acertado entre o grupo.</p>
@@ -175,6 +178,8 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
           ))}
         </ul>
       </section>
+
+      <SettleSheet people={bill.people} transfer={paying} onPay={pay} onClose={() => setPaying(null)} />
 
       <div className="share-actions">
         <button type="button" className="btn secondary" onClick={copy}>

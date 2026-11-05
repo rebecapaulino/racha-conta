@@ -86,6 +86,13 @@ describe('marcar quem já pagou', () => {
     expect(s.log.at(-1)!.text).toBe('Desmarcou o pagamento de Ana');
     expect(run(s0, { type: 'markPaid', personId: ana, paid: false })).toBe(s0);
   });
+
+  it('com o valor digitado, soma ao que já tinha pago', () => {
+    const s = run(s0, { type: 'markPaid', personId: ana, paid: true, cents: 2000 }, { type: 'markPaid', personId: ana, paid: true, cents: 1500 });
+    expect(s.bill.paid).toEqual({ [ana]: 3500 });
+    expect(s.log.at(-1)!.text).toBe('Ana pagou R$ 15,00');
+    expect(run(s0, { type: 'markPaid', personId: ana, paid: true, cents: 0 })).toBe(s0);
+  });
 });
 
 describe('itens lidos da nota fiscal', () => {
