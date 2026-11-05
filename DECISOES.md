@@ -473,11 +473,10 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 ## Leitura da nota: Sefaz, IA e celular — 05/11/2026
 
-- **Três caminhos, do mais preciso para o menos**, todos atrás do mesmo `ReceiptReader` (Rolê e Viagem):
+- **Dois caminhos**, atrás do mesmo `ReceiptReader` (Rolê e Viagem):
   1. **QR code da NFC-e → Sefaz.** O celular acha o QR code na foto (leitor do navegador no Android, `jsqr` no iPhone, com recortes ampliados da parte de baixo). A rota `/api/nfce` consulta a página pública da Sefaz e lê o leiaute "tabResult" (SP e a maioria dos estados): nomes, quantidades e valores exatos. Peso vira 1 unidade; "taxa de serviço" lançada como item vira o serviço. Só segue endereços `https://*.gov.br`.
-  2. **IA (Claude Opus 5.5)** na rota `/api/ler-nota`: foto reduzida (lado maior 2400 px, JPEG), resposta em JSON com esquema fixo, esforço baixo. Precisa de `ANTHROPIC_API_KEY` na Vercel; sem ela, responde 503 e o app pula este passo.
-  3. **Tesseract no celular**, como antes: sem internet ou se os outros falharem.
-- A pré-conta do bar não tem QR code: nela, quem lê é a IA.
+  2. **Tesseract no celular**, como antes: sem QR code (a pré-conta do bar não tem), sem internet ou se a Sefaz falhar.
+- **IA (Claude) testada e retirada no mesmo dia:** a API é paga por uso (estimativa de US$ 0,02–0,04 por foto) e, por ora, o QR code basta. Se voltar, entra como passo entre a Sefaz e o Tesseract.
 - Funções da Vercel em São Paulo (`vercel.json`, `gru1`): a Sefaz-SP tem firewall e tende a recusar servidores de fora.
 - Todos os leitores passam por `cleanReceipt` (itens válidos e percentual do serviço).
-- Política de privacidade atualizada: com internet, a foto pode ir para a Anthropic (sem QR) e a chave da nota para a Sefaz.
+- Política de privacidade atualizada: com internet, o endereço do QR code (com a chave da nota) é consultado na Sefaz; a foto continua sem sair do celular.

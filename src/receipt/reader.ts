@@ -1,7 +1,7 @@
 // A "peça trocável" da leitura da nota: a tela só conhece este contrato.
-// O leitor padrão tenta, do mais preciso para o menos: os itens da NFC-e pela Sefaz (QR code),
-// a foto lida com IA (rota /api/ler-nota) e, sem internet ou se os dois falharem, o
-// Tesseract no próprio celular (tesseract.ts).
+// O leitor padrão tenta primeiro os itens da NFC-e pela Sefaz (QR code do cupom) e, sem
+// QR code, sem internet ou se a Sefaz falhar, lê a foto com o Tesseract no próprio celular
+// (tesseract.ts). Uma IA no futuro seria mais um passo aqui (a chave fica numa função do Next).
 
 import type { ParsedReceipt } from './parse';
 
@@ -13,7 +13,7 @@ export interface ReadProgress {
 }
 
 /** De onde vieram os itens: muda o aviso na hora de conferir. */
-export type ReceiptSource = 'sefaz' | 'ia' | 'celular';
+export type ReceiptSource = 'sefaz' | 'celular';
 
 export interface ReceiptReader {
   read(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<ParsedReceipt & { source?: ReceiptSource }>;
@@ -34,7 +34,7 @@ const smartReader: ReceiptReader = {
   async read(image, onProgress, signal) {
     const report = (p: ReadProgress) => !signal.aborted && onProgress(p);
     if (navigator.onLine) {
-      const { readFromSefaz, readWithAi } = await import('./online');
+      const { readFromSefaz } = await import('./online');
       report({ fraction: 0.03, label: 'Procurando o QR code da nota…' });
       let stop = () => {};
       try {
@@ -46,14 +46,6 @@ const smartReader: ReceiptReader = {
         if (sefaz) {
           report({ fraction: 1, label: 'Pronto' });
           return { ...sefaz, source: 'sefaz' };
-        }
-        stop = ticking(report, 'Lendo os itens da nota…', 0.1, 0.92);
-        const ai = await readWithAi(image, signal);
-        stop();
-        if (signal.aborted) throw aborted();
-        if (ai) {
-          report({ fraction: 1, label: 'Pronto' });
-          return { ...ai, source: 'ia' };
         }
       } catch {
         stop();
