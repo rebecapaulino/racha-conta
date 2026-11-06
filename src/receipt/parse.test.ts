@@ -197,3 +197,42 @@ describe('texto do PaddleOCR', () => {
     expect(parseReceipt('003 PUDIM 1 UN × 18,00  18,00').items).toEqual([{ name: 'Pudim', qty: 1, cents: 1800 }]);
   });
 });
+
+describe('palavras trocadas pelo leitor (print de um iPhone)', () => {
+  const TEXT = `1 211 - SOPA COM CARNE
+3 x R$ 12,50 ... R$ 37,50
+2 245 BRIGADEIRO
+1 x R$ 6,00 ... R$ 6,00
+3 451 - SANDUICHE DE FRANGO
+1 x R$ 14,00 ... R$ 14,00
+À 084 SUCO POLPA 300 ML
+1 x R$ 7,00 ... R$ 7,00
+5 001 - AGUA COM GAS
+1 x R$ 3,50 ... R$ 3,50
+Total Produtos:7
+Valor tutal: R$ 68,00
+Forna Pagto: 11 - Voucher Refeição
+Valor paso: R$ 68,00`;
+
+  it('"Valor tutal" e "Valor paso" não viram itens (antes dava R$ 204,00)', () => {
+    const r = parseReceipt(TEXT);
+    expect(r.items.map((i) => i.name)).toEqual(['Sopa com carne', 'Brigadeiro', 'Sanduiche de frango', 'Suco polpa 300 ml', 'Agua com gas']);
+    expect(sumItems(r.items)).toBe(6800);
+    expect(r.totalCents).toBe(6800);
+  });
+
+  it('linha sem palavra nenhuma legível que vale a soma das anteriores é o total', () => {
+    const r = parseReceipt('Sopa 10,00\nBolo 20,00\nCafe 5,00\nXkw 35,00\nZzz 12,24');
+    expect(r.items.map((i) => i.name)).toEqual(['Sopa', 'Bolo', 'Cafe']);
+    expect(r.totalCents).toBe(3500);
+  });
+
+  it('dois itens iguais não são confundidos com total', () => {
+    const r = parseReceipt('Sopa 10,00\nBolo 10,00\nCafe 5,00');
+    expect(r.items).toHaveLength(3);
+  });
+
+  it('palavra parecida num item normal continua item', () => {
+    expect(parseReceipt('Agua 4,00\nValentim 12,00').items).toHaveLength(2);
+  });
+});

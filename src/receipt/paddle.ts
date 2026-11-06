@@ -100,8 +100,8 @@ async function recognize(e: Engine, rgba: Uint8ClampedArray, pw: number, ph: num
   return text;
 }
 
-export const paddleReader: ReceiptReader = {
-  async read(image, onProgress, signal) {
+/** O texto da foto, em linhas (antes de separar os itens). */
+export async function readText(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<string> {
     const stopIfCancelled = () => {
       if (signal.aborted) throw new DOMException('cancelado', 'AbortError');
     };
@@ -131,6 +131,11 @@ export const paddleReader: ReceiptReader = {
       stopIfCancelled();
     }
     report({ fraction: 1, label: 'Pronto' });
-    return parseReceipt(joinLines(boxes));
+    return joinLines(boxes);
+}
+
+export const paddleReader: ReceiptReader = {
+  async read(image, onProgress, signal) {
+    return parseReceipt(await readText(image, onProgress, signal));
   },
 };

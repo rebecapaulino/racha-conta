@@ -499,3 +499,10 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Motor:** carregado de `/ocr/ort` por import direto, fora do pacote do app; roda em outra linha de execução (`proxy`) para não travar a tela. Download de uns 12 MB comprimidos no primeiro uso; depois funciona sem internet (service worker).
 - **Testado de ponta a ponta** no app compilado, sem login, no Chrome e no WebKit com tela de iPhone: leitura, foto grande, reserva no Tesseract e sem internet. **Não testado em iPhone de verdade** (memória e velocidade podem ser piores).
 - **Sefaz retirada** (rota, QR code, `jsqr`, `vercel.json`): com o QR real de um cupom, o firewall da Sefaz-SP respondeu "Request Rejected" a todos os pedidos, inclusive do servidor em São Paulo. Não vale tentar enganar o firewall. Sem servidor, a foto volta a não sair do celular (política de privacidade atualizada).
+
+## Primeiro teste em iPhone de verdade — 06/11/2026
+
+- Cupom de R$ 68,00 deu **R$ 204,00**: "Valor tutal" e "Valor paso" viraram itens. No computador, o print dessa foto dá R$ 68,00; os erros ("À 084", "Valor paso") têm cara do Tesseract, então o leitor novo pode não ter carregado no iPhone, ou o app estava na versão anterior. Não confirmado.
+- **Separação dos itens:** "TOTAL" e "VALOR" aceitam uma letra trocada; cabeçalho de item sem traço ("2 245 BRIGADEIRO"); uma linha que vale a soma das anteriores (a partir do 3º item) é o total, com o que vem depois descartado.
+- **A tela diz qual leitor rodou** ("Lido pelo leitor principal" ou o motivo de ter usado o reserva). Sem essa linha, o aparelho está com a versão antiga. Pode sair quando o iPhone estiver confirmado.
+- Com todas as fotos de teste (20): PaddleOCR 20 somas certas; Tesseract 14.

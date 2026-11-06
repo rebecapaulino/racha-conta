@@ -34,10 +34,41 @@ const DISCOUNT = /DESCONTO|\bDESC\b|ACRESCIMO/;
 const IGNORE =
   /\b(?:CNPJ|CPF|INSC|IE|DATA|HORA|EMISSAO|CAIXA|OPERADOR|ATENDENTE|GARCOM|GARCON|TROCO|DINHEIRO|CARTAO|CREDITO|DEBITO|PIX|PAGO|PAGAMENTO|RECEBIDO|TRIBUTOS?|IMPOSTOS?|ICMS|PIS|COFINS|LEI|CHAVE|PROTOCOLO|CONSULTE|SAT|NFC|NFCE|CUPOM|EXTRATO|TEL|FONE|TELEFONE|ENDERECO|RUA|AV|CEP|MESA|COMANDA|CONTA|PESSOAS?|PERMANENCIA|SENHA|OBRIGADO|VOLTE|SITE|WWW|CONFERENCIA|QTD|QTDE|DESCRICAO|ITEM|VL|UNIT|PRECO|COD|CODIGO)\b/;
 // Cabeçalho do item na NFC-e: "1 211 - SOPA COM CARNE" (nº, código, nome), com o preço na linha de baixo.
-const ITEM_HEAD = /(?:^|[\s_])\d{2,5}\)?\s*[-–—]\s+(\p{L}.*)$/u;
+const ITEM_HEAD = /(?:^|[\s_])\d{2,5}\)?\s*[-–—−]\s*(\p{L}.*)$/u;
+// O mesmo sem o traço, que o leitor às vezes perde: "2 245 BRIGADEIRO", "À 084 SUCO".
+const ITEM_HEAD_LOOSE = /^\W*(?:[\p{L}\d]\s+)?\d{3,5}\s+(\p{L}.*)$/u;
 // "3 x R$ 12,50 ... R$ 37,50": a quantidade no começo da linha de preço.
 const QTY_PREFIX = /^\W*(\d{1,2})\s*[xX×]/;
 const UNIT = /^(?:UN|UND|UNID|UNI|PC|PCS|KG|G|LT|L|ML|X|\*|UNX|UNDX|KGX)$/;
+
+/** Distância de edição até 1: a palavra é `word` com no máximo uma letra trocada, a mais ou a menos. */
+function nearWord(token: string, word: string): boolean {
+  if (Math.abs(token.length - word.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < token.length && j < word.length) {
+    if (token[i] === word[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++edits > 1) return false;
+    if (token.length > word.length) i++;
+    else if (token.length < word.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return edits + (token.length - i) + (word.length - j) <= 1;
+}
+
+const wordsOf = (norm: string) => norm.split(/[^A-Z0-9]+/).filter(Boolean);
+/** "TOTAL" com uma letra trocada pelo leitor ("TUTAL", "T0TAL", "LOTAL"). */
+const hasTotalWord = (norm: string) => wordsOf(norm).some((w) => nearWord(w, 'TOTAL'));
+/** Linha que começa com "VALOR" ("UALOR PAGO", "VALOR PASO"): é resumo da nota, nunca item. */
+const startsWithValor = (norm: string) => nearWord(wordsOf(norm)[0] ?? '', 'VALOR');
 
 /** Sem acento e em maiúsculas, só para comparar palavras. */
 function plain(s: string): string {
@@ -168,7 +199,11 @@ export function parseReceipt(text: string): ParsedReceipt {
       // Nota com o nome numa linha e "2 UN X 6,50 13,00" na de baixo.
       pendingName = !IGNORE.test(norm) && !TOTAL.test(norm) && letters(line) >= 3 ? line : null;
       // O OCR deixa sujeira depois de 2+ espaços ("SOPA COM CARNE       À").
-      const head = line.match(ITEM_HEAD)?.[1].split(/\s{2,}/)[0].replace(/[^\p{L}\p{N})]+$/u, '');
+      // ... e o nome é o maior pedaço ("t 21 1 − s  SOPA COM CARNE").
+      const head = (line.match(ITEM_HEAD) ?? line.match(ITEM_HEAD_LOOSE))?.[1]
+        .split(/\s{2,}/)
+        .reduce((a, b) => (b.length > a.length ? b : a))
+        .replace(/[^\p{L}\p{N})]+$/u, '');
       headName = !!head && !afterTotal && letters(head) >= 3 && !IGNORE.test(plain(head));
       if (headName) pendingName = head!;
       continue;
@@ -189,13 +224,13 @@ export function parseReceipt(text: string): ParsedReceipt {
       pendingName = null;
       continue;
     }
-    if (TOTAL.test(norm)) {
+    if (TOTAL.test(norm) || hasTotalWord(norm)) {
       out.totalCents = Math.max(out.totalCents ?? 0, last.cents);
       afterTotal = out.items.length > 0;
       pendingName = null;
       continue;
     }
-    if (afterTotal || (IGNORE.test(norm) && !headName)) {
+    if (afterTotal || startsWithValor(norm) || (IGNORE.test(norm) && !headName)) {
       pendingName = null;
       continue;
     }
@@ -244,7 +279,21 @@ export function parseReceipt(text: string): ParsedReceipt {
     out.items.push({ name, qty, cents });
   }
 
-  return cleanReceipt(out);
+  return cleanReceipt(dropTotalsReadAsItems(out));
+}
+
+/**
+ * Uma "linha de item" que vale exatamente a soma de todas as de antes é o total da nota, com a
+ * palavra ilegível (nenhum item custa isso por acaso). Ela e o que vem depois saem da lista.
+ */
+function dropTotalsReadAsItems(r: ParsedReceipt): ParsedReceipt {
+  let sum = 0;
+  for (let i = 0; i < r.items.length; i++) {
+    const line = r.items[i].cents * r.items[i].qty;
+    if (i >= 2 && line === sum) return { ...r, items: r.items.slice(0, i), totalCents: r.totalCents ?? sum };
+    sum += line;
+  }
+  return r;
 }
 
 const posCents = (v: number | null) => (v !== null && Number.isSafeInteger(v) && v > 0 && v <= MAX_LINE_CENTS * 100 ? v : null);

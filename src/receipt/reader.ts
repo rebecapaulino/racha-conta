@@ -11,8 +11,11 @@ export interface ReadProgress {
   label: string;
 }
 
+/** O leitor principal não funcionou neste aparelho: o motivo aparece na hora de conferir. */
+export type ReadResult = ParsedReceipt & { fallbackReason?: string };
+
 export interface ReceiptReader {
-  read(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<ParsedReceipt>;
+  read(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<ReadResult>;
 }
 
 const smartReader: ReceiptReader = {
@@ -23,7 +26,8 @@ const smartReader: ReceiptReader = {
     } catch (err) {
       if (signal.aborted) throw err;
       const { tesseractReader } = await import('./tesseract');
-      return tesseractReader.read(image, onProgress, signal);
+      const reason = err instanceof Error ? err.message : String(err);
+      return { ...(await tesseractReader.read(image, onProgress, signal)), fallbackReason: reason.slice(0, 120) || 'erro desconhecido' };
     }
   },
 };
