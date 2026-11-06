@@ -22,11 +22,11 @@ async function native(img: Source): Promise<string | null> {
   }
 }
 
-/** Um pedaço da foto (de `top` a `bottom`, em frações da altura) com no máximo `width` px. */
+/** Um pedaço da foto (de `top` a `bottom`, em frações da altura), redimensionado para `width` px (até 3×). */
 function crop(img: Source, top: number, bottom: number, width: number): ImageData | null {
   const sy = Math.round(img.height * top);
   const sh = Math.round(img.height * (bottom - top));
-  const scale = Math.min(1, width / img.width);
+  const scale = Math.min(3, width / img.width);
   const w = Math.max(1, Math.round(img.width * scale));
   const h = Math.max(1, Math.round(sh * scale));
   const canvas = document.createElement('canvas');
@@ -34,6 +34,7 @@ function crop(img: Source, top: number, bottom: number, width: number): ImageDat
   canvas.height = h;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return null;
+  ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, sy, img.width, sh, 0, 0, w, h);
   return ctx.getImageData(0, 0, w, h);
 }
@@ -46,7 +47,8 @@ export async function findQr(blob: Blob): Promise<string | null> {
     if (fromBrowser) return fromBrowser;
     const { default: jsQR } = await import('jsqr');
     // Da foto inteira para os recortes de baixo, cada vez mais de perto.
-    const tries: [number, number, number][] = [[0, 1, 1200], [0.45, 1, 1600], [0.65, 1, 1800], [0.25, 0.75, 1600]];
+    // O QR da NFC-e é denso: em foto pequena, só é lido ampliado.
+    const tries: [number, number, number][] = [[0, 1, 1920], [0.45, 1, 1920], [0.65, 1, 1920], [0.65, 1, 1400], [0.25, 0.75, 1920]];
     for (const [top, bottom, width] of tries) {
       const data = crop(img, top, bottom, width);
       const code = data && jsQR(data.data, data.width, data.height, { inversionAttempts: 'dontInvert' });

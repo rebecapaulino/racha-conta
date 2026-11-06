@@ -480,3 +480,13 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 - Funções da Vercel em São Paulo (`vercel.json`, `gru1`): a Sefaz-SP tem firewall e tende a recusar servidores de fora.
 - Todos os leitores passam por `cleanReceipt` (itens válidos e percentual do serviço).
 - Política de privacidade atualizada: com internet, o endereço do QR code (com a chave da nota) é consultado na Sefaz; a foto continua sem sair do celular.
+
+## Leitura da foto, com uma nota real — 06/11/2026
+
+Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volta):
+
+- **Preparo da foto:** recorta o papel (`paperBox`: Otsu + colunas e linhas seguidas), amplia até 3× e iguala o fundo (`flatten`: divide cada pixel pela média em volta). Comparado com contraste simples e com preto e branco puro (Bradley), foi o que acertou os valores; preto e branco trocava letras ("SUCU", "CON").
+- **Formato de duas linhas da NFC-e:** `1 211 - NOME` / `3 x R$ 12,50 ... R$ 37,50`. O nome do cabeçalho vale mais que o texto (sujo) da linha de preço; quantidade do começo da linha, valor do fim.
+- **Depois do total nada é item** (a linha de tributos virava um item de R$ 512,24).
+- **QR code denso (versão 3, com assinatura):** o `jsQR` só lê ampliado; os recortes agora ampliam até 3×.
+- **Sefaz:** a rota separa `recusada` (firewall) de `pagina` (respondeu sem itens, como nota em contingência). Quando o QR é achado mas a Sefaz não traz a nota, a tela avisa que os itens vieram da foto.

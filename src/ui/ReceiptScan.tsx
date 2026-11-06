@@ -408,6 +408,9 @@ export function ReceiptScan({ bill, fullBill, example, notePhotoId, dispatch, to
           {parsed?.source === 'sefaz' && rows.length > 0 && (
             <p className="scan-check ok"><IconCheck size={16} /> Itens da nota fiscal, direto da Sefaz.</p>
           )}
+          {parsed?.source === 'sefaz-falhou' && rows.length > 0 && (
+            <p className="hint">A Sefaz não trouxe esta nota agora, então os itens foram lidos da foto. Confira os valores.</p>
+          )}
 
           {photo && (
             <details className="scan-photo">

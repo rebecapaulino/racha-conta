@@ -135,3 +135,48 @@ describe('parseReceipt', () => {
     expect(expectedItemsTotal(r)).toBeNull();
   });
 });
+
+describe('NFC-e em duas linhas (texto real do leitor, com sujeira)', () => {
+  // Foto de um cupom real: "nº código - nome" e, embaixo, "qtd x unitário ... total".
+  const TEXT = `NFC-e Nº 178624 Série 886
+Emissão: 06/11/2026 13:59:15
+EMITIDA EM CONTINGÊNCIA Pendente de autorização
+1 211 - SOPA CON CARNE
+3 XR$ 12,50... o... R$ 37.50
+2 245 - BRIGADEIRO                                          y
+;          1 XR$S6.00......,.. 0... R$ 6.00                     |
+ 3 451 - SANDUÍCHE DE FRANGO
+E      IO XR$14,00.. 1.1.0.0. R$ 14,00        |
+Á  4 684 - SUCO POLPA 300 HI                               |
+3          | XRS 7,00... R$ 7,00
+E  5 001 - AGUA COM GAS 300 À 310 nj)
+|      tOXR$3.50 1.0... RS 3.50          |
+Total Produtos:?                        |
+Valor Total: R$ 68,00                 '         |
+Forna Pasto: 11 - Voucher Refeição
+Valor Pago: R$ 68,00
+ó Este R512,24 Trio.!`;
+
+  it('nome do cabeçalho, quantidade e total, e nada depois do total', () => {
+    const r = parseReceipt(TEXT);
+    expect(r.items.map((i) => [i.name, i.qty, i.cents])).toEqual([
+      ['Sopa con carne', 3, 1250],
+      ['Brigadeiro', 1, 600],
+      ['Sanduíche de frango', 1, 1400],
+      ['Suco polpa 300 hi', 1, 700],
+      ['Agua com gas 300 à 310 nj)', 1, 350],
+    ]);
+    expect(r.totalCents).toBe(6800);
+    expect(sumItems(r.items)).toBe(6800);
+  });
+
+  it('linha de preço ilegível no valor total: usa quantidade × unitário', () => {
+    const r = parseReceipt('1 211 - SOPA COM CARNE\n3 x R$ 12,50 ....... lixo\n');
+    expect(r.items).toEqual([{ name: 'Sopa com carne', qty: 3, cents: 1250 }]);
+  });
+
+  it('unitário borrado: o total da linha ainda dá a quantidade', () => {
+    const r = parseReceipt('1 211 - SOPA COM CARNE\n3 XR$ IDO... R$37,50\n');
+    expect(r.items).toEqual([{ name: 'Sopa com carne', qty: 3, cents: 1250 }]);
+  });
+});

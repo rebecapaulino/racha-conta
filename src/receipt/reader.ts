@@ -13,7 +13,7 @@ export interface ReadProgress {
 }
 
 /** De onde vieram os itens: muda o aviso na hora de conferir. */
-export type ReceiptSource = 'sefaz' | 'celular';
+export type ReceiptSource = 'sefaz' | 'celular' | 'sefaz-falhou';
 
 export interface ReceiptReader {
   read(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<ParsedReceipt & { source?: ReceiptSource }>;
@@ -33,12 +33,14 @@ function ticking(onProgress: (p: ReadProgress) => void, label: string, from: num
 const smartReader: ReceiptReader = {
   async read(image, onProgress, signal) {
     const report = (p: ReadProgress) => !signal.aborted && onProgress(p);
+    let triedSefaz = false;
     if (navigator.onLine) {
       const { readFromSefaz } = await import('./online');
       report({ fraction: 0.03, label: 'Procurando o QR code da nota…' });
       let stop = () => {};
       try {
         const sefaz = await readFromSefaz(image, signal, () => {
+          triedSefaz = true;
           stop = ticking(report, 'Buscando os itens na Sefaz…', 0.1, 0.9);
         });
         stop();
@@ -54,7 +56,7 @@ const smartReader: ReceiptReader = {
       }
     }
     const { tesseractReader } = await import('./tesseract');
-    return { ...(await tesseractReader.read(image, onProgress, signal)), source: 'celular' };
+    return { ...(await tesseractReader.read(image, onProgress, signal)), source: triedSefaz ? 'sefaz-falhou' : 'celular' };
   },
 };
 

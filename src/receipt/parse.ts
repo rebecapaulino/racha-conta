@@ -33,6 +33,10 @@ const DISCOUNT = /DESCONTO|\bDESC\b|ACRESCIMO/;
 // Linhas que não são itens: dados da loja, pagamento, impostos, cabeçalhos.
 const IGNORE =
   /\b(?:CNPJ|CPF|INSC|IE|DATA|HORA|EMISSAO|CAIXA|OPERADOR|ATENDENTE|GARCOM|GARCON|TROCO|DINHEIRO|CARTAO|CREDITO|DEBITO|PIX|PAGO|PAGAMENTO|RECEBIDO|TRIBUTOS?|IMPOSTOS?|ICMS|PIS|COFINS|LEI|CHAVE|PROTOCOLO|CONSULTE|SAT|NFC|NFCE|CUPOM|EXTRATO|TEL|FONE|TELEFONE|ENDERECO|RUA|AV|CEP|MESA|COMANDA|CONTA|PESSOAS?|PERMANENCIA|SENHA|OBRIGADO|VOLTE|SITE|WWW|CONFERENCIA|QTD|QTDE|DESCRICAO|ITEM|VL|UNIT|PRECO|COD|CODIGO)\b/;
+// Cabeçalho do item na NFC-e: "1 211 - SOPA COM CARNE" (nº, código, nome), com o preço na linha de baixo.
+const ITEM_HEAD = /(?:^|\s)\d{2,5}\)?\s*[-–—]\s+(\p{L}.*)$/u;
+// "3 x R$ 12,50 ... R$ 37,50": a quantidade no começo da linha de preço.
+const QTY_PREFIX = /^\W*(\d{1,2})\s*[xX×]/;
 const UNIT = /^(?:UN|UND|UNID|UNI|PC|PCS|KG|G|LT|L|ML|X|\*|UNX|UNDX|KGX)$/;
 
 /** Sem acento e em maiúsculas, só para comparar palavras. */
@@ -142,6 +146,10 @@ function letters(s: string): number {
 export function parseReceipt(text: string): ParsedReceipt {
   const out: ParsedReceipt = { items: [], servicePct: null, serviceCents: null, subtotalCents: null, totalCents: null };
   let pendingName: string | null = null;
+  // O nome pendente veio de um cabeçalho de item: vale mais que o texto da linha de preço.
+  let headName = false;
+  // Depois do total só vêm pagamento, tributos e dados da nota: nada disso é item.
+  let afterTotal = false;
 
   for (const rawLine of text.split(/\r?\n/)) {
     // Pontilhado entre o nome e o preço ("Caipirinha......22,00") vira espaço.
@@ -154,6 +162,10 @@ export function parseReceipt(text: string): ParsedReceipt {
     if (!last) {
       // Nota com o nome numa linha e "2 UN X 6,50 13,00" na de baixo.
       pendingName = !IGNORE.test(norm) && !TOTAL.test(norm) && letters(line) >= 3 ? line : null;
+      // O OCR deixa sujeira depois de 2+ espaços ("SOPA COM CARNE       À").
+      const head = line.match(ITEM_HEAD)?.[1].split(/\s{2,}/)[0].replace(/[^\p{L}\p{N})]+$/u, '');
+      headName = !!head && !afterTotal && letters(head) >= 3 && !IGNORE.test(plain(head));
+      if (headName) pendingName = head!;
       continue;
     }
 
@@ -174,11 +186,31 @@ export function parseReceipt(text: string): ParsedReceipt {
     }
     if (TOTAL.test(norm)) {
       out.totalCents = Math.max(out.totalCents ?? 0, last.cents);
+      afterTotal = out.items.length > 0;
       pendingName = null;
       continue;
     }
-    if (IGNORE.test(norm)) {
+    if (afterTotal || (IGNORE.test(norm) && !headName)) {
       pendingName = null;
+      continue;
+    }
+    if (headName && pendingName) {
+      const name = niceName(pendingName);
+      pendingName = null;
+      headName = false;
+      const prefix = line.match(QTY_PREFIX);
+      const n = prefix ? Number(prefix[1]) : 0;
+      const unit = money.length > 1 ? money.at(-2)!.cents : 0;
+      if (n >= 1 && n <= MAX_QTY && money.length === 1 && last.index - prefix![0].length <= 5) {
+        // Só o preço da unidade saiu legível ("3 x R$ 12,50 ... (borrado)").
+        out.items.push({ name, qty: n, cents: last.cents });
+      } else if (n >= 1 && n <= MAX_QTY && last.cents % n === 0) {
+        out.items.push({ name, qty: n, cents: last.cents / n });
+      } else if (unit > 0 && last.cents % unit === 0 && last.cents / unit <= MAX_QTY) {
+        out.items.push({ name, qty: last.cents / unit, cents: unit });
+      } else {
+        out.items.push({ name, qty: 1, cents: last.cents });
+      }
       continue;
     }
 

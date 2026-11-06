@@ -32,7 +32,11 @@ export async function POST(request: Request) {
         continue;
       }
       if (!res.ok) return json({ error: 'sefaz' }, 502);
-      const parsed = parseNfcePage(await res.text());
+      const html = await res.text();
+      // "recusada": o firewall da Sefaz barrou. "pagina": respondeu, mas sem os itens (nota em
+      // contingência ainda não autorizada, por exemplo).
+      if (/<title>\s*Request Rejected/i.test(html)) return json({ error: 'recusada' }, 502);
+      const parsed = parseNfcePage(html);
       return parsed ? json(parsed) : json({ error: 'pagina' }, 422);
     }
     return json({ error: 'sefaz' }, 502);
