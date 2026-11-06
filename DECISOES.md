@@ -506,3 +506,4 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Separação dos itens:** "TOTAL" e "VALOR" aceitam uma letra trocada; cabeçalho de item sem traço ("2 245 BRIGADEIRO"); uma linha que vale a soma das anteriores (a partir do 3º item) é o total, com o que vem depois descartado.
 - **A tela diz qual leitor rodou** ("Lido pelo leitor principal" ou o motivo de ter usado o reserva). Sem essa linha, o aparelho está com a versão antiga. Pode sair quando o iPhone estiver confirmado.
 - Com todas as fotos de teste (20): PaddleOCR 20 somas certas; Tesseract 14.
+- **"Acertou uma vez, depois não":** não reproduzido (6 leituras seguidas no Chrome e no WebKit, todas certas). Agora, se o leitor principal falhar, ele é recarregado e tenta de novo antes de cair no reserva (falha simulada: de R$ 128,00 para R$ 68,00). Causa no iPhone ainda não confirmada.

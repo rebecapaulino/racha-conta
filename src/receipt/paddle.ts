@@ -134,8 +134,22 @@ export async function readText(image: Blob, onProgress: (p: ReadProgress) => voi
     return joinLines(boxes);
 }
 
+/** Joga fora o motor carregado: depois de uma falha (memória, por exemplo), ele pode ter ficado inutilizável. */
+async function reset(): Promise<void> {
+  const engine = await loading?.catch(() => null);
+  loading = null;
+  await Promise.allSettled([engine?.det.release(), engine?.rec.release()]);
+}
+
 export const paddleReader: ReceiptReader = {
   async read(image, onProgress, signal) {
-    return parseReceipt(await readText(image, onProgress, signal));
+    try {
+      return parseReceipt(await readText(image, onProgress, signal));
+    } catch (err) {
+      if (signal.aborted) throw err;
+      // Uma falha não pode condenar todas as leituras seguintes: recarrega e tenta mais uma vez.
+      await reset();
+      return parseReceipt(await readText(image, onProgress, signal));
+    }
   },
 };
