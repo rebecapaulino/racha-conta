@@ -51,18 +51,35 @@ function toAccount(session: Session | null): Account | null {
   };
 }
 
+/** Onde o Supabase guarda a sessão no aparelho. */
+function sessionKey(): string {
+  const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname.split('.')[0];
+  return `sb-${ref}-auth-token`;
+}
+
 /**
  * Sessão guardada no aparelho, lida direto do armazenamento. Serve para quem já entrou
  * abrir o app no bar sem internet (a renovação da sessão precisa de rede).
  */
 function storedAccount(): Account | null {
   try {
-    const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname.split('.')[0];
-    const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+    const raw = localStorage.getItem(sessionKey());
     const parsed = raw ? JSON.parse(raw) : null;
     return parsed?.user ? toAccount(parsed as Session) : null;
   } catch {
     return null;
+  }
+}
+
+/** Marca de que a pessoa saiu da conta de propósito (fica até ela entrar de novo). */
+const LEFT_KEY = 'racha-saiu-da-conta-v1';
+
+/** A pessoa saiu de propósito? Então a tela de login não pode entrar sozinha pelo Google. */
+export function leftOnPurpose(): boolean {
+  try {
+    return localStorage.getItem(LEFT_KEY) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -112,6 +129,9 @@ export async function signInWithGoogleToken(token: string, nonce: string): Promi
   if (!sb) throw new Error('Login indisponível neste momento.');
   const { error } = await sb.auth.signInWithIdToken({ provider: 'google', token, nonce });
   if (error) throw error;
+  try {
+    localStorage.removeItem(LEFT_KEY);
+  } catch {}
 }
 
 /** A lista de grupos excluídos como está na conta agora (a da sessão pode ter até 1 hora). */
@@ -139,5 +159,17 @@ export async function saveHiddenGroups(add: string[], remove: string[] = []): Pr
 }
 
 export async function signOut(): Promise<void> {
-  await supabase()?.auth.signOut();
+  // Antes de encerrar a sessão: a tela de login abre assim que ela acaba.
+  try {
+    localStorage.setItem(LEFT_KEY, '1');
+  } catch {}
+  const sb = supabase();
+  if (!sb) return;
+  const { error } = await sb.auth.signOut();
+  if (!error) return;
+  // Sem falar com o servidor (ex.: sem internet), o Supabase mantém a sessão no aparelho; apaga aqui.
+  try {
+    localStorage.removeItem(sessionKey());
+  } catch {}
+  set({ account: null, ready: true });
 }

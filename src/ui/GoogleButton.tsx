@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { signInWithGoogleToken } from '../auth/account';
+import { leftOnPurpose, signInWithGoogleToken } from '../auth/account';
 import { GOOGLE_CLIENT_ID, loadGoogle, newNonce } from '../auth/google';
 
 /** Botão oficial do Google. Chama onDone quando a pessoa entrou. */
@@ -22,7 +22,7 @@ export function GoogleButton({
   /**
    * Também abre a janelinha do Google "Continuar como Fulano". Quem já entrou no app antes com
    * essa conta Google entra sozinho, sem tocar em nada (ex.: abriu o link do convite num
-   * navegador em que o app ainda não estava logado).
+   * navegador em que o app ainda não estava logado). Não abre para quem saiu da conta de propósito.
    */
   oneTap?: boolean;
 }) {
@@ -39,11 +39,12 @@ export function GoogleButton({
         const nonce = await newNonce();
         const el = box.current;
         if (!alive || !el) return;
+        const tap = oneTap && !leftOnPurpose();
         google.initialize({
           client_id: GOOGLE_CLIENT_ID,
           nonce: nonce.hashed,
           use_fedcm_for_button: true,
-          ...(oneTap ? { use_fedcm_for_prompt: true, auto_select: true, itp_support: true, cancel_on_tap_outside: false } : {}),
+          ...(tap ? { use_fedcm_for_prompt: true, auto_select: true, itp_support: true, cancel_on_tap_outside: false } : {}),
           callback: async ({ credential }) => {
             try {
               await signInWithGoogleToken(credential, nonce.raw);
@@ -74,7 +75,7 @@ export function GoogleButton({
           });
         };
         draw();
-        if (oneTap) google.prompt();
+        if (tap) google.prompt();
         // O Google desenha o botão com largura fixa: se a coluna mudar (ex.: celular deitado), desenha de novo.
         if (fill && typeof ResizeObserver !== 'undefined') {
           observer = new ResizeObserver(draw);
