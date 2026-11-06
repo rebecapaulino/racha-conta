@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type Dispatch } from 'react';
 import { computeSplit, MAX_ITEM_NAME, MAX_QTY, noteBill, noteLabel, notePhotos, SERVICE_OPTIONS, type Bill, type Note, type ServicePct } from '../core/bill';
 import { formatBRL, parseBRL } from '../core/money';
 import { expectedItemsTotal, type ParsedReceipt } from '../receipt/parse';
-import { defaultReader, type ReadProgress, type ReceiptSource } from '../receipt/reader';
+import { defaultReader, type ReadProgress } from '../receipt/reader';
 import { newId, type Action } from '../state/billState';
 import { putPhoto, shrinkPhoto } from '../state/photos';
 import { rememberPhotoUrl } from './usePhotoUrl';
@@ -55,7 +55,7 @@ export function ReceiptScan({ bill, fullBill, example, notePhotoId, dispatch, to
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<ReadProgress>({ fraction: 0, label: '' });
   const [photo, setPhoto] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<(ParsedReceipt & { source?: ReceiptSource }) | null>(null);
+  const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [mode, setMode] = useState<Mode>('nova');
   const [useService, setUseService] = useState(true);
@@ -404,13 +404,6 @@ export function ReceiptScan({ bill, fullBill, example, notePhotoId, dispatch, to
         <div className="sheet-body">
           <span className="sheet-grip" aria-hidden="true" />
           <h2 id="h-scan-review" tabIndex={-1}>{rows.length || parsed?.items.length ? 'Confira os itens' : 'Não achei itens na foto'}</h2>
-
-          {parsed?.source === 'sefaz' && rows.length > 0 && (
-            <p className="scan-check ok"><IconCheck size={16} /> Itens da nota fiscal, direto da Sefaz.</p>
-          )}
-          {parsed?.source === 'sefaz-falhou' && rows.length > 0 && (
-            <p className="hint">A Sefaz não trouxe esta nota agora, então os itens foram lidos da foto. Confira os valores.</p>
-          )}
 
           {photo && (
             <details className="scan-photo">

@@ -490,5 +490,12 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Testado e descartado:** nitidez (no app, piorou: 3 × R$ 10,50) e conferir o total pelo "Valor Pago" (o leitor lê "Valor Paso"). O Tesseract é sensível: ajuste pequeno muda muito o resultado nessa foto pequena; não vale afinar por uma foto só.
 - **Formato de duas linhas da NFC-e:** `1 211 - NOME` / `3 x R$ 12,50 ... R$ 37,50`. O nome do cabeçalho vale mais que o texto (sujo) da linha de preço; quantidade do começo da linha, valor do fim.
 - **Depois do total nada é item** (a linha de tributos virava um item de R$ 512,24).
-- **QR code denso (versão 3, com assinatura):** o `jsQR` só lê ampliado; os recortes agora ampliam até 3×.
-- **Sefaz:** a rota separa `recusada` (firewall) de `pagina` (respondeu sem itens, como nota em contingência). Quando o QR é achado mas a Sefaz não traz a nota, a tela avisa que os itens vieram da foto.
+
+## Leitor novo: PaddleOCR no celular, sem Sefaz — 06/11/2026
+
+- **Leitor padrão: PaddleOCR no próprio celular** (`src/receipt/paddle.ts`, via `onnxruntime-web`), grátis e sem a foto sair do aparelho. O Tesseract ficou só como reserva, se o novo não carregar (`reader.ts`). Mesma tela e mesmo `ReceiptReader`.
+- **Por quê:** com o mesmo cupom em 14 variações (inclinado, escuro, comprimido, menor), o Tesseract errou a soma em 5 (chegou a R$ 175,22), porque trocava dígitos ("7,00" → "71,00"). O PaddleOCR acertou a soma nas 14 e em 3 notas geradas com outros formatos (17 de 17). O "Valor Total" ainda sai errado às vezes (15 de 17): a tela avisa que não bate, e os itens estão certos.
+- **Modelos** (`models/paddle-v1`, ~10 MB, no Git): detector leve `en_PP-OCRv3_det` e reconhecedor `latin_PP-OCRv5_mobile_rec` (tem acentos e espaços). O modelo chinês perdia espaços; o detector v5 tem 88 MB e é 4× mais lento, sem ganho.
+- **Motor:** carregado de `/ocr/ort` por import direto, fora do pacote do app; roda em outra linha de execução (`proxy`) para não travar a tela. Download de uns 10 MB comprimidos no primeiro uso; depois funciona sem internet (service worker).
+- **Testado de ponta a ponta** no app compilado, sem login, no Chrome e no WebKit com tela de iPhone: leitura, foto grande, reserva no Tesseract e sem internet. **Não testado em iPhone de verdade** (memória e velocidade podem ser piores).
+- **Sefaz retirada** (rota, QR code, `jsqr`, `vercel.json`): com o QR real de um cupom, o firewall da Sefaz-SP respondeu "Request Rejected" a todos os pedidos, inclusive do servidor em São Paulo. Não vale tentar enganar o firewall. Sem servidor, a foto volta a não sair do celular (política de privacidade atualizada).

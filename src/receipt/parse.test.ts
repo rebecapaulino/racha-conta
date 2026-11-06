@@ -180,3 +180,20 @@ Valor Pago: R$ 68,00
     expect(r.items).toEqual([{ name: 'Sopa com carne', qty: 3, cents: 1250 }]);
   });
 });
+
+describe('texto do PaddleOCR', () => {
+  it('preço em caixa separada, com "x" diferente e R$ lido como RS', () => {
+    const r = parseReceipt(
+      '5_001 - AGUA COM GAS 300 A 310 ml\n1 × RS 3.50  RS 3.50\n7 411 - CH0PP BRAHMA 300ml\n2 × R$ 14.90  R$ 29.80\nValor Total: R$ 33.30',
+    );
+    expect(r.items).toEqual([
+      { name: 'Agua com gas 300 a 310 ml', qty: 1, cents: 350 },
+      { name: 'Chopp brahma 300ml', qty: 2, cents: 1490 },
+    ]);
+    expect(r.totalCents).toBe(3330);
+  });
+
+  it('quantidade no fim do nome, com ×', () => {
+    expect(parseReceipt('003 PUDIM 1 UN × 18,00  18,00').items).toEqual([{ name: 'Pudim', qty: 1, cents: 1800 }]);
+  });
+});

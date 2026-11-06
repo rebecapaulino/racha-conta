@@ -1,7 +1,6 @@
 // A "peça trocável" da leitura da nota: a tela só conhece este contrato.
-// O leitor padrão tenta primeiro os itens da NFC-e pela Sefaz (QR code do cupom) e, sem
-// QR code, sem internet ou se a Sefaz falhar, lê a foto com o Tesseract no próprio celular
-// (tesseract.ts). Uma IA no futuro seria mais um passo aqui (a chave fica numa função do Next).
+// O leitor padrão é o PaddleOCR no próprio celular (paddle.ts); se ele não carregar neste
+// aparelho (pouca memória, navegador antigo), cai no Tesseract (tesseract.ts).
 
 import type { ParsedReceipt } from './parse';
 
@@ -12,51 +11,20 @@ export interface ReadProgress {
   label: string;
 }
 
-/** De onde vieram os itens: muda o aviso na hora de conferir. */
-export type ReceiptSource = 'sefaz' | 'celular' | 'sefaz-falhou';
-
 export interface ReceiptReader {
-  read(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<ParsedReceipt & { source?: ReceiptSource }>;
-}
-
-const aborted = () => new DOMException('cancelado', 'AbortError');
-
-/** Barra andando sozinha enquanto espera o servidor (de `from` até perto de `to`). */
-function ticking(onProgress: (p: ReadProgress) => void, label: string, from: number, to: number): () => void {
-  const started = Date.now();
-  const tick = () => onProgress({ fraction: from + (to - from) * (1 - Math.exp(-(Date.now() - started) / 6000)), label });
-  tick();
-  const timer = window.setInterval(tick, 250);
-  return () => window.clearInterval(timer);
+  read(image: Blob, onProgress: (p: ReadProgress) => void, signal: AbortSignal): Promise<ParsedReceipt>;
 }
 
 const smartReader: ReceiptReader = {
   async read(image, onProgress, signal) {
-    const report = (p: ReadProgress) => !signal.aborted && onProgress(p);
-    let triedSefaz = false;
-    if (navigator.onLine) {
-      const { readFromSefaz } = await import('./online');
-      report({ fraction: 0.03, label: 'Procurando o QR code da nota…' });
-      let stop = () => {};
-      try {
-        const sefaz = await readFromSefaz(image, signal, () => {
-          triedSefaz = true;
-          stop = ticking(report, 'Buscando os itens na Sefaz…', 0.1, 0.9);
-        });
-        stop();
-        if (signal.aborted) throw aborted();
-        if (sefaz) {
-          report({ fraction: 1, label: 'Pronto' });
-          return { ...sefaz, source: 'sefaz' };
-        }
-      } catch {
-        stop();
-        if (signal.aborted) throw aborted();
-        // Rede caiu no meio: segue para o leitor do celular.
-      }
+    try {
+      const { paddleReader } = await import('./paddle');
+      return await paddleReader.read(image, onProgress, signal);
+    } catch (err) {
+      if (signal.aborted) throw err;
+      const { tesseractReader } = await import('./tesseract');
+      return tesseractReader.read(image, onProgress, signal);
     }
-    const { tesseractReader } = await import('./tesseract');
-    return { ...(await tesseractReader.read(image, onProgress, signal)), source: triedSefaz ? 'sefaz-falhou' : 'celular' };
   },
 };
 

@@ -1,5 +1,5 @@
 // Lê o texto de uma nota fiscal ou comanda (vindo do OCR) e separa itens, serviço e total.
-// Função pura e testada: serve para qualquer leitor (Tesseract no celular hoje, IA no futuro).
+// Função pura e testada: serve para qualquer leitor (PaddleOCR ou Tesseract, no celular).
 
 import { MAX_ITEM_NAME, MAX_QTY } from '../core/bill';
 
@@ -34,7 +34,7 @@ const DISCOUNT = /DESCONTO|\bDESC\b|ACRESCIMO/;
 const IGNORE =
   /\b(?:CNPJ|CPF|INSC|IE|DATA|HORA|EMISSAO|CAIXA|OPERADOR|ATENDENTE|GARCOM|GARCON|TROCO|DINHEIRO|CARTAO|CREDITO|DEBITO|PIX|PAGO|PAGAMENTO|RECEBIDO|TRIBUTOS?|IMPOSTOS?|ICMS|PIS|COFINS|LEI|CHAVE|PROTOCOLO|CONSULTE|SAT|NFC|NFCE|CUPOM|EXTRATO|TEL|FONE|TELEFONE|ENDERECO|RUA|AV|CEP|MESA|COMANDA|CONTA|PESSOAS?|PERMANENCIA|SENHA|OBRIGADO|VOLTE|SITE|WWW|CONFERENCIA|QTD|QTDE|DESCRICAO|ITEM|VL|UNIT|PRECO|COD|CODIGO)\b/;
 // Cabeçalho do item na NFC-e: "1 211 - SOPA COM CARNE" (nº, código, nome), com o preço na linha de baixo.
-const ITEM_HEAD = /(?:^|\s)\d{2,5}\)?\s*[-–—]\s+(\p{L}.*)$/u;
+const ITEM_HEAD = /(?:^|[\s_])\d{2,5}\)?\s*[-–—]\s+(\p{L}.*)$/u;
 // "3 x R$ 12,50 ... R$ 37,50": a quantidade no começo da linha de preço.
 const QTY_PREFIX = /^\W*(\d{1,2})\s*[xX×]/;
 const UNIT = /^(?:UN|UND|UNID|UNI|PC|PCS|KG|G|LT|L|ML|X|\*|UNX|UNDX|KGX)$/;
@@ -78,7 +78,12 @@ function pctOf(norm: string): number | null {
 
 /** "PICANHA NA CHAPA" → "Picanha na chapa". */
 export function niceName(raw: string): string {
-  const s = raw.toLowerCase().replace(/\s+/g, ' ').trim();
+  const s = raw
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    // Zero solto no meio da palavra é a letra "o" ("ch0pp", "queij0"); "300ml" continua igual.
+    .replace(/(?<=\p{L})0(?!\d)|(?<![\p{L}\d])0(?=\p{L})/gu, 'o')
+    .trim();
   return (s.charAt(0).toUpperCase() + s.slice(1)).slice(0, MAX_ITEM_NAME).trim();
 }
 
@@ -153,7 +158,7 @@ export function parseReceipt(text: string): ParsedReceipt {
 
   for (const rawLine of text.split(/\r?\n/)) {
     // Pontilhado entre o nome e o preço ("Caipirinha......22,00") vira espaço.
-    const line = fixDigits(rawLine.trim().replace(/[.·_]{3,}/g, ' '));
+    const line = fixDigits(rawLine.trim().replace(/[.·_]{3,}/g, ' ').replace(/×/g, 'x'));
     if (!line) continue;
     const norm = plain(line);
     const money = findMoney(line);
@@ -245,7 +250,7 @@ export function parseReceipt(text: string): ParsedReceipt {
 const posCents = (v: number | null) => (v !== null && Number.isSafeInteger(v) && v > 0 && v <= MAX_LINE_CENTS * 100 ? v : null);
 
 /**
- * Passo final de qualquer leitor (foto, Sefaz ou IA): descarta item inválido e, se a nota
+ * Passo final de qualquer leitura: descarta item inválido e, se a nota
  * trouxe o serviço sem o percentual, calcula o percentual quando der um número redondo.
  */
 export function cleanReceipt(r: ParsedReceipt): ParsedReceipt {

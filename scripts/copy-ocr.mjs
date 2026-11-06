@@ -1,4 +1,4 @@
-// Copia para public/ocr os arquivos da leitura de nota (Tesseract), para o site servir
+// Copia para public/ocr os arquivos da leitura de nota (PaddleOCR e Tesseract), para o site servir
 // tudo do próprio endereço: sem depender de outro site e funcionando sem internet depois.
 // Roda sozinho antes do build e do dev (ver package.json).
 
@@ -18,11 +18,20 @@ const files = [
   [nm('tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js'), 'tesseract-core-relaxedsimd-lstm.wasm.js'],
   // Português, versão compacta e precisa (~1,3 MB).
   [nm('@tesseract.js-data/por/4.0.0_best_int/por.traineddata.gz'), 'por.traineddata.gz'],
+  // Motor do PaddleOCR (o .wasm chega comprimido, uns 3 MB).
+  [nm('onnxruntime-web/dist/ort.wasm.min.mjs'), 'ort/ort.wasm.min.mjs'],
+  [nm('onnxruntime-web/dist/ort-wasm-simd-threaded.mjs'), 'ort/ort-wasm-simd-threaded.mjs'],
+  [nm('onnxruntime-web/dist/ort-wasm-simd-threaded.wasm'), 'ort/ort-wasm-simd-threaded.wasm'],
+  // Modelos do PaddleOCR (~10 MB), guardados no Git (ver models/paddle-v1/README.md).
+  [join(root, 'models/paddle-v1/det.onnx'), 'paddle-v1/det.onnx'],
+  [join(root, 'models/paddle-v1/rec.onnx'), 'paddle-v1/rec.onnx'],
+  [join(root, 'models/paddle-v1/dict.txt'), 'paddle-v1/dict.txt'],
 ];
 
 mkdirSync(out, { recursive: true });
 for (const [from, name] of files) {
   if (!existsSync(from)) throw new Error(`Arquivo da leitura de nota não encontrado: ${from}`);
+  mkdirSync(dirname(join(out, name)), { recursive: true });
   copyFileSync(from, join(out, name));
 }
 console.log(`OCR: ${files.length} arquivos em public/ocr`);

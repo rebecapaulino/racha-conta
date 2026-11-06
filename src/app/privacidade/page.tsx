@@ -34,10 +34,8 @@ export default function Privacidade() {
           informações somem.
         </p>
         <p>
-          <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot; com internet, o app
-          procura o QR code do cupom no próprio celular. Se achar, o endereço do QR code (com a chave da
-          nota) é consultado na Sefaz do estado, que devolve os itens; não guardamos esse endereço nem
-          os itens. A foto em si é lida no próprio celular e não é enviada para nós nem para ninguém. Se você escolher guardar a foto na nota, ela fica só neste aparelho, junto com
+          <b>Foto da nota fiscal:</b> quando você usa &quot;Ler nota fiscal&quot;, a foto é lida no seu
+          próprio celular e não é enviada para nós nem para ninguém. Se você escolher guardar a foto na nota, ela fica só neste aparelho, junto com
           a conta, até você removê-la ou apagar a conta.
         </p>
         <p>
@@ -79,8 +77,7 @@ export default function Privacidade() {
         <ul>
           <li><b>Google</b>: faz o login.</li>
           <li><b>Supabase</b>: guarda os rolês compartilhados e as fotos (servidores no Brasil).</li>
-          <li><b>Vercel</b>: hospeda o site (servidor em São Paulo).</li>
-          <li><b>Sefaz do estado da nota</b>: devolve os itens do cupom pelo QR code.</li>
+          <li><b>Vercel</b>: hospeda o site.</li>
         </ul>
         <p>
           Não vendemos dados, não mostramos anúncios e não usamos rastreadores ou ferramentas de
