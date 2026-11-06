@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flatten, paperBox } from './prepare';
+import { flatten, paperBox, paperQuad, straighten, type Quad } from './prepare';
 
 /** Foto sintética w×h: fundo marrom com um retângulo de papel claro. */
 function photo(w: number, h: number, paper: { x: number; y: number; w: number; h: number } | null) {
@@ -43,5 +43,62 @@ describe('igualar o fundo', () => {
     expect(Math.abs(at(10, 5) - at(190, 5))).toBeLessThan(25);
     expect(at(30, 20)).toBeLessThan(120);
     expect(at(170, 20)).toBeLessThan(120);
+  });
+});
+
+/** Foto sintética: fundo escuro e um papel de lados dados por `left(y)` e `right(y)`, de `top` a `bottom`. */
+function tilted(w: number, h: number, left: (y: number) => number, right: (y: number) => number, top = 0, bottom = h) {
+  const px = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0, i = 0; y < h; y++) {
+    for (let x = 0; x < w; x++, i += 4) {
+      const on = y >= top && y < bottom && x >= left(y) && x < right(y);
+      px.set(on ? [230, 225, 215, 255] : [110, 85, 60, 255], i);
+    }
+  }
+  return px;
+}
+
+describe('endireitar a nota', () => {
+  it('nota afinando com a distância: acha os quatro cantos', () => {
+    const left = (y: number) => 100 - y * 0.05;
+    const right = (y: number) => 240 + y * 0.05;
+    const q = paperQuad(tilted(360, 480, left, right, 10, 470), 360, 480)!;
+    const [tl, tr, br, bl] = q;
+    expect(tl.x).toBeCloseTo(left(10), -1);
+    expect(tr.x).toBeCloseTo(right(10), -1);
+    expect(bl.x).toBeCloseTo(left(470), -1);
+    expect(br.x).toBeCloseTo(right(470), -1);
+    expect(tl.y).toBeLessThan(25);
+    expect(bl.y).toBeGreaterThan(455);
+  });
+
+  it('um reflexo mais escuro encostado no papel não conta como papel', () => {
+    const w = 360;
+    const h = 480;
+    const px = tilted(w, h, () => 100, () => 250);
+    // Reflexo na mesa, à direita do papel: claro, mas bem menos que o papel.
+    for (let y = 0; y < h; y++) for (let x = 250; x < 330; x++) px.set([165, 160, 150, 255], (y * w + x) * 4);
+    const q = paperQuad(px, w, h);
+    expect(q).not.toBeNull();
+    expect(q![1].x).toBeLessThan(265);
+  });
+
+  it('foto sem papel: não inventa cantos', () => {
+    expect(paperQuad(photo(200, 300, null), 200, 300)).toBeNull();
+  });
+
+  it('leva cada canto da foto para o canto da imagem final', () => {
+    const w = 100;
+    const h = 100;
+    const px = new Uint8ClampedArray(w * h * 4);
+    // Fundo preto, com um ponto branco perto de cada canto do quadrilátero.
+    const q: Quad = [{ x: 20, y: 10 }, { x: 80, y: 20 }, { x: 90, y: 90 }, { x: 10, y: 80 }];
+    for (const p of q) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) px.set([255, 255, 255, 255], ((p.y + dy) * w + p.x + dx) * 4);
+    const out = straighten(px, w, h, q, 60, 80);
+    expect(out[0]).toBeGreaterThan(200);
+    expect(out[59]).toBeGreaterThan(200);
+    expect(out[79 * 60 + 59]).toBeGreaterThan(200);
+    expect(out[79 * 60]).toBeGreaterThan(200);
+    expect(out[40 * 60 + 30]).toBeLessThan(30);
   });
 });

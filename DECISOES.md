@@ -485,7 +485,9 @@ Pedida antes da Fase 2 (no briefing era a Fase 3).
 
 Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volta):
 
-- **Preparo da foto:** recorta o papel (`paperBox`: Otsu + colunas e linhas seguidas), amplia até 3× e iguala o fundo (`flatten`: divide cada pixel pela média em volta). Comparado com contraste simples e com preto e branco puro (Bradley), foi o que acertou os valores; preto e branco trocava letras ("SUCU", "CON").
+- **"Scan" antes de ler (como o do iPhone):** `paperQuad` acha as bordas do papel linha a linha (parte do meio da nota e anda até o brilho cair, porque reflexo de bandeja passava por papel), ajusta uma reta em cada lado sem se levar por guardanapo ou outro papel, e `straighten` corrige inclinação e perspectiva. Sem cantos seguros, cai no recorte reto (`paperBox`) ou na foto inteira. Só serve para nota em pé na foto.
+- **Fundo:** amplia até 3× e iguala o fundo (`flatten`: divide cada pixel pela média em volta). Comparado com contraste simples e com preto e branco puro (Bradley), foi o que acertou os valores; preto e branco trocava letras ("SUCU", "CON").
+- **Testado e descartado:** nitidez (no app, piorou: 3 × R$ 10,50) e conferir o total pelo "Valor Pago" (o leitor lê "Valor Paso"). O Tesseract é sensível: ajuste pequeno muda muito o resultado nessa foto pequena; não vale afinar por uma foto só.
 - **Formato de duas linhas da NFC-e:** `1 211 - NOME` / `3 x R$ 12,50 ... R$ 37,50`. O nome do cabeçalho vale mais que o texto (sujo) da linha de preço; quantidade do começo da linha, valor do fim.
 - **Depois do total nada é item** (a linha de tributos virava um item de R$ 512,24).
 - **QR code denso (versão 3, com assinatura):** o `jsQR` só lê ampliado; os recortes agora ampliam até 3×.
