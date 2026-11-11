@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expensePhotos, installmentInfo, joinSchedule, photoFields, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, installmentInfo, joinSchedule, photoFields, splitLike, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -398,7 +398,12 @@ describe('alguém entra numa despesa parcelada já em andamento', () => {
     const people = trip(start()).people;
     expect(joinSchedule(old(), withCaio, people, 0, 'all')).toBeNull();
     expect(joinSchedule(old(), { ...withCaio, installments: 6 }, people, 2, 'all')).toBeNull();
-    expect(joinSchedule(old(), { ...withCaio, split: 'exact', exact: { eu: 40000, bia: 40000, caio: 40000 } }, people, 2, 'rest')).toBeNull();
+    // Valores exatos: o que falta é dividido na proporção do valor de cada um.
+    expect(joinSchedule(old(), { ...withCaio, split: 'exact', exact: { eu: 40000, bia: 40000, caio: 40000 } }, people, 2, 'rest')).toEqual({
+      eu: [15000, 15000, 10000, 10000],
+      bia: [15000, 15000, 10000, 10000],
+      caio: [0, 0, 10000, 10000],
+    });
   });
 
   it('em qualquer caso, as parcelas fecham o valor da despesa e nenhuma é negativa', () => {
@@ -634,5 +639,29 @@ describe('despesa à vista cobrada junto com uma parcela (cachorros na 2ª do Ai
     s = run(s, { type: 'editExpense', id: 'dogs', input: expense({ description: 'Hospedagem cachorros', cents: 11700, people: ['deise'] }) });
     expect(trip(s).expenses.find((e) => e.id === 'dogs')!.alongWith).toBeUndefined();
     expect(rowsOf(s).filter((r) => r.from === 'deise')).toHaveLength(2);
+  });
+});
+
+describe('Airbnb em "Valores exatos" (depois de "Assumir despesas"): a Deise a partir da 2ª', () => {
+  it('a 1ª volta para os outros e, da 2ª em diante, todos são reajustados, a Deise na 2/5', () => {
+    let s = run(base(), { type: 'addTraveler', id: 'deise', name: 'Deise' });
+    const ids = ['eu', 'bia', 'caio', 'deise'];
+    const exact = { eu: 25000, bia: 25000, caio: 25000, deise: 25000 };
+    const input = expense({ cents: 100000, people: ids, installments: 5, split: 'exact', exact });
+    s = run(s, { type: 'addExpense', id: 'air', input }, { type: 'settle', id: 's1', from: 'bia', to: 'eu', cents: 6667, expenseId: 'air' });
+    const e = trip(s).expenses[0];
+    // O que a tela monta em "Alguém entrou depois?": a despesa sem a Deise, na proporção dos valores.
+    const before = { ...e, people: ['eu', 'bia', 'caio'] };
+    const shares = splitLike(before, trip(s).people, e.seq, e.cents)!;
+    expect(shares).toEqual({ eu: 33334, bia: 33333, caio: 33333 });
+    const schedule = joinSchedule({ ...before, shares }, input, trip(s).people, 1, 'rest')!;
+    s = run(s, { type: 'editExpense', id: 'air', input: { ...input, schedule } });
+    // 1ª: R$ 200 entre os 3 (R$ 66,67); da 2ª: R$ 800 entre os 4, R$ 50 por parcela.
+    expect(schedule.bia).toEqual([6667, 5000, 5000, 5000, 5000]);
+    expect(schedule.deise.slice(0, 2)).toEqual([0, 5000]);
+    expect(Object.values(schedule).flat().reduce((a, c) => a + c, 0)).toBe(100000);
+    const row = (from: string) => tripSummary(trip(s)).plan.direct.find((r) => r.from === from && r.expenseId === 'air')!;
+    expect(installmentInfo(row('deise').cents, row('deise').paid, 5, row('deise').parts)).toMatchObject({ paidCount: 1, next: 5000 });
+    expect(installmentInfo(row('bia').cents, row('bia').paid, 5, row('bia').parts)).toMatchObject({ paidCount: 1, next: 5000 });
   });
 });

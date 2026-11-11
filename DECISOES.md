@@ -569,3 +569,9 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Caso:** "Hospedagem cachorros" (R$ 117, à vista, paga pelo Mauricio, só da Deise) deve ser cobrada **junto com a 2ª parcela do Airbnb**, não numa linha à parte.
 - **Como fica:** ao lançar ou editar uma despesa **à vista**, em Pagamento → "Como foi pago?", aparece **"Cobrar junto com a parcela de outra despesa"** quando há uma despesa parcelada do mesmo pagador. Escolhe a despesa (se houver mais de uma) e a parcela ("Junto com a 2ª de 5"). Na lista de despesas: "na 2ª de Airbnb".
 - **Conta:** `alongWith` na despesa; `alongTarget` diz se ainda vale (a outra existe, não está "Todos pagos", mesmo pagador, parcela válida, esta continua à vista). No acerto, a parte de cada um soma naquela parcela da linha da outra despesa (`along` na linha mostra "+ Hospedagem cachorros (R$ 117,00) nesta parcela"); no texto do WhatsApp, "parcela 2/5 de Airbnb + Hospedagem cachorros". Se a ligação deixa de valer, volta a ser cobrada à vista. Testado.
+
+## "Alguém entrou depois?" também com "Valores exatos"; + com respiro — 11/11/2026
+
+- **Por quê:** o link não aparecia no Airbnb da "Ano novo - Família": em viagem compartilhada, "Assumir despesas" muda a despesa para "Valores exatos", e a pergunta só funcionava com "Igual".
+- **Agora:** com valores exatos, a parte de antes (sem quem entrou) e o que falta são divididos **na proporção do valor de cada um** (`splitLike`). Vale para "Alguém entrou depois?" e para entrar/sair ao editar. Testado.
+- Os botões − / + das parcelas ("2ª de 5", "5x", "2ª parcela") ganharam espaço dos dois lados do número.

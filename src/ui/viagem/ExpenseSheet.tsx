@@ -15,6 +15,7 @@ import {
   MAX_INSTALLMENTS,
   photoFields,
   splitExpense,
+  splitLike,
   TRIP_CATEGORIES,
   tripDrift,
   tripSummary,
@@ -244,7 +245,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   }
 
   // Quem entrou ou saiu agora de uma despesa parcelada (editando, mesmo número de parcelas, sem valores exatos).
-  const sameParts = !!editing && installmentsOf(editing) > 1 && parts === installmentsOf(editing) && split !== 'exact';
+  const sameParts = !!editing && installmentsOf(editing) > 1 && parts === installmentsOf(editing);
   const joined = sameParts ? who.filter((id) => !editing!.people.includes(id)) : [];
   const leaving = sameParts && who.length ? editing!.people.filter((id) => !who.includes(id)) : [];
 
@@ -277,9 +278,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   function lateBase(): Expense | null {
     if (!editing || !late?.length || joined.length || leaving.length) return null;
     const before = { ...editing, people: editing.people.filter((id) => !late.includes(id)) };
-    const r = splitExpense(before, people, editing.seq, drift);
-    if (!r.ok) return null;
-    const base: Expense = { ...before, shares: r.shares };
+    const shares = splitLike(before, people, editing.seq, editing.cents, drift);
+    if (!shares) return null;
+    const base: Expense = { ...before, shares };
     delete base.schedule;
     return base;
   }

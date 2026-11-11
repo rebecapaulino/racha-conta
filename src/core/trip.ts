@@ -283,6 +283,20 @@ export function partsOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>
 export type JoinMode = 'rest' | 'all';
 
 /**
+ * Divide outro valor (`cents`) do jeito da despesa: igual ou por peso como ela; em valores
+ * exatos, na proporção do valor de cada um (ex.: o que falta do Airbnb depois da 1ª parcela).
+ */
+export function splitLike(input: ExpenseInput, people: Traveler[], seq: number, cents: number, drift: CentDrift = new Map()): Record<string, number> | null {
+  if (input.split !== 'exact') {
+    const r = splitExpense({ ...input, cents }, people, seq, drift);
+    return r.ok ? r.shares : null;
+  }
+  const who = people.filter((p) => input.people.includes(p.id));
+  const parts = splitWeighted(cents, who.map((p) => Math.max(0, input.exact?.[p.id] ?? 0)), seq);
+  return parts ? Object.fromEntries(who.map((p, k) => [p.id, parts[k]])) : null;
+}
+
+/**
  * As parcelas de cada participante depois que entrou gente (`elapsed` = parcelas que já
  * passaram). null quando não precisa (nenhuma passou, número de parcelas mudou ou valores exatos).
  */
@@ -296,7 +310,7 @@ export function joinSchedule(
 ): Record<string, number[]> | null {
   const n = installmentsOf(input);
   const k = Math.max(0, Math.min(n - 1, Math.floor(elapsed)));
-  if (n < 2 || installmentsOf(old) !== n || k === 0 || input.split === 'exact') return null;
+  if (n < 2 || installmentsOf(old) !== n || k === 0) return null;
   const full = splitExpense(input, people, old.seq, drift);
   if (!full.ok) return null;
   const ids = Object.keys(full.shares);
@@ -329,10 +343,10 @@ export function joinSchedule(
   const past = Object.fromEntries(everyone.map((id) => [id, partsOf(old, id).slice(0, k)]));
   const rest = input.cents - everyone.reduce((a, id) => a + sum(past[id]), 0);
   if (rest < 0) return null;
-  const split = rest > 0 ? splitExpense({ ...input, cents: rest }, people, old.seq, drift) : null;
-  if (rest > 0 && !split?.ok) return null;
+  const split = rest > 0 ? splitLike(input, people, old.seq, rest, drift) : null;
+  if (rest > 0 && !split) return null;
   for (const id of ids) {
-    const mine = split?.ok ? split.shares[id] : 0;
+    const mine = split?.[id] ?? 0;
     out[id] = [...past[id], ...splitEven(mine, n - k)];
   }
   for (const id of leavers) out[id] = [...past[id], ...Array.from({ length: n - k }, () => 0)];
