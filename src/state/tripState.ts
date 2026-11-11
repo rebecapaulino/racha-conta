@@ -26,6 +26,7 @@ import {
   setExpenseReceipt,
   setExpenseSettled,
   setPersonStart,
+  setPaidThrough,
   TRIP_CATEGORIES,
   transferTraveler,
   updateExpense,
@@ -101,6 +102,8 @@ export type TripAction =
   | { type: 'removeExpensePhoto'; id: string; photo: string }
   /** A pessoa `id` só começa a pagar a parcelada `expenseId` na parcela `from` (as de antes ficam com quem já estava). */
   | { type: 'startPaying'; id: string; expenseId: string; from: number }
+  /** "Parcelas já pagas por todos": da 1ª até `installment` está tudo quitado (0 desmarca). */
+  | { type: 'paidThrough'; expenseId: string; installment: number }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
   | { type: 'unsettle'; id: string }
   // ---- compartilhamento (só o app manda; não entram no registro) ----
@@ -257,6 +260,14 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
     case 'removeExpensePhoto': {
       const e = exp(after, a.id);
       return e ? `Tirou uma foto de ${e.description}` : null;
+    }
+    case 'paidThrough': {
+      const e = exp(after, a.expenseId);
+      if (!e) return null;
+      const k = e.paidThrough?.installment ?? 0;
+      return k > 0
+        ? `${e.description}: ${k === 1 ? 'a 1ª parcela' : `parcelas 1 a ${k}`} pagas por todos`
+        : `${e.description}: desmarcou as parcelas pagas por todos`;
     }
     case 'startPaying': {
       const e = exp(after, a.expenseId);
@@ -519,6 +530,9 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       return onOpen(s, (t) => addExpensePhoto(t, a.id, a.photo, now()));
     case 'removeExpensePhoto':
       return onOpen(s, (t) => removeExpensePhoto(t, a.id, a.photo, now()));
+    case 'paidThrough':
+      if (!isInt(a.installment)) return s;
+      return onOpen(s, (t) => setPaidThrough(t, a.expenseId, a.installment, now()));
     case 'startPaying':
       if (!isInt(a.from, 1)) return s;
       return onOpen(s, (t) => {
@@ -547,6 +561,8 @@ function cleanInput(input: ExpenseInput): ExpenseInput {
   if (installmentsOf(input) === 1) delete out.installments;
   if (!out.coveredBy || !Object.keys(out.coveredBy).length) delete out.coveredBy;
   if (!isObj(out.schedule)) delete out.schedule;
+  // Parcelas pagas por todos: só pela ação própria (a edição mantém as de antes).
+  delete (out as Partial<Expense>).paidThrough;
   if (!isObj(out.alongWith) || !isStr(out.alongWith.expenseId) || !isInt(out.alongWith.installment, 1)) delete out.alongWith;
   // Fotos: a primeira em `receipt`, as outras em `photos` (sem repetir, só nomes válidos).
   const photos = expensePhotos(out).filter((p) => PHOTO_ID.test(p));
@@ -578,6 +594,7 @@ function isValidExpense(e: unknown): e is Expense {
     (e.settled === undefined || e.settled === true) &&
     (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
     (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr))) &&
+    (e.paidThrough === undefined || (isObj(e.paidThrough) && isInt(e.paidThrough.installment, 1) && isStr(e.paidThrough.at))) &&
     (e.alongWith === undefined || (isObj(e.alongWith) && isStr(e.alongWith.expenseId) && isInt(e.alongWith.installment, 1))) &&
     (e.schedule === undefined || (isObj(e.schedule) && Object.values(e.schedule).every((list) => Array.isArray(list) && list.every((c) => isInt(c))))) &&
     (e.receipt === undefined || (isStr(e.receipt) && PHOTO_ID.test(e.receipt))) &&

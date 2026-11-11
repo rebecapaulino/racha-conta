@@ -7,6 +7,7 @@ import {
   findDuplicate,
   installmentInfo,
   installmentsOf,
+  paidThroughOf,
   joinSchedule,
   MAX_DESCRIPTION,
   partsOf,
@@ -107,6 +108,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const [parts, setParts] = useState(editing ? installmentsOf(editing) : 1);
   // Parcela em que a despesa começa a ser dividida (ex.: os cachorros, que a Deise assumiu na 2ª).
   const [startAt, setStartAt] = useState(editing ? startOf(editing) : 1);
+  // "Parcelas já pagas por todos": até qual parcela todo mundo está quitado (0 = nenhuma).
+  const [closedAt, setClosedAt] = useState(editing ? paidThroughOf(editing) : 0);
   const from = parts > 1 ? Math.min(startAt, parts) : 1;
   const count = parts - from + 1;
   // À vista cobrada junto com a parcela de outra despesa do mesmo pagador (os cachorros na 2ª do Airbnb).
@@ -324,6 +327,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     }
     if (editing) {
       dispatch({ type: 'editExpense', id: editing.id, input: plan ? { ...input, schedule: plan } : input });
+      const closed = parts > 1 ? Math.min(closedAt, parts) : 0;
+      if (closed !== paidThroughOf(editing)) dispatch({ type: 'paidThrough', expenseId: editing.id, installment: closed });
       toast(trip.settlements.length ? 'Despesa salva. Os saldos mudaram: confira o acerto.' : 'Despesa salva');
     } else {
       dispatch({ type: 'addExpense', id: newId(), input: plan ? { ...input, schedule: plan } : input });
@@ -699,6 +704,27 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
                       <> Ex.: {nameOf(installment.id)}, {formatBRL(installment.share)} = {count}x de {formatBRL(installment.first)}.</>
                     )}
                   </p>
+                  {editing && (
+                    <>
+                      <div className="join-elapsed">
+                        <span id="h-exp-closed">Já pagas por todos</span>
+                        <div className="stepper" role="group" aria-labelledby="h-exp-closed">
+                          <button type="button" onClick={() => setClosedAt(Math.max(0, closedAt - 1))} disabled={closedAt <= 0} aria-label="Menos parcelas pagas">
+                            <IconMinus size={18} />
+                          </button>
+                          <output aria-live="polite">{closedAt === 0 ? 'Nenhuma' : closedAt === 1 ? 'A 1ª' : `Até a ${Math.min(closedAt, parts)}ª`}</output>
+                          <button type="button" onClick={() => setClosedAt(Math.min(parts - 1, closedAt + 1))} disabled={closedAt >= parts - 1} aria-label="Mais parcelas pagas">
+                            <IconPlus size={18} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="hint" aria-live="polite">
+                        {closedAt > 0
+                          ? `Quem registrou pagamento ${closedAt === 1 ? 'da 1ª parcela' : `até a ${closedAt}ª parcela`} fica quitado, mesmo que o valor registrado tenha sido um pouco diferente (ex.: o valor antigo, de antes do reajuste). Da ${closedAt + 1}ª em diante, todos pagam o mesmo valor. Quem ainda não pagou continua devendo. O histórico de pagamentos não muda.`
+                          : 'Já pagaram parcelas com valores diferentes (ex.: antes de alguém entrar)? Marque até qual parcela está tudo pago: as próximas ficam iguais para todos.'}
+                      </p>
+                    </>
+                  )}
                   {sameParts && who.length > 1 && !joined.length && !leaving.length && elapsed === null && (
                     <button type="button" className="link-btn late-link" onClick={startLate}>
                       Alguém entrou depois da 1ª parcela?

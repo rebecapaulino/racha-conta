@@ -588,6 +588,27 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     // Letícia: ainda faltam R$ 15,80 da 2ª (aparece "Pagar 2/5" de R$ 15,80); depois, a 3ª.
     expect(next(s, 'leticia')).toMatchObject({ paidCount: 1, next: 1580 });
   });
+  it('"Parcelas já pagas por todos: até a 2ª": da 3ª em diante, todos pagam igual, sem diferença do que foi registrado', () => {
+    let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 }, { type: 'paidThrough', expenseId: 'air', installment: 2 });
+    // Rebeca registrou R$ 347,68, Angela R$ 316,08, Marcelo (com o Léo) R$ 632,15: todos quitados até a 2ª.
+    for (const id of ['rebeca', 'robin', 'joao', 'angela', 'leticia']) expect(next(s, id)).toMatchObject({ paidCount: 2, next: 15804 });
+    expect(next(s, 'natacha')).toMatchObject({ paidCount: 2, next: 31608 });
+    expect(next(s, 'marcelo')).toMatchObject({ paidCount: 2, next: 31608 });
+    // A Deise não registrou nada: continua devendo a 2ª dela.
+    expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: 15804 });
+    // O histórico continua com os valores registrados; os saldos fecham.
+    expect(trip(s).settlements.find((x) => x.id === 'rebeca1')!.cents).toBe(17384);
+    expect(tripSummary(trip(s)).ok).toBe(true);
+    expect(trip(s).log!.at(-1)!.text).toBe('Airbnb: parcelas 1 a 2 pagas por todos');
+    // Pagamento depois da marcação conta normalmente (a 3ª).
+    s = run(s, { type: 'settle', id: 'r3', from: 'rebeca', to: 'mauricio', cents: 15804, expenseId: 'air' });
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 3, next: 15803 });
+    // Desmarcar volta aos valores registrados.
+    s = run(s, { type: 'paidThrough', expenseId: 'air', installment: 0 });
+    expect(trip(s).expenses[0].paidThrough).toBeUndefined();
+    expect(next(s, 'angela')).toMatchObject({ paidCount: 1, next: 1580 });
+  });
+
   it('Pessoas → Deise → "Começa a pagar na 2ª de 5": mesmo resultado, direto pela pessoa', () => {
     let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 });
     const e = trip(s).expenses[0];

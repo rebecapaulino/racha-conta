@@ -586,3 +586,13 @@ um pouco menos dali em diante. Voltar para a 1ª devolve as parcelas iguais. É 
 `startPaying` (calculada no reducer, igual em todos os aparelhos), com registro "Deise começa a
 pagar Airbnb na 2ª parcela · parcelas reajustadas". Pagamentos já registrados não mudam: se
 alguém registrou um valor diferente do novo, a diferença aparece na próxima parcela dele.
+
+## "Parcelas já pagas por todos"
+
+Quando o reajuste chega depois de parcelas já pagas (a Deise posta no Airbnb na 2ª, com gente
+que já tinha pagado R$ 173,84 e gente que pagou R$ 142,24), a conta pelo acumulado deixava
+diferenças de centavos/reais para a 3ª. Na despesa (etapa Pagamento) dá para marcar "Já pagas por
+todos: até a 2ª". Quem registrou pagamento dessas parcelas (até meia parcela de diferença) fica
+quitado com o valor exato delas; da 3ª em diante, todos iguais. Quem não registrou nada continua
+devendo. Os pagamentos registrados não mudam (o histórico mostra o que foi pago de verdade):
+só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Mauricio).

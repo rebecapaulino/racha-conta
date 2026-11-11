@@ -144,6 +144,13 @@ export interface Expense extends ExpenseInput {
    * paga quem, parcelas), mas continua na caderneta e no gasto total da viagem.
    */
   settled?: boolean;
+  /**
+   * "Parcelas já pagas por todos": até a parcela `installment`, todo mundo está quitado, com o
+   * valor da parcela, seja qual for o que registrou (quem pagou o valor antigo, a mais ou a
+   * menos, não leva diferença). Os pagamentos dessa despesa registrados até `at` ficam por conta
+   * dessas parcelas. Ver `countedSettlements`.
+   */
+  paidThrough?: { installment: number; at: string };
 }
 
 /** Pagamento real entre duas pessoas para diminuir o saldo ("Caio pagou R$ 500,00 para Ana"). */
@@ -718,6 +725,70 @@ export function activeSettlements(trip: Trip): Settlement[] {
 }
 
 /**
+ * Os pagamentos como entram nas contas: os de `activeSettlements`, mas, nas parceladas com
+ * "Parcelas já pagas por todos" (`paidThrough`), os pagamentos dessas parcelas viram exatamente
+ * o valor delas para cada um. Ex.: a 2ª do Airbnb registrada como R$ 173,84 por uns e R$ 142,24
+ * por outros: todos ficam com R$ 158,04, e a 3ª é igual para todos. O histórico continua com o
+ * que foi registrado de verdade.
+ */
+export function countedSettlements(trip: Trip): Settlement[] {
+  const real = activeSettlements(trip);
+  const closed = openExpenses(trip).filter((e) => paidThroughOf(e) > 0);
+  if (!closed.length) return real;
+  const acc = new Map(trip.people.map((p) => [p.id, accountOf(trip, p.id)]));
+  const rows = installmentRows(trip, acc);
+  const drop = new Set<Settlement>();
+  const extra: Settlement[] = [];
+  for (const e of closed) {
+    const k = paidThroughOf(e);
+    const at = e.paidThrough!.at;
+    for (const r of rows.filter((x) => x.expenseId === e.id)) {
+      const parts = r.parts ?? splitEven(r.cents, installmentsOf(e));
+      const due = sum(parts.slice(0, k));
+      // Ficam por conta das parcelas quitadas os pagamentos até a marcação, até chegar a menos de
+      // meia parcela do valor (um pagamento adiantado da parcela seguinte continua valendo). Quem
+      // não chegou perto (ainda não pagou a última delas) continua com o que pagou de verdade.
+      const half = parts[k - 1] / 2;
+      let got = 0;
+      const used: Settlement[] = [];
+      const mine = real
+        .filter((x) => x.expenseId === e.id && x.at <= at && acc.get(x.from) === r.from && acc.get(x.to) === r.to)
+        .sort((a, b) => a.at.localeCompare(b.at));
+      for (const x of mine) {
+        if (due - got <= half) break;
+        used.push(x);
+        got += x.cents;
+      }
+      if (due <= 0 || due - got > half) continue;
+      for (const x of used) drop.add(x);
+      extra.push({ id: `quitadas:${e.id}:${r.from}`, from: r.from, to: r.to, cents: due, expenseId: e.id, at });
+    }
+  }
+  return [...real.filter((x) => !drop.has(x)), ...extra];
+}
+
+/** Até qual parcela a despesa está quitada por todos (0 = nenhuma). */
+export function paidThroughOf(e: Pick<Expense, 'paidThrough' | 'installments'>): number {
+  const k = e.paidThrough?.installment;
+  const n = installmentsOf(e);
+  return n > 1 && Number.isInteger(k) && k! >= 1 ? Math.min(k!, n) : 0;
+}
+
+/** Marca as parcelas 1 a `installment` como pagas por todos (0 desmarca). */
+export function setPaidThrough(trip: Trip, id: string, installment: number, now: string): Trip {
+  return {
+    ...trip,
+    expenses: trip.expenses.map((e) => {
+      if (e.id !== id || installmentsOf(e) < 2) return e;
+      const next = { ...e, updatedAt: now };
+      if (installment >= 1) next.paidThrough = { installment: Math.min(installment, installmentsOf(e)), at: now };
+      else delete next.paidThrough;
+      return next;
+    }),
+  };
+}
+
+/**
  * Pagamento marcado antes de existir a ligação com as despesas: liga às despesas das duas
  * pessoas que já existiam quando ele foi marcado (lançadas antes e ainda não excluídas).
  */
@@ -1036,7 +1107,7 @@ export function tripSummary(trip: Trip): TripSummary {
       row.get(chargedTo(e, pid))!.charged += c;
     }
   }
-  for (const s of activeSettlements(trip)) {
+  for (const s of countedSettlements(trip)) {
     if (!ids.has(s.from) || !ids.has(s.to) || s.cents <= 0) {
       ok = false;
       continue;
@@ -1155,7 +1226,7 @@ function reconcile(
   const key = (a: string, b: string) => `${a}\u0000${b}`;
   const paidPair = new Map<string, number>();
   const paidSplit = new Map<string, number>();
-  for (const s of activeSettlements(trip)) {
+  for (const s of countedSettlements(trip)) {
     const [f, t] = [acc.get(s.from), acc.get(s.to)];
     if (!f || !t || f === t) continue;
     const own = s.expenseId && split.find((r) => r.expenseId === s.expenseId && r.from === f && r.to === t);
@@ -1292,7 +1363,7 @@ export function directTransfers(trip: Trip, withSettlements = true, skipInstallm
   }
   // Um pagamento de a para b diminui o que a deve para b (ou faz b passar a dever para a).
   if (withSettlements) {
-    for (const s of activeSettlements(trip)) {
+    for (const s of countedSettlements(trip)) {
       const [f, t] = [acc.get(s.from), acc.get(s.to)];
       if (f && t && f !== t) addDebt(t, f, s.cents);
     }
@@ -1385,8 +1456,9 @@ export function personStatement(trip: Trip, id: string): PersonStatement {
   const owedBy = pairs(owed);
   const owesTotal = owesTo.reduce((a, d) => a + d.cents, 0);
   const owedTotal = owedBy.reduce((a, d) => a + d.cents, 0);
-  const sent = activeSettlements(trip).filter((s) => s.from === id).reduce((a, s) => a + s.cents, 0);
-  const received = activeSettlements(trip).filter((s) => s.to === id).reduce((a, s) => a + s.cents, 0);
+  const counted = countedSettlements(trip);
+  const sent = counted.filter((s) => s.from === id).reduce((a, s) => a + s.cents, 0);
+  const received = counted.filter((s) => s.to === id).reduce((a, s) => a + s.cents, 0);
   return { owesTo, owesTotal, owedBy, owedTotal, ownShare, sent, received, balance: owedTotal - owesTotal + sent - received };
 }
 
