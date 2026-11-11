@@ -564,9 +564,9 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     return installmentInfo(r.cents, r.paid, 5, r.parts);
   };
 
-  it('reproduz os valores da tela: R$ 126,44 para quem registrou R$ 173,84 e R$ 158,04 para quem registrou R$ 158,04', () => {
+  it('quem pagou a parcela com um pouco a mais (valor antigo) não fica com a próxima menor: era R$ 126,44, agora R$ 158,04', () => {
     const s = today();
-    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 12644 });
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15804 });
     expect(next(s, 'leticia')).toMatchObject({ paidCount: 2, next: 15804 });
     expect(next(s, 'deise')).toMatchObject({ paidCount: 0, next: 15804 });
   });
@@ -583,8 +583,8 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     expect(schedule.deise[0]).toBe(0);
     expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: 15804 });
     // Até a 2ª, cada um devia R$ 173,84 + R$ 158,04 = R$ 331,88. Quem registrou R$ 347,68 pagou
-    // R$ 15,80 a mais; quem registrou R$ 316,08, R$ 15,80 a menos.
-    expect(next(s, 'rebeca').next).toBe(15804 - 1580);
+    // R$ 15,80 a mais: a sobra fica com o Mauricio e a 3ª é igual. Quem registrou R$ 316,08, R$ 15,80 a menos.
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15804 });
     // Letícia: ainda faltam R$ 15,80 da 2ª (aparece "Pagar 2/5" de R$ 15,80); depois, a 3ª.
     expect(next(s, 'leticia')).toMatchObject({ paidCount: 1, next: 1580 });
   });
@@ -614,7 +614,8 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     for (const id of ['joao', 'angela', 'leticia']) s = run(s, { type: 'settle', id: `${id}-resto`, from: id, to: 'mauricio', cents: 1580, expenseId: 'air' });
     s = run(s, { type: 'settle', id: 'marcelo-resto', from: 'marcelo', to: 'mauricio', cents: 3161, expenseId: 'air' });
     expect(next(s, 'angela')).toMatchObject({ paidCount: 2, next: 15804 });
-    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15804 - 1580 });
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15804 });
+    expect(next(s, 'natacha')).toMatchObject({ paidCount: 2, next: 31608 });
     s = run(s, { type: 'paidThrough', expenseId: 'air', installment: 2 });
     for (const id of ['rebeca', 'robin', 'joao', 'angela', 'leticia']) expect(next(s, id)).toMatchObject({ paidCount: 2, next: 15804 });
     for (const id of ['natacha', 'marcelo']) expect(next(s, id)).toMatchObject({ paidCount: 2, next: 31608 });
@@ -629,7 +630,7 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     for (const id of ids) expect(e.schedule![id][0]).toBe(17384);
     expect(Object.values(e.schedule!).flat().reduce((a, c) => a + c, 0)).toBe(869200);
     expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: 15804 });
-    expect(next(s, 'rebeca').next).toBe(15804 - 1580);
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15804 });
     expect(next(s, 'angela')).toMatchObject({ paidCount: 1, next: 1580 });
     expect(trip(s).log!.at(-1)!.text).toBe('Deise começa a pagar Airbnb na 2ª parcela · parcelas reajustadas');
     // Voltar para a 1ª: parcelas iguais para todos de novo.

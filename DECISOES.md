@@ -603,3 +603,7 @@ só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Ma
 - Quem já pagou o restinho (R$ 15,80) antes de marcar: o pagamento entra nas parcelas quitadas
   se deixa o total mais perto do valor delas (não só até meia parcela). Sem isso, o restinho ia
   para a 3ª e ela saía menor.
+- Automático (sem marcar): quem pagou a última parcela com um pouco a mais (até meia parcela,
+  ex.: R$ 173,84 numa de R$ 158,04, o valor de antes do reajuste) fica com a parcela paga e a
+  próxima igual à dos outros; a sobra fica com quem recebeu. Pedido da usuária: "não deveria vir
+  nenhum valor, só o que falta pagar". Quem pagou a menos continua vendo o restinho (e o botão).

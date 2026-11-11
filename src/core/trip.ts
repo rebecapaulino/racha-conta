@@ -733,17 +733,31 @@ export function activeSettlements(trip: Trip): Settlement[] {
  */
 export function countedSettlements(trip: Trip): Settlement[] {
   const real = activeSettlements(trip);
-  const closed = openExpenses(trip).filter((e) => paidThroughOf(e) > 0);
-  if (!closed.length) return real;
+  const open = openExpenses(trip).filter((e) => installmentsOf(e) > 1);
+  if (!open.length) return real;
   const acc = new Map(trip.people.map((p) => [p.id, accountOf(trip, p.id)]));
   const rows = installmentRows(trip, acc);
   const drop = new Set<Settlement>();
   const extra: Settlement[] = [];
-  for (const e of closed) {
-    const k = paidThroughOf(e);
-    const at = e.paidThrough!.at;
+  for (const e of open) {
+    const marked = paidThroughOf(e);
     for (const r of rows.filter((x) => x.expenseId === e.id)) {
       const parts = r.parts ?? splitEven(r.cents, installmentsOf(e));
+      const mine = real
+        .filter((x) => x.expenseId === e.id && acc.get(x.from) === r.from && acc.get(x.to) === r.to)
+        .sort((a, b) => a.at.localeCompare(b.at));
+      let k = marked;
+      let at = e.paidThrough?.at ?? '';
+      if (!k) {
+        // Sem marcação: pagou a última parcela com um pouco a mais (o valor de antes do reajuste,
+        // até meia parcela)? A parcela está paga e a sobra fica com quem recebeu: a próxima sai
+        // igual à dos outros, não menor.
+        const info = installmentInfo(r.cents, sum(mine.map((x) => x.cents)), parts.length, parts);
+        const ahead = info.paidCount < parts.length ? parts[info.paidCount] - info.next : 0;
+        if (info.paidCount < 1 || ahead <= 0 || ahead > parts[info.paidCount] / 2) continue;
+        k = info.paidCount;
+        at = mine.at(-1)!.at;
+      }
       const due = sum(parts.slice(0, k));
       // Ficam por conta das parcelas quitadas os pagamentos até a marcação, enquanto cada um deixa
       // o total mais perto do valor delas (o restinho de R$ 15,80 pago depois entra; um pagamento
@@ -752,10 +766,7 @@ export function countedSettlements(trip: Trip): Settlement[] {
       const half = parts[k - 1] / 2;
       let got = 0;
       const used: Settlement[] = [];
-      const mine = real
-        .filter((x) => x.expenseId === e.id && x.at <= at && acc.get(x.from) === r.from && acc.get(x.to) === r.to)
-        .sort((a, b) => a.at.localeCompare(b.at));
-      for (const x of mine) {
+      for (const x of mine.filter((y) => y.at <= at)) {
         if (Math.abs(due - got - x.cents) >= Math.abs(due - got)) break;
         used.push(x);
         got += x.cents;
