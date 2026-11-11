@@ -684,6 +684,11 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
                       <> Ex.: {nameOf(installment.id)}, {formatBRL(installment.share)} = {count}x de {formatBRL(installment.first)}.</>
                     )}
                   </p>
+                  {sameParts && who.length > 1 && !joined.length && !leaving.length && elapsed === null && (
+                    <button type="button" className="link-btn late-link" onClick={startLate}>
+                      Alguém entrou depois da 1ª parcela?
+                    </button>
+                  )}
                 </>
               )}
             </div>
