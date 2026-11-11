@@ -596,3 +596,6 @@ todos: até a 2ª". Quem registrou pagamento dessas parcelas (até meia parcela 
 quitado com o valor exato delas; da 3ª em diante, todos iguais. Quem não registrou nada continua
 devendo. Os pagamentos registrados não mudam (o histórico mostra o que foi pago de verdade):
 só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Mauricio).
+- No Saldos, a linha que ficou com um restinho de uma parcela (até meia parcela, ex.: R$ 15,80
+  de R$ 158,04) mostra "Todos já pagaram a 2ª? Marcar como paga": é o mesmo "Já pagas por
+  todos", direto onde a diferença aparece, com Desfazer.

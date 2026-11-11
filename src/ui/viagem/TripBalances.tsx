@@ -187,6 +187,13 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
               expenseOf={(id) => trip.expenses.find((e) => e.id === id)}
               shared={shared}
               onPix={(id, pix) => dispatch({ type: 'editTraveler', id, pix })}
+              onPaidThrough={(expenseId, k) => {
+                const before = trip.expenses.find((e) => e.id === expenseId)?.paidThrough?.installment ?? 0;
+                dispatch({ type: 'paidThrough', expenseId, installment: k });
+                toast(`Até a ${k}ª parcela, todos quitados. Da ${k + 1}ª em diante, todos pagam igual.`, () =>
+                  dispatch({ type: 'paidThrough', expenseId, installment: before }),
+                );
+              }}
             />
           </>
         )}

@@ -34,6 +34,8 @@ interface Props {
   onPix?: (id: string, pix: string | null) => void;
   /** Viagem ou rolê compartilhado: todo mundo do grupo vê a chave. */
   shared?: boolean;
+  /** "Já pagas por todos": marca a parcelada como quitada até a parcela (Viagem). */
+  onPaidThrough?: (expenseId: string, installment: number) => void;
 }
 
 /**
@@ -41,7 +43,7 @@ interface Props {
  * por quem paga) ou escolher uma pessoa e ver quem deve para ela e para quem ela deve.
  * Usado na Viagem e no resumo do grupo do Rolê.
  */
-export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf, carousel, onPix, shared }: Props) {
+export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf, carousel, onPix, shared, onPaidThrough }: Props) {
   const [who, setWho] = useState('');
   const [slide, setSlide] = useState(0);
   const [back, setBack] = useState(false);
@@ -133,6 +135,12 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                   <small className="pay-ahead">
                     Desta parcela de {glued(inst.parts[inst.paidCount])}, {glued(inst.parts[inst.paidCount] - inst.next)} já foram pagos.
                   </small>
+                )}
+                {/* Sobrou um restinho de uma parcela já paga (pagou o valor de antes do reajuste): quita para todos. */}
+                {!done && onPaidThrough && r.expenseId && inst.next <= inst.parts[inst.paidCount] / 2 && inst.next < inst.parts[inst.paidCount] && (
+                  <button type="button" className="link-btn late-link" onClick={() => onPaidThrough(r.expenseId!, inst.paidCount + 1)}>
+                    Todos já pagaram a {inst.paidCount + 1}ª? Marcar como paga
+                  </button>
                 )}
               </span>
             </span>
