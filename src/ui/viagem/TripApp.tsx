@@ -24,7 +24,7 @@ import { PayForSheet } from './PayForSheet';
 import { ReceiptTargetSheet } from './ReceiptTargetSheet';
 import { PersonSheet } from './PersonSheet';
 import { ShareSheet } from './ShareSheet';
-import { SettleSheet, type SettleTarget } from './SettleSheet';
+import { SettleSheet, splitPayment, type SettleTarget } from './SettleSheet';
 import { TripBalances } from './TripBalances';
 import { TripCover, TripList } from './TripCover';
 import { FacesProvider } from '../Avatar';
@@ -196,9 +196,13 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
   function settle(t: SettleTarget, cents: number) {
     if (!trip || !t.to) return;
     const name = (pid: string) => trip.people.find((p) => p.id === pid)!.name;
-    const id = newId();
-    dispatch({ type: 'settle', id, from: t.from, to: t.to, cents, ...(t.expenseId ? { expenseId: t.expenseId } : {}) });
-    toast(`${name(t.from)} pagou ${formatBRL(cents)} para ${name(t.to)}`, () => dispatch({ type: 'unsettle', id }));
+    // Várias linhas de uma vez (o acerto e uma parcela): um pagamento para cada, com um só Desfazer.
+    const ids = splitPayment(t, cents).map(({ target, cents: c }) => {
+      const id = newId();
+      dispatch({ type: 'settle', id, from: t.from, to: t.to!, cents: c, ...(target.expenseId ? { expenseId: target.expenseId } : {}) });
+      return id;
+    });
+    toast(`${name(t.from)} pagou ${formatBRL(cents)} para ${name(t.to)}`, () => ids.forEach((id) => dispatch({ type: 'unsettle', id })));
   }
 
   function openList() {

@@ -534,3 +534,9 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Regra nova (vale sobre a do briefing):** cada pessoa tem um "saldo de centavos" exato (o que recebeu menos a parte justa, em fração) e o centavo que sobra vai para quem está mais atrás. Empate continua girando pelo índice do item / ordem da despesa. Serviço: proporcional ao consumo justo, com o centavo para quem está atrás no total. Resultado: quem consome igual paga igual sempre que o total divide; quando não divide, a diferença é de 1 centavo (inevitável); ninguém fica a 1 centavo ou mais da parte justa. Código: `splitEvenFair` e `splitToward` (money.ts, frações exatas com BigInt).
 - **Viagem:** a despesa dividida igual olha os centavos das outras despesas divididas igual da viagem (`tripDrift`). As partes continuam guardadas na despesa: despesas antigas só mudam se forem editadas e salvas de novo.
 - **Rolê com várias notas:** cada nota é equilibrada sozinha (o "Por nota" e o resumo do grupo continuam batendo entre si); somando notas, pode sobrar 1 centavo de diferença por nota.
+
+## Acerto e parcela para a mesma pessoa: um par de botões — 11/11/2026
+
+- Quando o card tem mais de uma linha em aberto para a mesma pessoa (ex.: Deise deve R$ 58,50 ao Mauricio pelas despesas comuns e a parcela do Airbnb), só a última linha tem "Pago" e "Pix", com o total das duas (cada linha continua mostrando o seu valor).
+- "Pago" abre "Registrar pagamento" com o total e o que entra nele ("R$ 58,50 das outras despesas + Airbnb · parcela 1 de 5 (R$ 158,04)"). Ao registrar, vira um pagamento para cada linha, na ordem; pagou menos, completa na ordem; pagou mais, a sobra fica no acerto comum (`splitPayment`, testado). Um só Desfazer desfaz os dois.
+- O topo do card conta pessoas, não linhas: "R$ 216,54 no total, para Mauricio" (antes dizia "para 2 pessoas").

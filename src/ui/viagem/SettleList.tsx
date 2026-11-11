@@ -51,15 +51,42 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
   const account = valid ? accountIn(people, valid) : '';
   const membersOf = (id: string) => people.filter((p) => p.id !== id && accountIn(people, p.id) === id);
 
-  /** Uma linha: quem paga → quem recebe, o valor, as parcelas e o botão de pago. */
-  function row(r: ListRow, side: 'out' | 'in') {
-    const done = r.remaining === 0;
+  /** O que pagar agora numa linha: a próxima parcela, o resto ou tudo. */
+  function due(r: ListRow) {
     const inst = r.installments && r.installments > 1 ? installmentInfo(r.cents, r.paid, r.installments, r.parts) : null;
     const expense = r.expenseId ? expenseOf?.(r.expenseId) : undefined;
     const payNow = inst && inst.next > 0 ? inst.next : r.remaining;
     const label = expense && inst ? `${expense.description} · parcela ${inst.paidCount + 1} de ${inst.count}` : undefined;
-    const payLabel = inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago';
-    const settle = () => onSettle({ from: r.from, to: r.to, cents: payNow, ...(r.expenseId ? { expenseId: r.expenseId, label } : {}) });
+    const target: SettleTarget = { from: r.from, to: r.to, cents: payNow, ...(r.expenseId ? { expenseId: r.expenseId, label } : {}) };
+    return { inst, expense, payNow, target };
+  }
+
+  /**
+   * Uma linha: quem paga → quem recebe, o valor, as parcelas e os botões. Várias linhas em aberto
+   * para a mesma pessoa (o acerto e uma parcela) dividem um só "Pago" e um só "Pix", na última,
+   * com o total delas.
+   */
+  function row(r: ListRow, side: 'out' | 'in', list: ListRow[]) {
+    const done = r.remaining === 0;
+    const { inst, expense, payNow: ownNow, target: own } = due(r);
+    const mates = done ? [r] : list.filter((x) => x.remaining > 0 && x.from === r.from && x.to === r.to);
+    const showActions = done || mates.at(-1) === r;
+    const together = mates.length > 1;
+    const targets = mates.map((m) => due(m).target);
+    const payNow = together ? targets.reduce((a, t) => a + t.cents, 0) : ownNow;
+    const payLabel = together ? 'Pago' : inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago';
+    const settle = () =>
+      onSettle(
+        together
+          ? {
+              from: r.from,
+              to: r.to,
+              cents: payNow,
+              label: targets.map((t) => (t.label ? `${t.label} (${formatBRL(t.cents)})` : `${formatBRL(t.cents)} das outras despesas`)).join(' + '),
+              parts: targets,
+            }
+          : own,
+      );
     return (
       <li key={`${r.from}-${r.to}-${r.expenseId ?? ''}`} className={`pay-item${done ? ' is-paid' : ''}${inst ? ' is-split' : ''}`}>
         {/* Seta vertical ligando ao avatar do alto do cartão: desce para quem recebe, sobe de quem paga. */}
@@ -79,7 +106,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
             {done ? (
               <b className="num amt-pos pay-amount">{glued(r.cents)}</b>
             ) : (
-              <Signed cents={(side === 'out' ? -1 : 1) * payNow} className="pay-amount" />
+              <Signed cents={(side === 'out' ? -1 : 1) * ownNow} className="pay-amount" />
             )}
           </span>
           {expense && inst && (
@@ -103,7 +130,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
             </small>
           )}
         </span>
-        <span className="pay-actions">
+        {showActions && <span className="pay-actions">
           {done ? (
             <button
               type="button"
@@ -119,7 +146,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
               type="button"
               className={`btn secondary settle-btn${payLabel.length > 9 ? ' is-long' : ''}`}
               onClick={settle}
-              aria-label={`${inst ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
+              aria-label={`${inst && !together ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
             >
               <IconCheck size={16} /> {payLabel}
             </button>
@@ -127,7 +154,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
           {!done && onPix && (
             <PixPay to={person(r.to)} from={called(r.from)} cents={payNow} shared={shared} onSave={(pix) => onPix(r.to, pix)} onPaid={settle} />
           )}
-        </span>
+        </span>}
       </li>
     );
   }
@@ -190,7 +217,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
             </div>
             {incoming.length > 0 && (
               <ul className="pay-items">
-                {incoming.map((r) => row(r, 'in'))}
+                {incoming.map((r) => row(r, 'in', incoming))}
               </ul>
             )}
           </section>
@@ -210,7 +237,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
             </div>
             {outgoing.length > 0 && (
               <ul className="pay-items">
-                {outgoing.map((r) => row(r, 'out'))}
+                {outgoing.map((r) => row(r, 'out', outgoing))}
               </ul>
             )}
           </section>
@@ -243,13 +270,16 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                         ? '✓ Tudo pago'
                         : g.items.length === 1
                           ? 'para 1 pessoa'
-                          : `${glued(left)} ${left === g.cents ? 'no total' : 'faltando'}, para ${g.items.length} pessoas`}
+                          : `${glued(left)} ${left === g.cents ? 'no total' : 'faltando'}, para ${
+                              // Conta pessoas, não linhas (o acerto e a parcela vão para a mesma pessoa).
+                              new Set(g.items.map((r) => r.to)).size === 1 ? called(g.items[0].to, true) : `${new Set(g.items.map((r) => r.to)).size} pessoas`
+                            }`}
                     </small>
                     {carousel && groups.length > 1 && <small className="slide-count">{at + 1} de {groups.length}</small>}
                   </span>
                 </div>
                 <ul className="pay-items">
-                  {g.items.map((r) => row(r, 'out'))}
+                  {g.items.map((r) => row(r, 'out', g.items))}
                 </ul>
                 {onExplain && (
                   <button type="button" className="link-btn pay-why" onClick={() => onExplain(g.from)}>

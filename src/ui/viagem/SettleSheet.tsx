@@ -6,8 +6,27 @@ import { Avatar } from '../Avatar';
 import { IconArrowRight } from '../icons';
 import { Sheet } from './Sheet';
 
-/** Um pagamento a registrar. De despesa parcelada: abate só dela. Sem `to`: paga no caixa (Rolê). */
-export type SettleTarget = Omit<Transfer, 'to'> & { to: string | null; expenseId?: string; label?: string };
+/**
+ * Um pagamento a registrar. De despesa parcelada: abate só dela. Sem `to`: paga no caixa (Rolê).
+ * Com `parts`: várias linhas para a mesma pessoa pagas de uma vez (o acerto e uma parcela).
+ */
+export type SettleTarget = Omit<Transfer, 'to'> & { to: string | null; expenseId?: string; label?: string; parts?: SettleTarget[] };
+
+/**
+ * Reparte o valor pago entre as linhas, na ordem, até o valor de cada uma; o que passar fica na
+ * linha sem despesa (o acerto comum) ou, sem ela, na última.
+ */
+export function splitPayment(t: SettleTarget, cents: number): { target: SettleTarget; cents: number }[] {
+  if (!t.parts?.length) return [{ target: t, cents }];
+  let left = cents;
+  const out = t.parts.map((p) => {
+    const c = Math.min(p.cents, left);
+    left -= c;
+    return { target: p, cents: c };
+  });
+  if (left > 0) (out.find((o) => !o.target.expenseId) ?? out.at(-1)!).cents += left;
+  return out.filter((o) => o.cents > 0);
+}
 
 interface Props {
   /** Pessoas da viagem ou do rolê. */
@@ -50,7 +69,7 @@ function SettleForm({ people, transfer, onPay, overHint = 'o app refaz a conta d
   return (
     <form className="sheet-body" onSubmit={save}>
       <span className="sheet-grip" aria-hidden="true" />
-      <h2 id="h-settle" tabIndex={-1}>{transfer.label ? 'Pagar parcela' : 'Registrar pagamento'}</h2>
+      <h2 id="h-settle" tabIndex={-1}>{transfer.label && !transfer.parts ? 'Pagar parcela' : 'Registrar pagamento'}</h2>
       {transfer.label && <p className="settle-label">{transfer.label}</p>}
       <div className="settle-pair">
         <span className="settle-who"><Avatar person={from} size="lg" /><b>{from.name}</b></span>
