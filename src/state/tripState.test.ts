@@ -370,7 +370,7 @@ describe('alguém entra numa despesa parcelada já em andamento', () => {
     // Bia: já pagou o bastante para a 3ª (fica sem pagar este mês) e falta a 4ª, de R$ 100.
     const bia = row(s, 'bia');
     expect(installmentInfo(bia.cents, bia.paid, 4, bia.parts)).toMatchObject({ paidCount: 3, next: 10000 });
-    expect(trip(s).log!.at(-1)!.text).toBe('Caio entrou em Mercado · parcelas reajustadas');
+    expect(trip(s).log!.at(-1)!.text).toBe('Caio entrou: Mercado · parcelas reajustadas');
   });
 
   it('redividir o que falta: as parcelas passadas ficam com quem estava; o resto, entre os três', () => {
@@ -435,34 +435,57 @@ describe('centavos na viagem', () => {
   });
 });
 
-describe('Deise entra a partir da 2ª parcela e paga a parte dos cachorros', () => {
-  it('a 1ª fica com quem estava; da 2ª em diante, todos reajustados, e a conta da Deise junta a dos cachorros', () => {
-    // Airbnb de R$ 1.500 em 5x, pago pela Rebeca (eu), dividido com a Bia: R$ 150 por mês cada.
+describe('Deise assume a despesa dos cachorros a partir da 2ª parcela', () => {
+  it('a 1ª fica com quem estava; da 2ª em diante, só a Deise paga, e quem saiu não paga mais nada', () => {
+    // Cachorros (hotel e ração): R$ 1.000 em 5x, pagos pela Rebeca (eu), divididos com a Bia.
+    // A Bia já pagou a 1ª (R$ 100). Da 2ª em diante, quem cuida dos cachorros é a Deise.
+    let s = run(
+      base(),
+      { type: 'addExpense', id: 'dogs', input: expense({ description: 'Cachorros', cents: 100000, people: ['eu', 'bia'], installments: 5 }) },
+      { type: 'settle', id: 's1', from: 'bia', to: 'eu', cents: 10000, expenseId: 'dogs' },
+      { type: 'addTraveler', id: 'deise', name: 'Deise' },
+    );
+    const input = expense({ description: 'Cachorros', cents: 100000, people: ['deise'], installments: 5 });
+    const old = trip(s).expenses[0];
+    // "Desde a 1ª" não vale quando alguém sai.
+    expect(joinSchedule(old, input, trip(s).people, 1, 'all')).toBeNull();
+    const schedule = joinSchedule(old, input, trip(s).people, 1, 'rest')!;
+    expect(schedule).toEqual({
+      deise: [0, 20000, 20000, 20000, 20000],
+      eu: [10000, 0, 0, 0, 0],
+      bia: [10000, 0, 0, 0, 0],
+    });
+    s = run(s, { type: 'editExpense', id: 'dogs', input: { ...input, schedule } });
+    const e = trip(s).expenses[0];
+    expect(e.people).toEqual(['deise']);
+    expect(e.shares).toEqual({ deise: 80000, eu: 10000, bia: 10000 });
+    expect(trip(s).log!.at(-1)!.text).toBe('Deise entrou e Rebeca e Bia saíram: Cachorros · parcelas reajustadas');
+    const rows = tripSummary(trip(s)).plan.direct.filter((r) => r.expenseId === 'dogs');
+    // Deise: R$ 200 por mês, começando na 2ª.
+    const deise = rows.find((r) => r.from === 'deise')!;
+    expect(installmentInfo(deise.cents, deise.paid, 5, deise.parts)).toMatchObject({ paidCount: 1, next: 20000 });
+    // Bia: já pagou a 1ª, que era a parte dela: não deve mais nada desta despesa.
+    expect(rows.find((r) => r.from === 'bia')).toMatchObject({ remaining: 0 });
+    // Mudar só o nome mantém as parcelas (e quem saiu continua com a 1ª).
+    s = run(s, { type: 'editExpense', id: 'dogs', input: { ...input, description: 'Pets' } });
+    expect(trip(s).expenses[0].shares).toEqual({ deise: 80000, eu: 10000, bia: 10000 });
+  });
+
+  it('entrar e dividir o Airbnb da 2ª em diante continua funcionando junto', () => {
     let s = run(
       base(),
       { type: 'addExpense', id: 'air', input: expense({ cents: 150000, people: ['eu', 'bia'], installments: 5 }) },
       { type: 'settle', id: 's1', from: 'bia', to: 'eu', cents: 15000, expenseId: 'air' },
       { type: 'addTraveler', id: 'deise', name: 'Deise' },
-      { type: 'addTraveler', id: 'dogs', name: 'Cachorros' },
-      { type: 'editTraveler', id: 'dogs', coveredBy: 'deise' },
     );
-    const input = expense({ cents: 150000, people: ['eu', 'bia', 'deise', 'dogs'], installments: 5 });
+    const input = expense({ cents: 150000, people: ['eu', 'bia', 'deise'], installments: 5 });
     const schedule = joinSchedule(trip(s).expenses[0], input, trip(s).people, 1, 'rest')!;
     s = run(s, { type: 'editExpense', id: 'air', input: { ...input, schedule } });
-    // 1ª: R$ 150 Rebeca + R$ 150 Bia. Faltam R$ 1.200 ÷ 4 = R$ 300 cada, em 4x de R$ 75.
+    // 1ª: R$ 150 Rebeca + R$ 150 Bia. Faltam R$ 1.200 ÷ 3 = R$ 400 cada, em 4x de R$ 100.
     expect(trip(s).expenses[0].schedule).toEqual({
-      eu: [15000, 7500, 7500, 7500, 7500],
-      bia: [15000, 7500, 7500, 7500, 7500],
-      deise: [0, 7500, 7500, 7500, 7500],
-      dogs: [0, 7500, 7500, 7500, 7500],
+      eu: [15000, 10000, 10000, 10000, 10000],
+      bia: [15000, 10000, 10000, 10000, 10000],
+      deise: [0, 10000, 10000, 10000, 10000],
     });
-    const rows = tripSummary(trip(s)).plan.direct.filter((r) => r.expenseId === 'air');
-    // Deise paga a dela e a dos cachorros: R$ 150 por mês, começando na 2ª.
-    const deise = rows.find((r) => r.from === 'deise')!;
-    expect(installmentInfo(deise.cents, deise.paid, 5, deise.parts)).toMatchObject({ paidCount: 1, next: 15000 });
-    expect(deise.cents).toBe(60000);
-    // Bia já pagou a 1ª; a 2ª dela agora é R$ 75.
-    const bia = rows.find((r) => r.from === 'bia')!;
-    expect(installmentInfo(bia.cents, bia.paid, 5, bia.parts)).toMatchObject({ paidCount: 1, next: 7500 });
   });
 });

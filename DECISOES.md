@@ -544,4 +544,9 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 ## "A partir de qual parcela?" — 11/11/2026
 
 - A pergunta de quem entra numa despesa parcelada virou **"Deise entra nesta despesa parcelada a partir de qual parcela?"**, com "A partir da [2ª] de 5" (antes: "Parcelas que já passaram"). As opções: **"A partir da 2ª parcela"** (a 1ª continua com quem já estava; da 2ª em diante o valor é reajustado para todos, mostrando quanto cada um pagava antes) e **"Desde a 1ª parcela"** (quem entrou paga também a parte das que já foram, na parcela em que entra). Mesma conta de antes (`joinSchedule` 'rest' e 'all').
-- **Caso da Rebeca (Deise e os cachorros):** em Pessoas, "Cachorros" com "Quem paga a parte de Cachorros?" = Deise (viagem toda); na despesa, marcar Deise e Cachorros e escolher "A partir da 2ª parcela". A Deise paga a dela e a dos cachorros a partir da 2ª; quem estava paga menos dali em diante. Testado.
+
+## Quem sai de uma despesa parcelada a partir de uma parcela — 11/11/2026
+
+- **Caso da Rebeca:** "Cachorros" é uma **despesa** parcelada (não uma pessoa). A Deise entrou na viagem depois e assumiu essa despesa a partir da 2ª parcela; a 1ª já tinha sido dividida entre quem estava.
+- **Como fazer:** editar a despesa, em "Quem participa?" marcar a Deise e desmarcar quem não paga mais, Salvar. O app pergunta **"Deise entra e Mauricio e Rebeca saem a partir de qual parcela?"** → "A partir da 2ª parcela": quem saiu fica só com as parcelas que já passaram; da 2ª em diante, quem participa agora divide o que falta (aqui, só a Deise).
+- **Conta:** `joinSchedule` 'rest' guarda também as parcelas de quem saiu (as que já passaram, zero depois). Essas pessoas continuam na parte da despesa (`shares`), mas não em "quem participa". "Desde a 1ª parcela" não aparece quando alguém sai. Registro: "Deise entrou e Mauricio e Rebeca saíram: Cachorros · parcelas reajustadas". Testado.

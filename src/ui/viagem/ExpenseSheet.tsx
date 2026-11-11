@@ -232,8 +232,10 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     go(at + 1);
   }
 
-  // Quem entrou agora numa despesa parcelada (editando, mesmo número de parcelas, sem valores exatos).
-  const joined = editing && installmentsOf(editing) > 1 && parts === installmentsOf(editing) && split !== 'exact' ? who.filter((id) => !editing.people.includes(id)) : [];
+  // Quem entrou ou saiu agora de uma despesa parcelada (editando, mesmo número de parcelas, sem valores exatos).
+  const sameParts = !!editing && installmentsOf(editing) > 1 && parts === installmentsOf(editing) && split !== 'exact';
+  const joined = sameParts ? who.filter((id) => !editing!.people.includes(id)) : [];
+  const leaving = sameParts && who.length ? editing!.people.filter((id) => !who.includes(id)) : [];
 
   /** Parcelas que já passaram: as registradas como pagas no acerto ou os meses desde a compra (a maior). */
   function guessElapsed(e: Expense): number {
@@ -261,7 +263,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
       return;
     }
     // Entrou alguém numa parcelada: pergunta antes como dividir (o que falta ou desde o início).
-    if (editing && joined.length && !mode) {
+    if (editing && (joined.length || leaving.length) && !mode) {
       setElapsed((k) => k ?? guessElapsed(editing));
       requestAnimationFrame(() => joinRef.current?.focus());
       return;
@@ -285,27 +287,37 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
 
   const nameOf = (id: string) => (id === meId ? 'você' : people.find((p) => p.id === id)?.name ?? 'quem pagou');
   // "Deseja redividir o valor restante, ou dividir tudo desde o início?", com os valores de cada jeito.
-  // "A partir de qual parcela a pessoa nova entra?": da parcela escolhida em diante (o valor de
-  // todos é reajustado ali) ou desde a 1ª (ela paga também a parte das que já foram).
+  // "A partir de qual parcela?": quem entra paga dali em diante e quem sai fica só com as que
+  // já foram (o valor de todos é reajustado ali), ou, só quando ninguém sai, "desde a 1ª"
+  // (quem entrou paga também a parte das que já foram).
   const joinAsk = (() => {
-    if (!editing || !joined.length || elapsed === null) return null;
+    if (!editing || (!joined.length && !leaving.length) || elapsed === null) return null;
     const n = installmentsOf(editing);
     const k = elapsed;
     const from = k + 1;
     const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-    const names = joined.map(nameOf);
-    const newcomers = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0];
-    const plural = joined.length > 1;
-    const one = joined[0];
+    const list = (ids: string[]) => {
+      const names = ids.map(nameOf);
+      return names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0];
+    };
+    const verb = (ids: string[], one: string, many: string) => (ids.length > 1 ? many : one);
+    const question = [
+      joined.length ? `${list(joined)} ${verb(joined, 'entra', 'entram')}` : '',
+      leaving.length ? `${list(leaving)} ${verb(leaving, 'sai', 'saem')}` : '',
+    ]
+      .filter(Boolean)
+      .join(' e ');
+    const one = joined[0] ?? who[0];
     const stayer = who.find((id) => editing.people.includes(id) && id !== payerId) ?? who.find((id) => editing.people.includes(id));
     const before = stayer ? partsOf(editing, stayer)[k] : 0;
     const rest = k ? joinSchedule(editing, input, people, k, 'rest', drift) : null;
-    const all = k ? joinSchedule(editing, input, people, k, 'all', drift) : null;
-    const gone = k === 1 ? 'A 1ª parcela continua' : `As parcelas 1 a ${k} continuam`;
+    const all = k && !leaving.length ? joinSchedule(editing, input, people, k, 'all', drift) : null;
+    const gone = k === 1 ? 'a 1ª parcela' : `as parcelas 1 a ${k}`;
+    const each = who.length > 1 ? `cada um paga ${rest ? formatBRL(rest[one][k]) : ''}` : `${nameOf(who[0])} paga ${rest ? formatBRL(rest[one][k]) : ''}`;
     return (
       <div className="confirm join-ask" role="group" aria-labelledby="h-join" ref={joinRef} tabIndex={-1}>
         <p id="h-join">
-          <b>{cap(newcomers)} {plural ? 'entram' : 'entra'} nesta despesa parcelada a partir de qual parcela?</b>
+          <b>{cap(question)} a partir de qual parcela?</b>
         </p>
         <div className="join-elapsed">
           <span id="h-join-k">A partir da</span>
@@ -319,9 +331,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
             </button>
           </div>
         </div>
-        {!rest || !all ? (
+        {!rest ? (
           <>
-            <p className="hint">Desde a 1ª parcela: a despesa inteira é dividida igual entre todos.</p>
+            <p className="hint">Desde a 1ª parcela: a despesa inteira é dividida entre quem está marcado agora.</p>
             <button type="button" className="btn primary" onClick={() => save('all')}>Salvar</button>
           </>
         ) : (
@@ -329,22 +341,27 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
             <button type="button" className="join-option" onClick={() => save('rest')}>
               <b>A partir da {from}ª parcela</b>
               <small>
-                {gone} com quem já estava. Da {from}ª em diante, o valor é reajustado e cada um paga {formatBRL(rest[one][k])} por mês
+                {cap(gone)} {k === 1 ? 'continua' : 'continuam'} com quem já estava
+                {leaving.length > 0 && <> ({list(leaving)} {verb(leaving, 'fica', 'ficam')} só com {k === 1 ? 'ela' : 'elas'})</>}. Da {from}ª em diante, o
+                valor é reajustado e {each} por mês
                 {stayer && before !== rest[stayer][k] && <> ({nameOf(stayer)} pagava {formatBRL(before)})</>}.
               </small>
             </button>
-            <button type="button" className="join-option" onClick={() => save('all')}>
-              <b>Desde a 1ª parcela</b>
-              <small>
-                {cap(newcomers)} {plural ? 'pagam' : 'paga'} também a parte {k === 1 ? 'da 1ª' : `das parcelas 1 a ${k}`}: {formatBRL(all[one][k])}{plural ? ' cada' : ''} na {from}ª
-                {stayer && (
-                  <>
-                    , e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${formatBRL(all[stayer][k])}` : 'não paga nada'} nela, porque já pagou a mais
-                  </>
-                )}
-                .{k + 1 < n && <> Depois, todos {formatBRL(all[one][k + 1])} por mês.</>}
-              </small>
-            </button>
+            {all && (
+              <button type="button" className="join-option" onClick={() => save('all')}>
+                <b>Desde a 1ª parcela</b>
+                <small>
+                  {cap(list(joined))} {verb(joined, 'paga', 'pagam')} também a parte {k === 1 ? 'da 1ª' : `das parcelas 1 a ${k}`}: {formatBRL(all[one][k])}
+                  {joined.length > 1 ? ' cada' : ''} na {from}ª
+                  {stayer && (
+                    <>
+                      , e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${formatBRL(all[stayer][k])}` : 'não paga nada'} nela, porque já pagou a mais
+                    </>
+                  )}
+                  .{k + 1 < n && <> Depois, todos {formatBRL(all[one][k + 1])} por mês.</>}
+                </small>
+              </button>
+            )}
           </>
         )}
         <button type="button" className="btn ghost" onClick={() => setElapsed(null)}>Voltar</button>

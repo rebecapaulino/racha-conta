@@ -251,12 +251,13 @@ export function partsOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>
 }
 
 /**
- * Como dividir quando alguém entra numa despesa parcelada com parcelas já passadas:
- * - 'rest' (redividir o que falta): as parcelas que passaram ficam com quem estava; o que falta
- *   é dividido entre todos, e quem entrou paga só as parcelas que faltam.
+ * Como dividir quando alguém entra (ou sai) numa despesa parcelada com parcelas já passadas:
+ * - 'rest' (a partir da parcela X): as parcelas que passaram ficam com quem estava, mesmo com
+ *   quem saiu; o que falta é dividido entre quem participa agora (quem entrou paga só dali em
+ *   diante; quem saiu não paga mais nada). Ex.: a Deise assume a despesa dos cachorros na 2ª.
  * - 'all' (dividir tudo desde o início): todo mundo fica com a parte da despesa inteira. Na
  *   próxima parcela, quem entrou paga também a parte dele das que passaram, e quem estava paga
- *   menos (o que pagou a mais volta ali); depois, todos iguais.
+ *   menos (o que pagou a mais volta ali); depois, todos iguais. Não vale quando alguém sai.
  */
 export type JoinMode = 'rest' | 'all';
 
@@ -278,8 +279,11 @@ export function joinSchedule(
   const full = splitExpense(input, people, old.seq, drift);
   if (!full.ok) return null;
   const ids = Object.keys(full.shares);
+  // Quem saiu da despesa, mas tinha parcela nas que já passaram: fica com elas.
+  const leavers = Object.keys(old.shares).filter((id) => !ids.includes(id) && people.some((p) => p.id === id) && sum(partsOf(old, id).slice(0, k)) > 0);
   const out: Record<string, number[]> = {};
   if (mode === 'all') {
+    if (leavers.length) return null;
     for (const id of ids) {
       const share = full.shares[id];
       const target = splitEven(share, n);
@@ -300,8 +304,9 @@ export function joinSchedule(
     }
     return out;
   }
-  const past = Object.fromEntries(ids.map((id) => [id, partsOf(old, id).slice(0, k)]));
-  const rest = input.cents - ids.reduce((a, id) => a + sum(past[id]), 0);
+  const everyone = [...ids, ...leavers];
+  const past = Object.fromEntries(everyone.map((id) => [id, partsOf(old, id).slice(0, k)]));
+  const rest = input.cents - everyone.reduce((a, id) => a + sum(past[id]), 0);
   if (rest < 0) return null;
   const split = rest > 0 ? splitExpense({ ...input, cents: rest }, people, old.seq, drift) : null;
   if (rest > 0 && !split?.ok) return null;
@@ -309,6 +314,7 @@ export function joinSchedule(
     const mine = split?.ok ? split.shares[id] : 0;
     out[id] = [...past[id], ...splitEven(mine, n - k)];
   }
+  for (const id of leavers) out[id] = [...past[id], ...Array.from({ length: n - k }, () => 0)];
   return out;
 }
 
@@ -441,7 +447,9 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   // Parcelas combinadas: as novas (alguém entrou), ou as de antes se a divisão não mudou.
   const schedule = input.schedule ?? (sameSplit(old, input) ? old.schedule : undefined);
   if (schedule) {
-    const shares = Object.fromEntries(Object.keys(r.shares).map((pid) => [pid, Array.isArray(schedule[pid]) ? sum(schedule[pid]) : -1]));
+    // Também quem saiu e ficou com as parcelas que já tinham passado (está nas parcelas, não em quem participa).
+    const ids = [...new Set([...Object.keys(r.shares), ...Object.keys(schedule).filter((pid) => trip.people.some((p) => p.id === pid))])];
+    const shares = Object.fromEntries(ids.map((pid) => [pid, Array.isArray(schedule[pid]) ? sum(schedule[pid]) : -1]));
     if (sum(Object.values(shares)) === input.cents && scheduleOf({ schedule, shares, installments: input.installments })) {
       expense.schedule = schedule;
       expense.shares = shares;

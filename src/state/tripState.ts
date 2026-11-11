@@ -215,10 +215,18 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       const [b, e] = [exp(before, a.id), exp(after, a.id)];
       if (!b || !e) return null;
       if (b.cents !== e.cents) return `Editou ${e.description}: ${formatBRL(b.cents)} → ${formatBRL(e.cents)}`;
-      const joined = e.people.filter((id) => !b.people.includes(id)).map((id) => who(after, id));
-      if (joined.length) {
-        const names = joined.length > 1 ? `${joined.slice(0, -1).join(', ')} e ${joined.at(-1)}` : joined[0];
-        return `${names} ${joined.length > 1 ? 'entraram' : 'entrou'} em ${e.description}${e.schedule && JSON.stringify(e.schedule) !== JSON.stringify(b.schedule) ? ' · parcelas reajustadas' : ''}`;
+      const names = (ids: string[]) => {
+        const list = ids.map((id) => who(after, id));
+        return list.length > 1 ? `${list.slice(0, -1).join(', ')} e ${list.at(-1)}` : list[0];
+      };
+      const joined = e.people.filter((id) => !b.people.includes(id));
+      const left = b.people.filter((id) => !e.people.includes(id));
+      if (joined.length || left.length) {
+        const what = [
+          joined.length ? `${names(joined)} ${joined.length > 1 ? 'entraram' : 'entrou'}` : '',
+          left.length ? `${names(left)} ${left.length > 1 ? 'saíram' : 'saiu'}` : '',
+        ].filter(Boolean).join(' e ');
+        return `${what}: ${e.description}${e.schedule && JSON.stringify(e.schedule) !== JSON.stringify(b.schedule) ? ' · parcelas reajustadas' : ''}`;
       }
       const [nb, ne] = [expensePhotos(b).length, expensePhotos(e).length];
       if (ne > nb) return ne - nb === 1 ? `Adicionou uma foto em ${e.description}` : `Adicionou ${ne - nb} fotos em ${e.description}`;
