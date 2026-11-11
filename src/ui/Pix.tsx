@@ -276,8 +276,8 @@ export function PixPay({
           <IconQr size={16} /> Pix
         </button>
       ) : (
-        <button type="button" className="link-btn pix-add" onClick={() => setEditing(true)}>
-          <IconPlus size={16} /> Pix de {to.name}
+        <button type="button" className="btn secondary pix-btn" onClick={() => setEditing(true)} aria-label={`Pôr a chave Pix de ${to.name}`}>
+          <IconPlus size={16} /> Pix
         </button>
       )}
       {has && (
