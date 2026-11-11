@@ -5,6 +5,7 @@ import { accountIn, type PlanRow } from '../../core/settle';
 import { installmentInfo, type TripCategory } from '../../core/trip';
 import { Avatar } from '../Avatar';
 import { IconArrowRight, IconCheck } from '../icons';
+import { PixPay } from '../Pix';
 import { CategoryIcon } from './CategoryIcon';
 import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
@@ -29,6 +30,10 @@ interface Props {
   expenseOf?: (id: string) => { description: string; category: TripCategory } | undefined;
   /** Um card por vez (quem paga e para quem), com a seta para o próximo (Viagem). */
   carousel?: boolean;
+  /** Guarda a chave Pix de quem recebe (null tira). Sem isso, a lista não mostra o Pix. */
+  onPix?: (id: string, pix: string | null) => void;
+  /** Viagem ou rolê compartilhado: todo mundo do grupo vê a chave. */
+  shared?: boolean;
 }
 
 /**
@@ -36,7 +41,7 @@ interface Props {
  * por quem paga) ou escolher uma pessoa e ver quem deve para ela e para quem ela deve.
  * Usado na Viagem e no resumo do grupo do Rolê.
  */
-export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf, carousel }: Props) {
+export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, expenseOf, carousel, onPix, shared }: Props) {
   const [who, setWho] = useState('');
   const [slide, setSlide] = useState(0);
   const [back, setBack] = useState(false);
@@ -53,6 +58,7 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
     const expense = r.expenseId ? expenseOf?.(r.expenseId) : undefined;
     const payNow = inst && inst.next > 0 ? inst.next : r.remaining;
     const label = expense && inst ? `${expense.description} · parcela ${inst.paidCount + 1} de ${inst.count}` : undefined;
+    const settle = () => onSettle({ from: r.from, to: r.to, cents: payNow, ...(r.expenseId ? { expenseId: r.expenseId, label } : {}) });
     return (
       <li key={`${r.from}-${r.to}-${r.expenseId ?? ''}`} className={`pay-item${done ? ' is-paid' : ''}${inst ? ' is-split' : ''}`}>
         {/* Seta vertical ligando ao avatar do alto do cartão: desce para quem recebe, sobe de quem paga. */}
@@ -110,12 +116,15 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
               <button
                 type="button"
                 className="btn secondary settle-btn"
-                onClick={() => onSettle({ from: r.from, to: r.to, cents: payNow, ...(r.expenseId ? { expenseId: r.expenseId, label } : {}) })}
+                onClick={settle}
                 aria-label={`${inst ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
               >
                 <IconCheck size={16} />{' '}
                 {inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago'}
               </button>
+            )}
+            {!done && onPix && (
+              <PixPay to={person(r.to)} from={called(r.from)} cents={payNow} shared={shared} onSave={(pix) => onPix(r.to, pix)} onPaid={settle} />
             )}
           </span>
         </span>

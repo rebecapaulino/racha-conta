@@ -143,3 +143,32 @@ describe('itens lidos da nota fiscal', () => {
     expect(run(mesa, { type: 'addItems', items: [], replace: true })).toBe(mesa);
   });
 });
+
+describe('Pix de quem recebe', () => {
+  const base = run(blankState(), { type: 'addPerson', name: 'Ana' }, { type: 'addPerson', name: 'Bruno' }, { type: 'addItem', name: 'Pizza', cents: 8000 });
+  const [ana, bruno] = base.bill.people.map((p) => p.id);
+
+  it('guarda a chave na pessoa, troca e tira; o registro não mostra a chave', () => {
+    let s = run(base, { type: 'pix', id: bruno, pix: '+5511988887777' });
+    expect(s.bill.people[1].pix).toBe('+5511988887777');
+    s = run(s, { type: 'pix', id: bruno, pix: 'bruno@x.com' }, { type: 'pix', id: bruno, pix: null });
+    expect('pix' in s.bill.people[1]).toBe(false);
+    expect(texts(s).slice(-3)).toEqual(['Adicionou o Pix de Bruno', 'Trocou o Pix de Bruno', 'Tirou o Pix de Bruno']);
+    expect(texts(s).join()).not.toContain('98888');
+  });
+
+  it('chave fora do formato, pessoa que não existe ou a mesma chave não mudam nada', () => {
+    const s = run(base, { type: 'pix', id: ana, pix: '52998224725' });
+    expect(run(s, { type: 'pix', id: ana, pix: '(11) 98888-7777' })).toBe(s);
+    expect(run(s, { type: 'pix', id: 'ninguém', pix: '52998224725' })).toBe(s);
+    expect(run(s, { type: 'pix', id: ana, pix: '52998224725' })).toBe(s);
+  });
+
+  it('vai no texto do WhatsApp junto com quem pagou, enquanto falta alguém pagar', async () => {
+    const { summaryText } = await import('../core/bill');
+    let s = run(base, { type: 'payer', id: bruno }, { type: 'pix', id: bruno, pix: '+5511988887777' });
+    expect(summaryText(s.bill)).toContain('Pagar para *Bruno*, que pagou a conta.\nPix (celular): 11988887777');
+    s = run(s, { type: 'markPaid', personId: ana, paid: true });
+    expect(summaryText(s.bill)).not.toContain('Pix (');
+  });
+});

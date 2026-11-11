@@ -4,6 +4,7 @@
 
 import { payments, type Bill, type SplitResult } from '../core/bill';
 import { formatBRL } from '../core/money';
+import { isPixKey, pixText } from '../core/pix';
 import { unassignedList } from './unassigned';
 
 const W = 1080;
@@ -138,13 +139,16 @@ export async function renderReceipt({ bill, result, startedAt, photoUrl }: Input
   const showCallout = !!payer && result.shares.length > 1;
   const pay = payments(bill, result);
   const tracking = Object.keys(bill.paid ?? {}).length > 0;
+  // A chave de quem pagou, enquanto falta alguém pagar.
+  const payerPix = showCallout && payer && isPixKey(payer.pix) && (!tracking || pay.remaining > 0) ? pixText(payer.pix) : null;
+  const pixH = payerPix ? 48 : 0;
 
   // Altura: soma os blocos na mesma ordem em que são desenhados.
   const photoH = photo ? Math.round((CW * 9) / 16) + 48 : 0;
   const peopleH = result.shares.length ? result.shares.length * 108 + 8 : 64;
   const paperH =
     P + photoH + 44 + 28 + titleLines.length * 76 + 12 + 44 + 40 + 3 + 40 + peopleH + 40 + 3 + 36 + 2 * 52 + 104 +
-    (result.unassigned > 0 ? 96 : 0) + (showCallout ? 156 : 0) + P - 24;
+    (result.unassigned > 0 ? 96 : 0) + (showCallout ? 156 + pixH : 0) + P - 24;
   const H = M + 24 + paperH + TEETH + 120;
   canvas.width = W;
   canvas.height = H;
@@ -343,7 +347,7 @@ export async function renderReceipt({ bill, result, startedAt, photoUrl }: Input
 
   if (showCallout && payer) {
     ctx.fillStyle = C.soft;
-    roundRect(ctx, left, y + 20, CW, 128, 24);
+    roundRect(ctx, left, y + 20, CW, 128 + pixH, 24);
     ctx.fill();
     ctx.textAlign = 'left';
     ctx.fillStyle = C.ink;
@@ -364,6 +368,11 @@ export async function renderReceipt({ bill, result, startedAt, photoUrl }: Input
       left + 28,
       y + 92,
     );
+    if (payerPix) {
+      ctx.font = f(700, 30);
+      ctx.fillStyle = C.ink;
+      ctx.fillText(fitText(ctx, payerPix, CW - 56), left + 28, y + 140);
+    }
   }
 
   // Rodapé no fundo preto

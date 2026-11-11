@@ -7,6 +7,7 @@
 import { formatBRL, splitEven, splitWeighted } from './money';
 import { MAX_NAME, PERSON_COLORS } from './bill';
 import { newcomerName } from './faces';
+import { pixBlock } from './pix';
 import { accountIn, canCoverIn, minTransfers, type Transfer } from './settle';
 
 export const MAX_TRIP_NAME = 40;
@@ -32,7 +33,8 @@ export interface Traveler {
    * Posta como pessoa nova por outro aparelho, porque a própria pessoa ainda não disse quem é
    * na viagem. Enquanto não tiver nada no nome, ela ainda pode escolher outra pessoa.
    */
-  auto?: true;
+  auto?: true;  /** Chave Pix para receber o acerto (no formato de `parsePixKey`). */
+  pix?: string;
 }
 
 export const TRIP_CATEGORIES = [
@@ -1120,6 +1122,7 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
   const list = summary.plan[mode].filter((r) => r.remaining > 0);
   if (list.length === 0) return [header(trip), 'Está tudo quite! ✅'].join('\n');
   const name = (id: string) => accountName(trip, id);
+  const pix = pixBlock(trip.people.filter((p) => list.some((r) => r.to === p.id)));
   /** "R$ 50,00 para Mauricio: parcela 2/6 de Airbnb (faltam R$ 250,00)". */
   const pay = (r: SettleRow) => {
     if (!r.expenseId) return `${formatBRL(r.remaining)} para ${name(r.to)}`;
@@ -1137,7 +1140,8 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
         g.items.length > 1 ? `*${name(g.from)}* paga ${formatBRL(g.items.reduce((a, r) => a + r.remaining, 0))} no total:` : `*${name(g.from)}* paga:`,
         ...g.items.map((r) => `- ${pay(r)}`),
       ]),
+      ...pix,
     ].join('\n');
   }
-  return [header(trip), 'Para ficar tudo quite:', '', ...list.map((r) => `- ${name(r.from)} paga ${pay(r)}`)].join('\n');
+  return [header(trip), 'Para ficar tudo quite:', '', ...list.map((r) => `- ${name(r.from)} paga ${pay(r)}`), ...pix].join('\n');
 }

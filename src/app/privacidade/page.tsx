@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 // E-mail de contato mostrado na página. Deixe vazio para não mostrar nenhum.
 const CONTACT_EMAIL = "rebecaoliveir2000@gmail.com";
-const UPDATED = "5 de novembro de 2026";
+const UPDATED = "11 de novembro de 2026";
 
 export default function Privacidade() {
   return (
@@ -40,8 +40,15 @@ export default function Privacidade() {
         </p>
         <p>
           <b>Viagens:</b> os nomes de quem vai, as despesas (valor, data, categoria, quem pagou) e os
-          pagamentos registrados também ficam <b>só neste aparelho</b>. O app não pede documentos, CPF nem
+          pagamentos registrados também ficam <b>só neste aparelho</b>. O app não pede documentos nem
           dados de cartão. Ao apagar a viagem, tudo isso sai do aparelho.
+        </p>
+        <p>
+          <b>Chave Pix:</b> é opcional. Se você puser a chave Pix de quem recebe (CPF, celular, e-mail ou
+          chave aleatória), ela fica guardada junto com a conta ou a viagem, aparece para quem vai pagar e vai
+          no texto e na notinha que você compartilhar. Este aparelho também lembra a chave pelo nome da
+          pessoa, para não precisar digitar de novo. O QR code e o &quot;Pix copia e cola&quot; são montados no
+          próprio celular; o pagamento é feito no app do seu banco, nunca pelo Racha Conta.
         </p>
       </section>
 
@@ -62,7 +69,8 @@ export default function Privacidade() {
         <h2>3. Rolês compartilhados</h2>
         <p>
           Num rolê compartilhado, os dados ficam guardados na nuvem para que todos vejam a mesma conta:
-          nomes, itens, valores, quem já pagou, o registro de alterações e a foto do rolê, se houver.
+          nomes, itens, valores, quem já pagou, as chaves Pix que alguém puser, o registro de alterações e a
+          foto do rolê, se houver. A chave Pix só aparece para quem está no grupo.
           Quem entra pelo link de convite pode usar o app <b>sem login</b>; nesse caso guardamos apenas o
           nome que a pessoa digitar.
         </p>

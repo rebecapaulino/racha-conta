@@ -316,7 +316,7 @@ export default function SoloApp({ areaSwitch }: { areaSwitch?: ReactNode }) {
         <button type="button" aria-pressed={divView === 'nota'} onClick={() => setDivView('nota')}>Por nota</button>
       </div>
       {divView === 'resumo' ? (
-        <GroupSummary bill={bill} dispatch={dispatch} toast={toast} onOpenNote={openNote} />
+        <GroupSummary bill={bill} dispatch={dispatch} toast={toast} onOpenNote={openNote} shared={!!state.shared} />
       ) : (
         <>
           {/* No computador a barra das notas já está em Pedidos, ao lado. */}

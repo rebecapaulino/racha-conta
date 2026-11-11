@@ -508,3 +508,13 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **A tela diz qual leitor rodou** ("Lido pelo leitor principal" ou o motivo de ter usado o reserva). Sem essa linha, o aparelho está com a versão antiga. Pode sair quando o iPhone estiver confirmado.
 - Com todas as fotos de teste (20): PaddleOCR 20 somas certas; Tesseract 14.
 - **"Acertou uma vez, depois não":** não reproduzido (6 leituras seguidas no Chrome e no WebKit, todas certas). Agora, se o leitor principal falhar, ele é recarregado e tenta de novo antes de cair no reserva (falha simulada: de R$ 128,00 para R$ 68,00). Causa no iPhone ainda não confirmada.
+
+## Pix de quem recebe — 11/11/2026
+
+- **Pedido:** a pessoa responsável pela conta deixa o Pix dela (chave ou QR code), para quem vai pagar já saber para onde mandar.
+- **Onde fica:** na pessoa (`pix` em `Person` e `Traveler`), não na conta: vale para todas as notas e todo o acerto. No grupo, todo mundo vê (só quem é do grupo). Chave guardada num formato só (CPF/CNPJ só números, celular com +55, e-mail e chave aleatória em minúsculas), de onde sai o tipo. Lógica em `src/core/pix.ts`, testada.
+- **Onde pôr:** Rolê, em "Quem pagou no caixa?" ("Pôr a chave" / "Trocar"); em qualquer card de quem paga ("+ Pix de Fulano"); na Viagem, também na janela da pessoa. Um número de 11 dígitos que pode ser CPF ou celular mostra "É CPF / É celular".
+- **Pagar:** o botão "Pix" no card abre o QR code e o **Pix copia e cola** (BR Code do Banco Central) **já com o valor** daquela pessoa, a chave para copiar, "Trocar a chave" e "Já paguei" (abre o registro do pagamento). QR desenhado no aparelho (`qrcode-generator`), preto no branco também no tema escuro. Nome no código sem acento; cidade "BRASIL" (os bancos não conferem).
+- **Texto e notinha:** o resumo do WhatsApp traz "Pix (celular): 11988887777" debaixo de "Pagar para…" (some quando todos pagaram); o resumo do grupo e o acerto da Viagem ganham o bloco "Pix de quem recebe". A notinha em imagem mostra a chave em "Pague para Fulano".
+- **Lembrar:** o aparelho guarda a última chave de cada nome (`racha-conta-pix`, até 20) e oferece "Usar a chave de antes" na próxima conta. Fica só no aparelho.
+- **Registro:** "Adicionou/Trocou/Tirou o Pix de Fulano", sem a chave. Política de Privacidade atualizada.

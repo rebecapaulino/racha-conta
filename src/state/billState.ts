@@ -25,6 +25,7 @@ import {
 } from '../core/bill';
 import { accountIn, canCoverIn } from '../core/settle';
 import { formatBRL } from '../core/money';
+import { isPixKey } from '../core/pix';
 
 /** Uma linha do registro de alterações da conta. */
 export interface LogEntry {
@@ -142,6 +143,8 @@ export type Action =
   | { type: 'unsettlePair'; from: string; to: string }
   /** Quem paga a parte da pessoa (null: ela mesma). */
   | { type: 'cover'; id: string; by: string | null }
+  /** Chave Pix da pessoa (null tira). */
+  | { type: 'pix'; id: string; pix: string | null }
   | { type: 'settleMode'; mode: SettleMode }
   | { type: 'reset' }
   | { type: 'open'; state: AppState }
@@ -495,6 +498,15 @@ function apply(state: AppState, action: Action): AppState {
       return next({ people: bill.people.map((p) => (p.id === action.id ? changed : p)) });
     }
 
+    case 'pix': {
+      const person = bill.people.find((p) => p.id === action.id);
+      if (!person || (action.pix !== null && !isPixKey(action.pix)) || (person.pix ?? null) === action.pix) return state;
+      const rest = { ...person };
+      delete rest.pix;
+      const changed = action.pix ? { ...rest, pix: action.pix } : rest;
+      return next({ people: bill.people.map((p) => (p.id === action.id ? changed : p)) });
+    }
+
     case 'settleMode': {
       const mode = action.mode === 'min' ? 'min' : undefined;
       if (bill.settleMode === mode) return state;
@@ -623,6 +635,11 @@ function describe(before: AppState, after: AppState, action: Action): string | n
     }
     case 'cover':
       return action.by ? `${person(action.by)} paga a parte de ${person(action.id)}` : `${person(action.id)} volta a pagar a própria parte`;
+    case 'pix': {
+      // A chave não vai para o registro: só que mudou.
+      const had = bill.people.find((p) => p.id === action.id)?.pix;
+      return `${!action.pix ? 'Tirou' : had ? 'Trocou' : 'Adicionou'} o Pix de ${person(action.id)}`;
+    }
     case 'removeNote':
       return `Apagou a nota ${(() => {
         const list = bill.notes ?? [];
@@ -710,7 +727,7 @@ export function isValidBill(b: unknown): b is Bill {
     Array.isArray(x.people) &&
     Array.isArray(x.items) &&
     (SERVICE_OPTIONS as readonly number[]).includes(x.servicePct) &&
-    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string') && (p.userId === undefined || typeof p.userId === 'string') && (p.auto === undefined || p.auto === true)) &&
+    x.people.every((p) => typeof p.id === 'string' && typeof p.name === 'string' && (p.coveredBy === undefined || typeof p.coveredBy === 'string') && (p.userId === undefined || typeof p.userId === 'string') && (p.auto === undefined || p.auto === true) && (p.pix === undefined || typeof p.pix === 'string')) &&
     (x.joined === undefined || (Array.isArray(x.joined) && x.joined.every((u) => typeof u === 'string'))) &&
     (x.settleMode === undefined || x.settleMode === 'direct' || x.settleMode === 'min') &&
     x.items.every(

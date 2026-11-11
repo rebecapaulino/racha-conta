@@ -320,3 +320,27 @@ describe('nota fiscal na despesa', () => {
     expect(trip(s).expenses[0].photos).toBeUndefined();
   });
 });
+
+describe('Pix na viagem', () => {
+  it('editar a pessoa guarda, troca e tira a chave; chave inválida é ignorada', () => {
+    let s = run(base(), { type: 'editTraveler', id: 'bia', pix: '52998224725' });
+    expect(trip(s).people.find((p) => p.id === 'bia')!.pix).toBe('52998224725');
+    s = run(s, { type: 'editTraveler', id: 'bia', pix: 'não é chave' });
+    expect(trip(s).people.find((p) => p.id === 'bia')!.pix).toBe('52998224725');
+    s = run(s, { type: 'editTraveler', id: 'bia', pix: null });
+    expect('pix' in trip(s).people.find((p) => p.id === 'bia')!).toBe(false);
+    expect(trip(s).log!.map((e) => e.text)).toEqual(expect.arrayContaining(['Adicionou o Pix de Bia', 'Tirou o Pix de Bia']));
+    expect(isValidTrip(trip(run(base(), { type: 'editTraveler', id: 'bia', pix: '52998224725' })))).toBe(true);
+  });
+
+  it('o acerto no WhatsApp traz o Pix de quem recebe', async () => {
+    const { tripSettleText } = await import('../core/trip');
+    const s = run(
+      base(),
+      { type: 'addExpense', id: 'e1', input: expense() },
+      { type: 'editTraveler', id: 'eu', pix: 'rebeca@x.com' },
+    );
+    const text = tripSettleText(trip(s), tripSummary(trip(s)), 'direct');
+    expect(text).toContain('*Pix de quem recebe*\n- Rebeca (e-mail): rebeca@x.com');
+  });
+});

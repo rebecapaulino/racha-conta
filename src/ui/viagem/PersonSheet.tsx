@@ -4,12 +4,15 @@ import { accountMembers, canCover, travelerUsage, type Traveler, type Trip } fro
 import type { TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
 import { IconTrash } from '../icons';
+import { PixField, usePixDraft } from '../Pix';
 import { Sheet } from './Sheet';
 
 interface Props {
   trip: Trip;
   meId: string | null;
   person: Traveler | null;
+  /** Viagem compartilhada (todo mundo do grupo vê o Pix). */
+  shared?: boolean;
   dispatch: Dispatch<TripAction>;
   toast: (msg: string) => void;
   onClose: () => void;
@@ -28,8 +31,9 @@ export function PersonSheet({ person, onClose, ...rest }: Props) {
   );
 }
 
-function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { person: Traveler }) {
+function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Props & { person: Traveler }) {
   const [name, setName] = useState(person.name);
+  const pix = usePixDraft(person.pix, person.name);
   const [isMe, setIsMe] = useState(person.id === meId);
   const [coveredBy, setCoveredBy] = useState(person.coveredBy ?? '');
   const sponsors = trip.people.filter((p) => canCover(trip, person.id, p.id));
@@ -65,7 +69,12 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
 
 
   function save() {
-    dispatch({ type: 'editTraveler', id: person.id, name, coveredBy: coveredBy || null });
+    const key = pix.resolve();
+    if (key === undefined) {
+      document.getElementById('person-edit-pix')?.focus();
+      return;
+    }
+    dispatch({ type: 'editTraveler', id: person.id, name, coveredBy: coveredBy || null, pix: key });
     if (isMe !== (person.id === meId)) dispatch({ type: 'setMe', id: isMe ? person.id : null });
     toast('Pessoa salva');
     onClose();
@@ -129,6 +138,9 @@ function PersonForm({ trip, meId, person, dispatch, toast, onClose }: Props & { 
           <p className="hint">{person.name} já paga a parte de {covers.map((p) => p.name).join(', ')}.</p>
         )}
       </div>
+
+      <PixField draft={pix} id="person-edit-pix" label={`Pix de ${name.trim() || person.name}`} />
+      {shared && pix.value.trim() && <p className="hint pix-shared">Todo mundo do grupo vê a chave, para pagar direto.</p>}
 
       <label className="scan-option">
         <input type="checkbox" checked={isMe} onChange={(e) => setIsMe(e.target.checked)} />

@@ -4,6 +4,7 @@
 import { formatBRL, splitEven, splitWeighted } from './money';
 import { newcomerName } from './faces';
 import { categoryEmoji } from './noteCategory';
+import { isPixKey, pixBlock, pixText } from './pix';
 import { accountIn, dropCoverage, minTransfers, netPairs, reconcilePlan, settleUp, type Balances, type PlanRow, type Transfer } from './settle';
 
 export { settleUp, type PlanRow, type Transfer };
@@ -31,6 +32,8 @@ export interface Person {
   userId?: string;
   /** Posta como pessoa nova por outro aparelho; a própria pessoa ainda não disse quem é. */
   auto?: true;
+  /** Chave Pix para receber (no formato de `parsePixKey`), para quem paga já ter onde mandar. */
+  pix?: string;
 }
 
 export interface Item {
@@ -572,6 +575,7 @@ export function summaryText(bill: Bill, result: SplitResult = computeSplit(bill)
   if (payer) {
     lines.push('');
     lines.push(`Pagar para *${payer.name}*, que pagou a conta.`);
+    if (payer.pix && isPixKey(payer.pix) && (!tracking || pay.remaining > 0)) lines.push(pixText(payer.pix));
   }
   if (tracking) {
     lines.push('');
@@ -620,6 +624,8 @@ export function groupSummaryText(bill: Bill, g: GroupSummary = groupSummary(bill
       else lines.push(`- ${account(r.from)} paga ${formatBRL(r.cents)} para ${name(r.to)}`);
     }
     if (!g.transfers.length) lines.push('Tudo acertado ✅');
+    const open = rows.filter((r) => r.remaining > 0).map((r) => r.to);
+    lines.push(...pixBlock(bill.people.filter((p) => open.includes(p.id))));
   }
   for (const n of g.withoutPayer) {
     lines.push('');

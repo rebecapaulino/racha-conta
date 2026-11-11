@@ -282,7 +282,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
 
   const newExpense = (payerId?: string) => setExpenseMode({ kind: 'new', ...(payerId ? { payerId } : {}) });
   const balances = (
-    <TripBalances trip={trip} summary={summary} meId={meId} fluent={fluent} dispatch={dispatch} toast={toast} onSettle={setSettling} />
+    <TripBalances trip={trip} summary={summary} meId={meId} fluent={fluent} dispatch={dispatch} toast={toast} onSettle={setSettling} shared={!!entry} />
   );
 
   // Foto de cada pessoa: pelas contas do grupo; e "você" (deste aparelho) com a foto da sua conta.
@@ -398,7 +398,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       />
       <ReceiptTargetSheet open={!!scan} trip={trip} meId={meId} onNew={scanToNew} onPick={scanToExpense} onCancel={scanCancel} />
       <PayForSheet key={`${trip.id}-${meId}`} open={!!payPeople} people={payPeople ?? []} meId={meId ?? ''} onAnswer={answerPay} />
-      <PersonSheet trip={trip} meId={meId} person={editing} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
+      <PersonSheet trip={trip} meId={meId} person={editing} shared={!!entry} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet people={trip.people} transfer={settling} onPay={settle} onClose={() => setSettling(null)} />
       <ShareSheet
         open={sharing}

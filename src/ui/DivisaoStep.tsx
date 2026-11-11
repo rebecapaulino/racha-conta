@@ -8,6 +8,7 @@ import { IconAlert, IconArrowRight, IconChat, IconCheck, IconChevron, IconCopy, 
 import { SettleSheet, type SettleTarget } from './viagem/SettleSheet';
 import { Signed } from './viagem/Signed';
 import { Art } from './illustrations';
+import { PixOwner, PixPay } from './Pix';
 import { renderReceipt } from './receiptImage';
 import { unassignedText } from './unassigned';
 import { useReceiptUrl } from './viagem/useReceiptUrl';
@@ -178,6 +179,7 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, groupId 
                   total={result.total}
                   dispatch={dispatch}
                   onPay={setPaying}
+                  shared={!!groupId}
                   position={result.shares.length > 1 ? `${at + 1} de ${result.shares.length}` : ''}
                   next={next ? { name: next.person.name, go: () => go(at + 1, false) } : null}
                   prev={prev ? { name: prev.person.name, go: () => go(at - 1, true) } : null}
@@ -224,6 +226,7 @@ export function DivisaoStep({ bill, result, startedAt, billId, photoId, groupId 
               );
             })}
           </div>
+          {payer && <PixOwner person={payer} shared={!!groupId} onSave={(pix) => dispatch({ type: 'pix', id: payer.id, pix })} />}
           {payer && result.shares.length > 1 && (
             <p className="callout">
               <b>{payer.name}</b> recebe <b className="num">{formatBRL(result.total - payOf(payer.id).share.total)}</b> dos outros
@@ -502,6 +505,7 @@ function PersonCard({
   total,
   dispatch,
   onPay,
+  shared,
   position,
   next,
   prev,
@@ -514,6 +518,8 @@ function PersonCard({
   dispatch: Dispatch<Action>;
   /** Abre a janela para digitar quanto pagou. */
   onPay: (t: SettleTarget) => void;
+  /** Rolê compartilhado (todo mundo do grupo vê o Pix). */
+  shared: boolean;
   position: string;
   next: { name: string; go: () => void } | null;
   prev: { name: string; go: () => void } | null;
@@ -583,6 +589,16 @@ function PersonCard({
                 >
                   <IconCheck size={16} /> {state === 'partial' ? 'Pagar o resto' : 'Pago'}
                 </button>
+                {payer && !on && (
+                  <PixPay
+                    to={payer}
+                    from={name}
+                    cents={left}
+                    shared={shared}
+                    onSave={(pix) => dispatch({ type: 'pix', id: payer.id, pix })}
+                    onPaid={() => onPay({ from: id, to: payer.id, cents: left })}
+                  />
+                )}
               </span>
             </span>
           </li>

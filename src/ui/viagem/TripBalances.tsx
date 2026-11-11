@@ -23,10 +23,12 @@ interface Props {
   dispatch: Dispatch<TripAction>;
   toast: (msg: string, undo?: () => void) => void;
   onSettle: (t: SettleTarget) => void;
+  /** Viagem compartilhada (todo mundo do grupo vê o Pix). */
+  shared?: boolean;
 }
 
 /** Saldos: quem paga quem para ficar quite, o saldo de cada um, os gastos por categoria e o resumo. */
-export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onSettle }: Props) {
+export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onSettle, shared }: Props) {
   const [kind, setKind] = useState<'acerto' | 'saldos'>('acerto');
   const [logOpen, setLogOpen] = useState(false);
   const person = (id: string) => trip.people.find((p) => p.id === id)!;
@@ -183,6 +185,8 @@ export function TripBalances({ trip, summary, meId, fluent, dispatch, toast, onS
               onUnpay={unpay}
               carousel
               expenseOf={(id) => trip.expenses.find((e) => e.id === id)}
+              shared={shared}
+              onPix={(id, pix) => dispatch({ type: 'editTraveler', id, pix })}
             />
           </>
         )}

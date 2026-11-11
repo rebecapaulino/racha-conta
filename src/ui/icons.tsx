@@ -130,3 +130,10 @@ export const IconMoon = ({ size = 20 }: P) => (
 export const IconDownload = ({ size = 20 }: P) => (
   <svg {...stroke(size)}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
 );
+/** QR code (pagar com Pix). */
+export const IconQr = ({ size = 20 }: P) => (
+  <svg {...stroke(size)}>
+    <rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" />
+    <path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 19v1M19 14h1" />
+  </svg>
+);

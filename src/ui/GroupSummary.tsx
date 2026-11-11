@@ -16,10 +16,12 @@ interface Props {
   toast: (msg: string, undo?: () => void) => void;
   /** Abre a nota na visão "Por nota" (para escolher quem pagou, por exemplo). */
   onOpenNote: (noteId: string) => void;
+  /** Rolê compartilhado (todo mundo do grupo vê o Pix). */
+  shared?: boolean;
 }
 
 /** Resumo do grupo: quem paga para quem, quanto cada um gastou e as notas. */
-export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
+export function GroupSummary({ bill, dispatch, toast, onOpenNote, shared }: Props) {
   const g = groupSummary(bill);
   const name = (id: string) => bill.people.find((p) => p.id === id)!;
   const settled = bill.settled ?? [];
@@ -87,7 +89,16 @@ export function GroupSummary({ bill, dispatch, toast, onOpenNote }: Props) {
             {g.transfers.length === 0 && (
               <p className="all-square" role="status"><IconCheck size={16} /> Tudo pago! Está todo mundo quite.</p>
             )}
-            <SettleList people={bill.people} rows={rows} meId={null} onSettle={setPaying} onUnpay={unpay} carousel />
+            <SettleList
+              people={bill.people}
+              rows={rows}
+              meId={null}
+              onSettle={setPaying}
+              onUnpay={unpay}
+              carousel
+              shared={shared}
+              onPix={(id, pix) => dispatch({ type: 'pix', id, pix })}
+            />
           </>
         ) : anyPayer ? (
           <p className="scan-check ok"><IconCheck size={16} /> Tudo acertado entre o grupo.</p>

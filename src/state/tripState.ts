@@ -2,6 +2,7 @@
 // é a pessoa deste aparelho em cada uma. Os cálculos ficam em core/trip.ts.
 
 import { formatBRL } from '../core/money';
+import { isPixKey } from '../core/pix';
 import { MAX_NAME, PERSON_COLORS } from '../core/bill';
 import {
   addExpense,
@@ -70,7 +71,7 @@ export type TripAction =
   | { type: 'deleteTrip'; id: string }
   | { type: 'addTraveler'; id: string; name: string; weight?: number }
   /** coveredBy: quem paga a parte dela (null: ela mesma). */
-  | { type: 'editTraveler'; id: string; name?: string; weight?: number; coveredBy?: string | null }
+  | { type: 'editTraveler'; id: string; name?: string; weight?: number; coveredBy?: string | null; /** Chave Pix (null tira). */ pix?: string | null }
   /** Remove a pessoa. Se ela tem despesas, `to` diz para quem elas passam. */
   | { type: 'removeTraveler'; id: string; to?: string }
   /** Passa para `to` tudo o que está no nome de `from` (despesas, partes, acertos); `from` fica na viagem. */
@@ -186,6 +187,8 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       if (b.coveredBy !== n.coveredBy) {
         return n.coveredBy ? `${who(after, n.coveredBy)} paga a parte de ${n.name} na viagem toda` : `${n.name} volta a pagar a própria parte`;
       }
+      // A chave não vai para o registro: só que mudou.
+      if (b.pix !== n.pix) return `${!n.pix ? 'Tirou' : b.pix ? 'Trocou' : 'Adicionou'} o Pix de ${n.name}`;
       return null;
     }
     case 'transferTraveler':
@@ -426,6 +429,8 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
           const next: Traveler = { ...p, name, weight };
           if (a.coveredBy === null) delete next.coveredBy;
           else if (a.coveredBy !== undefined && canCover(t, p.id, a.coveredBy)) next.coveredBy = a.coveredBy;
+          if (a.pix === null) delete next.pix;
+          else if (a.pix !== undefined && isPixKey(a.pix)) next.pix = a.pix;
           return next;
         }),
       }));
@@ -554,7 +559,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.start === undefined || (isStr(t.start) && DATE.test(t.start))) &&
     (t.end === undefined || (isStr(t.end) && DATE.test(t.end))) &&
     Array.isArray(t.people) &&
-    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy)) && (p.userId === undefined || isStr(p.userId)) && (p.auto === undefined || p.auto === true)) &&
+    t.people.every((p) => isObj(p) && isStr(p.id) && isStr(p.name) && isInt(p.color) && validWeight(p.weight as number) && (p.coveredBy === undefined || isStr(p.coveredBy)) && (p.userId === undefined || isStr(p.userId)) && (p.auto === undefined || p.auto === true) && (p.pix === undefined || isStr(p.pix))) &&
     Array.isArray(t.expenses) && t.expenses.every(isValidExpense) &&
     Array.isArray(t.settlements) &&
     t.settlements.every((x) => isObj(x) && isStr(x.id) && isStr(x.from) && isStr(x.to) && isInt(x.cents, 1) && isStr(x.at) && (x.expenseId === undefined || isStr(x.expenseId)) && (x.expenseIds === undefined || (Array.isArray(x.expenseIds) && x.expenseIds.every(isStr)))) &&
