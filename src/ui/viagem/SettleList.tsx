@@ -11,7 +11,7 @@ import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
 
 /** Uma linha do acerto (Viagem: pode ser a parcela de uma despesa). */
-export type ListRow = PlanRow & { expenseId?: string; installments?: number };
+export type ListRow = PlanRow & { expenseId?: string; installments?: number; parts?: number[] };
 
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
 const glued = (cents: number) => formatBRL(cents).replace(' ', ' ');
@@ -54,10 +54,11 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
   /** Uma linha: quem paga → quem recebe, o valor, as parcelas e o botão de pago. */
   function row(r: ListRow, side: 'out' | 'in') {
     const done = r.remaining === 0;
-    const inst = r.installments && r.installments > 1 ? installmentInfo(r.cents, r.paid, r.installments) : null;
+    const inst = r.installments && r.installments > 1 ? installmentInfo(r.cents, r.paid, r.installments, r.parts) : null;
     const expense = r.expenseId ? expenseOf?.(r.expenseId) : undefined;
     const payNow = inst && inst.next > 0 ? inst.next : r.remaining;
     const label = expense && inst ? `${expense.description} · parcela ${inst.paidCount + 1} de ${inst.count}` : undefined;
+    const payLabel = inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago';
     const settle = () => onSettle({ from: r.from, to: r.to, cents: payNow, ...(r.expenseId ? { expenseId: r.expenseId, label } : {}) });
     return (
       <li key={`${r.from}-${r.to}-${r.expenseId ?? ''}`} className={`pay-item${done ? ' is-paid' : ''}${inst ? ' is-split' : ''}`}>
@@ -101,32 +102,31 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
               <span className="amt-pos">já pagou {glued(r.paid)}</span> de {glued(r.cents)}
             </small>
           )}
-          <span className="pay-actions">
-            {done ? (
-              <button
-                type="button"
-                className="btn secondary settle-btn is-paid"
-                aria-pressed="true"
-                onClick={() => onUnpay(r)}
-                aria-label={`Pago: ${called(r.from)} pagou ${formatBRL(r.cents)} para ${called(r.to, true)}. Toque para desmarcar`}
-              >
-                <IconCheck size={16} /> Pago
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn secondary settle-btn"
-                onClick={settle}
-                aria-label={`${inst ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
-              >
-                <IconCheck size={16} />{' '}
-                {inst ? `Pagar ${inst.paidCount + 1}/${inst.count}` : r.paid > 0 ? 'Pagar o resto' : 'Pago'}
-              </button>
-            )}
-            {!done && onPix && (
-              <PixPay to={person(r.to)} from={called(r.from)} cents={payNow} shared={shared} onSave={(pix) => onPix(r.to, pix)} onPaid={settle} />
-            )}
-          </span>
+        </span>
+        <span className="pay-actions">
+          {done ? (
+            <button
+              type="button"
+              className="btn secondary settle-btn is-paid"
+              aria-pressed="true"
+              onClick={() => onUnpay(r)}
+              aria-label={`Pago: ${called(r.from)} pagou ${formatBRL(r.cents)} para ${called(r.to, true)}. Toque para desmarcar`}
+            >
+              <IconCheck size={16} /> Pago
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`btn secondary settle-btn${payLabel.length > 9 ? ' is-long' : ''}`}
+              onClick={settle}
+              aria-label={`${inst ? `Parcela ${inst.paidCount + 1} de ${inst.count}. ` : ''}Registrar: ${called(r.from)} pagou ${formatBRL(payNow)} para ${called(r.to, true)}`}
+            >
+              <IconCheck size={16} /> {payLabel}
+            </button>
+          )}
+          {!done && onPix && (
+            <PixPay to={person(r.to)} from={called(r.from)} cents={payNow} shared={shared} onSave={(pix) => onPix(r.to, pix)} onPaid={settle} />
+          )}
         </span>
       </li>
     );

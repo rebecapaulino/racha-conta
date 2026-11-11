@@ -7,13 +7,16 @@ import {
   findDuplicate,
   installmentInfo,
   installmentsOf,
+  joinSchedule,
   MAX_DESCRIPTION,
   MAX_INSTALLMENTS,
   photoFields,
   splitExpense,
   TRIP_CATEGORIES,
+  tripSummary,
   type Expense,
   type ExpenseInput,
+  type JoinMode,
   type SplitMode,
   type Trip,
   type TripCategory,
@@ -100,6 +103,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const [dupOk, setDupOk] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Alguém entrou numa despesa parcelada já em andamento: quantas parcelas passaram (null: ainda não perguntou).
+  const [elapsed, setElapsed] = useState<number | null>(null);
+  const joinRef = useRef<HTMLDivElement>(null);
 
   // Quem pagou também paga a parte de alguém? Vale só nesta despesa (padrão) ou na viagem toda,
   // como a pessoa escolher. Quem já está na conta de quem pagou na viagem toda não aparece.
@@ -222,7 +228,21 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     go(at + 1);
   }
 
-  function save() {
+  // Quem entrou agora numa despesa parcelada (editando, mesmo número de parcelas, sem valores exatos).
+  const joined = editing && installmentsOf(editing) > 1 && parts === installmentsOf(editing) && split !== 'exact' ? who.filter((id) => !editing.people.includes(id)) : [];
+
+  /** Parcelas que já passaram: as registradas como pagas no acerto ou os meses desde a compra (a maior). */
+  function guessElapsed(e: Expense): number {
+    const n = installmentsOf(e);
+    const rows = tripSummary(trip).plan.direct.filter((r) => r.expenseId === e.id);
+    const paid = Math.max(0, ...rows.map((r) => installmentInfo(r.cents, r.paid, n, r.parts).paidCount));
+    const [y, m] = e.date.split('-').map(Number);
+    const now = new Date();
+    const months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
+    return Math.max(0, Math.min(n - 1, Math.max(paid, months)));
+  }
+
+  function save(mode?: JoinMode) {
     if (needAmount()) return;
     const r = splitExpense(input, people, seq);
     if (!r.ok) {
@@ -236,13 +256,20 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
       requestAnimationFrame(() => dupRef.current?.focus());
       return;
     }
+    // Entrou alguém numa parcelada: pergunta antes como dividir (o que falta ou desde o início).
+    if (editing && joined.length && !mode) {
+      setElapsed((k) => k ?? guessElapsed(editing));
+      requestAnimationFrame(() => joinRef.current?.focus());
+      return;
+    }
+    const schedule = editing && mode && elapsed ? joinSchedule(editing, input, people, elapsed, mode) : null;
     // Na viagem toda: a pessoa entra na conta de quem pagou (como em Pessoas), antes da despesa.
     for (const id of dropped) dispatch({ type: 'editTraveler', id, coveredBy: null });
     if (cover.scope === 'trip') {
       for (const id of cover.ids) dispatch({ type: 'editTraveler', id, coveredBy: payerId });
     }
     if (editing) {
-      dispatch({ type: 'editExpense', id: editing.id, input });
+      dispatch({ type: 'editExpense', id: editing.id, input: schedule ? { ...input, schedule } : input });
       toast(trip.settlements.length ? 'Despesa salva. Os saldos mudaram: confira o acerto.' : 'Despesa salva');
     } else {
       dispatch({ type: 'addExpense', id: newId(), input });
@@ -251,6 +278,71 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     onClose();
     onSaved?.();
   }
+
+  const nameOf = (id: string) => (id === meId ? 'você' : people.find((p) => p.id === id)?.name ?? 'quem pagou');
+  // "Deseja redividir o valor restante, ou dividir tudo desde o início?", com os valores de cada jeito.
+  const joinAsk = (() => {
+    if (!editing || !joined.length || elapsed === null) return null;
+    const n = installmentsOf(editing);
+    const k = elapsed;
+    const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+    const names = joined.map(nameOf);
+    const newcomers = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0];
+    const one = joined[0];
+    const stayer = who.find((id) => editing.people.includes(id) && id !== payerId) ?? who.find((id) => editing.people.includes(id));
+    const rest = k ? joinSchedule(editing, input, people, k, 'rest') : null;
+    const all = k ? joinSchedule(editing, input, people, k, 'all') : null;
+    return (
+      <div className="confirm join-ask" role="group" aria-labelledby="h-join" ref={joinRef} tabIndex={-1}>
+        <p id="h-join">
+          <b>{cap(newcomers)} {joined.length > 1 ? 'entraram' : 'entrou'} numa despesa parcelada.</b> Como dividir?
+        </p>
+        <div className="join-elapsed">
+          <span id="h-join-k">Parcelas que já passaram</span>
+          <div className="stepper" role="group" aria-labelledby="h-join-k">
+            <button type="button" onClick={() => setElapsed(Math.max(0, k - 1))} disabled={k <= 0} aria-label="Menos parcelas passadas">
+              <IconMinus size={18} />
+            </button>
+            <output aria-live="polite">{k} de {n}</output>
+            <button type="button" onClick={() => setElapsed(Math.min(n - 1, k + 1))} disabled={k >= n - 1} aria-label="Mais parcelas passadas">
+              <IconPlus size={18} />
+            </button>
+          </div>
+        </div>
+        {!rest || !all ? (
+          <>
+            <p className="hint">Nenhuma parcela passou ainda: todos dividem igual desde a primeira.</p>
+            <button type="button" className="btn primary" onClick={() => save('all')}>Salvar</button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="join-option" onClick={() => save('rest')}>
+              <b>Redividir o valor restante</b>
+              <small>
+                As {k} {k === 1 ? 'parcela que já passou fica' : 'parcelas que já passaram ficam'} com quem estava. Nas {n - k} que faltam, cada um paga{' '}
+                {formatBRL(rest[one][k])} por mês.
+              </small>
+            </button>
+            <button type="button" className="join-option" onClick={() => save('all')}>
+              <b>Dividir tudo desde o início</b>
+              <small>
+                {cap(newcomers)} {joined.length > 1 ? 'pagam' : 'paga'} {formatBRL(all[one][k])} na próxima parcela (a parte {k === 1 ? 'da que passou' : `das ${k} que passaram`}{' '}
+                + a da próxima)
+                {stayer && (
+                  <>
+                    {' '}e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${formatBRL(all[stayer][k])}` : 'não paga nada nesse mês'}, porque já pagou a mais
+                  </>
+                )}
+                .
+                {k + 1 < n && <> Depois, todos {formatBRL(all[one][k + 1])} por mês.</>}
+              </small>
+            </button>
+          </>
+        )}
+        <button type="button" className="btn ghost" onClick={() => setElapsed(null)}>Voltar</button>
+      </div>
+    );
+  })();
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -268,7 +360,6 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     onClose();
   }
 
-  const nameOf = (id: string) => (id === meId ? 'você' : people.find((p) => p.id === id)?.name ?? 'quem pagou');
   const payerName = people.find((p) => p.id === payerId)?.name;
   const dupPayer = duplicate && people.find((p) => p.id === duplicate.payerId)?.name;
 
@@ -653,6 +744,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
           </>
         )}
       </div>
+
+      {joinAsk}
 
       <p className="field-error" role="alert">{error}</p>
 

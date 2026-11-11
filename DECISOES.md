@@ -518,3 +518,11 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Texto e notinha:** o resumo do WhatsApp traz "Pix (celular): 11988887777" debaixo de "Pagar para…" (some quando todos pagaram); o resumo do grupo e o acerto da Viagem ganham o bloco "Pix de quem recebe". A notinha em imagem mostra a chave em "Pague para Fulano".
 - **Lembrar:** o aparelho guarda a última chave de cada nome (`racha-conta-pix`, até 20) e oferece "Usar a chave de antes" na próxima conta. Fica só no aparelho.
 - **Registro:** "Adicionou/Trocou/Tirou o Pix de Fulano", sem a chave. Política de Privacidade atualizada.
+
+## Botões do acerto e alguém que entra numa parcelada — 11/11/2026
+
+- **Botões do card** (Rolê e Viagem): "Pago" / "Pagar 3/5" e "Pix" ficam embaixo de quem recebe, na largura do card, em duas colunas iguais, com o texto numa linha só. Em celular abaixo de 375 px, "Pagar o resto" e "Pagar 12/24" perdem o ✓ e diminuem um pouco a letra; abaixo de 345 px, todos sem o ✓.
+- **Entrou alguém numa despesa parcelada** (editar a despesa, marcar a pessoa nova e salvar): o app pergunta antes de gravar, com "Parcelas que já passaram" (palpite: a maior entre as parcelas registradas como pagas e os meses desde a data da despesa; dá para ajustar):
+  - **Redividir o valor restante:** as parcelas que passaram ficam com quem estava; as que faltam são divididas entre todos (quem entrou começa na parcela seguinte).
+  - **Dividir tudo desde o início:** todos ficam com a parte da despesa inteira. Na próxima parcela, quem entrou paga também a parte dele das que passaram, e quem estava paga menos (ou nada, se já pagou a mais); depois, todos iguais.
+- **Como guarda:** a despesa ganha `schedule` (quanto cada participante paga em cada parcela; soma = a parte dele). O acerto usa essas parcelas (`installmentInfo(…, parts)`); parcela de zero conta como paga. Mudar só nome, data, categoria ou fotos mantém as parcelas; mudar valor, pessoas, divisão ou número de parcelas volta às parcelas iguais. "Assumir despesas" soma as parcelas de quem sai em quem fica. Não pergunta com valores exatos, com o número de parcelas mudado ou com nenhuma parcela passada. Registro: "Caio entrou em Airbnb · parcelas reajustadas". Lógica em `joinSchedule` (trip.ts), testada.

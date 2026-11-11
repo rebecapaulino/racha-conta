@@ -215,6 +215,11 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
       const [b, e] = [exp(before, a.id), exp(after, a.id)];
       if (!b || !e) return null;
       if (b.cents !== e.cents) return `Editou ${e.description}: ${formatBRL(b.cents)} → ${formatBRL(e.cents)}`;
+      const joined = e.people.filter((id) => !b.people.includes(id)).map((id) => who(after, id));
+      if (joined.length) {
+        const names = joined.length > 1 ? `${joined.slice(0, -1).join(', ')} e ${joined.at(-1)}` : joined[0];
+        return `${names} ${joined.length > 1 ? 'entraram' : 'entrou'} em ${e.description}${e.schedule && JSON.stringify(e.schedule) !== JSON.stringify(b.schedule) ? ' · parcelas reajustadas' : ''}`;
+      }
       const [nb, ne] = [expensePhotos(b).length, expensePhotos(e).length];
       if (ne > nb) return ne - nb === 1 ? `Adicionou uma foto em ${e.description}` : `Adicionou ${ne - nb} fotos em ${e.description}`;
       if (ne < nb) return nb - ne === 1 ? `Tirou uma foto de ${e.description}` : `Tirou ${nb - ne} fotos de ${e.description}`;
@@ -517,6 +522,7 @@ function cleanInput(input: ExpenseInput): ExpenseInput {
   if (input.split !== 'exact') delete out.exact;
   if (installmentsOf(input) === 1) delete out.installments;
   if (!out.coveredBy || !Object.keys(out.coveredBy).length) delete out.coveredBy;
+  if (!isObj(out.schedule)) delete out.schedule;
   // Fotos: a primeira em `receipt`, as outras em `photos` (sem repetir, só nomes válidos).
   const photos = expensePhotos(out).filter((p) => PHOTO_ID.test(p));
   delete out.receipt;
@@ -547,6 +553,7 @@ function isValidExpense(e: unknown): e is Expense {
     (e.settled === undefined || e.settled === true) &&
     (e.installments === undefined || (isInt(e.installments, 2) && (e.installments as number) <= MAX_INSTALLMENTS)) &&
     (e.coveredBy === undefined || (isObj(e.coveredBy) && Object.values(e.coveredBy).every(isStr))) &&
+    (e.schedule === undefined || (isObj(e.schedule) && Object.values(e.schedule).every((list) => Array.isArray(list) && list.every((c) => isInt(c))))) &&
     (e.receipt === undefined || (isStr(e.receipt) && PHOTO_ID.test(e.receipt))) &&
     (e.photos === undefined || (Array.isArray(e.photos) && e.photos.every((p) => isStr(p) && PHOTO_ID.test(p))))
   );

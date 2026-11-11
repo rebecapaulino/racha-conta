@@ -160,7 +160,7 @@ function draw(ctx: CanvasRenderingContext2D, { trip, summary, mode }: Input, top
   /** Despesa parcelada: "Airbnb · parcela 2 de 6 de R$ 33,34". */
   const splitLine = (r: SettleRow) => {
     if (!r.expenseId || !r.installments) return '';
-    const i = installmentInfo(r.cents, r.paid, r.installments);
+    const i = installmentInfo(r.cents, r.paid, r.installments, r.parts);
     const what = trip.expenses.find((e) => e.id === r.expenseId)?.description ?? 'Despesa';
     return `${what} · parcela ${i.paidCount + 1} de ${i.count} de ${formatBRL(i.next)}`;
   };

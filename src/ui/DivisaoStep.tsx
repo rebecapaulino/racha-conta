@@ -579,27 +579,27 @@ function PersonCard({
               )}
               {state === 'partial' && <small className="pay-partial"><span className="amt-pos">já pagou {formatBRL(paid)}</span> de {formatBRL(due)}</small>}
               {state === 'over' && <small className="pay-partial">Pagou {formatBRL(-owed)} a mais</small>}
-              <span className="pay-actions">
-                <button
-                  type="button"
-                  className={`btn secondary settle-btn${on ? ' is-paid' : ''}`}
-                  aria-pressed={on}
-                  aria-label={on ? `${name} já pagou ${formatBRL(due)}. Toque para desmarcar` : `Marcar que ${name} já pagou ${formatBRL(due)}`}
-                  onClick={() => (on ? set(false) : onPay({ from: id, to: payer?.id ?? null, cents: left }))}
-                >
-                  <IconCheck size={16} /> {state === 'partial' ? 'Pagar o resto' : 'Pago'}
-                </button>
-                {payer && !on && (
-                  <PixPay
-                    to={payer}
-                    from={name}
-                    cents={left}
-                    shared={shared}
-                    onSave={(pix) => dispatch({ type: 'pix', id: payer.id, pix })}
-                    onPaid={() => onPay({ from: id, to: payer.id, cents: left })}
-                  />
-                )}
-              </span>
+            </span>
+            <span className="pay-actions">
+              <button
+                type="button"
+                className={`btn secondary settle-btn${on ? ' is-paid' : ''}${state === 'partial' ? ' is-long' : ''}`}
+                aria-pressed={on}
+                aria-label={on ? `${name} já pagou ${formatBRL(due)}. Toque para desmarcar` : `Marcar que ${name} já pagou ${formatBRL(due)}`}
+                onClick={() => (on ? set(false) : onPay({ from: id, to: payer?.id ?? null, cents: left }))}
+              >
+                <IconCheck size={16} /> {state === 'partial' ? 'Pagar o resto' : 'Pago'}
+              </button>
+              {payer && !on && (
+                <PixPay
+                  to={payer}
+                  from={name}
+                  cents={left}
+                  shared={shared}
+                  onSave={(pix) => dispatch({ type: 'pix', id: payer.id, pix })}
+                  onPaid={() => onPay({ from: id, to: payer.id, cents: left })}
+                />
+              )}
             </span>
           </li>
         </ul>

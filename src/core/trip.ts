@@ -71,6 +71,12 @@ export interface ExpenseInput {
    */
   installments?: number;
   /**
+   * Parcelada em que alguém entrou com as parcelas já em andamento: quanto cada participante
+   * paga em cada parcela (soma = a parte dele). Sem o campo, cada um paga a parte em parcelas
+   * iguais. Ver `joinSchedule`.
+   */
+  schedule?: Record<string, number[]>;
+  /**
    * Quem paga a parte de quem só nesta despesa (o Mauricio paga a da Lara só no jantar):
    * participante → quem paga. A despesa continua no nome de quem consumiu; no acerto, essa
    * parte entra na conta de quem paga. Para valer na viagem toda, é o `coveredBy` da pessoa.
@@ -207,9 +213,10 @@ export const installmentsOf = (e: Pick<ExpenseInput, 'installments'>) =>
  * pago, quantas estão quitadas e quanto falta da próxima. Pagou um valor quebrado? A conta
  * segue pelo acumulado: R$ 30 de 3x R$ 20 = 1 parcela paga e faltam R$ 10 da segunda.
  */
-export function installmentInfo(cents: number, paid: number, count: number): InstallmentInfo {
+export function installmentInfo(cents: number, paid: number, count: number, given?: number[]): InstallmentInfo {
   const n = Math.max(1, Math.min(MAX_INSTALLMENTS, Math.floor(count)));
-  const parts = splitEven(cents, n);
+  // Parcelas combinadas (alguém entrou depois): valem se fecharem o total. Parcela de zero conta como paga.
+  const parts = given?.length === n && given.reduce((a, c) => a + c, 0) === cents ? given : splitEven(cents, n);
   let acc = 0;
   let paidCount = 0;
   for (const p of parts) {
@@ -219,6 +226,98 @@ export function installmentInfo(cents: number, paid: number, count: number): Ins
   }
   const next = paidCount < n ? acc + parts[paidCount] - paid : 0;
   return { count: n, parts, paidCount, next: Math.max(0, Math.min(next, cents - paid)) };
+}
+
+const sum = (list: number[]) => list.reduce((a, c) => a + c, 0);
+
+/** As parcelas combinadas da despesa, se ainda fecharem com as partes de cada um; senão, null. */
+export function scheduleOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>): Record<string, number[]> | null {
+  const s = e.schedule;
+  const n = installmentsOf(e);
+  if (!s || n < 2) return null;
+  const ids = Object.keys(e.shares);
+  if (ids.length !== Object.keys(s).length) return null;
+  for (const id of ids) {
+    const parts = s[id];
+    if (!Array.isArray(parts) || parts.length !== n || parts.some((c) => !Number.isSafeInteger(c) || c < 0) || sum(parts) !== e.shares[id]) return null;
+  }
+  return s;
+}
+
+/** Quanto a pessoa paga em cada parcela da despesa (as combinadas, ou a parte em parcelas iguais). */
+function partsOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>, id: string): number[] {
+  const n = installmentsOf(e);
+  return scheduleOf(e)?.[id] ?? splitEven(Object.hasOwn(e.shares, id) ? e.shares[id] : 0, n);
+}
+
+/**
+ * Como dividir quando alguém entra numa despesa parcelada com parcelas já passadas:
+ * - 'rest' (redividir o que falta): as parcelas que passaram ficam com quem estava; o que falta
+ *   é dividido entre todos, e quem entrou paga só as parcelas que faltam.
+ * - 'all' (dividir tudo desde o início): todo mundo fica com a parte da despesa inteira. Na
+ *   próxima parcela, quem entrou paga também a parte dele das que passaram, e quem estava paga
+ *   menos (o que pagou a mais volta ali); depois, todos iguais.
+ */
+export type JoinMode = 'rest' | 'all';
+
+/**
+ * As parcelas de cada participante depois que entrou gente (`elapsed` = parcelas que já
+ * passaram). null quando não precisa (nenhuma passou, número de parcelas mudou ou valores exatos).
+ */
+export function joinSchedule(
+  old: Expense,
+  input: ExpenseInput,
+  people: Traveler[],
+  elapsed: number,
+  mode: JoinMode,
+): Record<string, number[]> | null {
+  const n = installmentsOf(input);
+  const k = Math.max(0, Math.min(n - 1, Math.floor(elapsed)));
+  if (n < 2 || installmentsOf(old) !== n || k === 0 || input.split === 'exact') return null;
+  const full = splitExpense(input, people, old.seq);
+  if (!full.ok) return null;
+  const ids = Object.keys(full.shares);
+  const out: Record<string, number[]> = {};
+  if (mode === 'all') {
+    for (const id of ids) {
+      const share = full.shares[id];
+      const target = splitEven(share, n);
+      const before = partsOf(old, id);
+      const parts: number[] = [];
+      let paid = 0;
+      let due = 0;
+      for (let m = 0; m < n; m++) {
+        due += target[m];
+        // Até a última que passou, o que já estava combinado; depois, alcança o que devia até ali.
+        const want = m < k ? before[m] : due - paid;
+        const c = Math.max(0, Math.min(want, share - paid));
+        parts.push(c);
+        paid += c;
+      }
+      parts[n - 1] += share - paid;
+      out[id] = parts;
+    }
+    return out;
+  }
+  const past = Object.fromEntries(ids.map((id) => [id, partsOf(old, id).slice(0, k)]));
+  const rest = input.cents - ids.reduce((a, id) => a + sum(past[id]), 0);
+  if (rest < 0) return null;
+  const split = rest > 0 ? splitExpense({ ...input, cents: rest }, people, old.seq) : null;
+  if (rest > 0 && !split?.ok) return null;
+  for (const id of ids) {
+    const mine = split?.ok ? split.shares[id] : 0;
+    out[id] = [...past[id], ...splitEven(mine, n - k)];
+  }
+  return out;
+}
+
+/** O que muda na divisão (valor, quem participa, como divide, parcelas): sem mudança, as parcelas combinadas continuam. */
+function sameSplit(a: ExpenseInput, b: ExpenseInput): boolean {
+  const ids = (x: ExpenseInput) => [...x.people].sort().join();
+  return (
+    a.cents === b.cents && a.split === b.split && installmentsOf(a) === installmentsOf(b) && ids(a) === ids(b) &&
+    JSON.stringify(a.exact ?? {}) === JSON.stringify(b.exact ?? {})
+  );
 }
 
 /**
@@ -304,6 +403,7 @@ export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: str
   const r = splitExpense(input, trip.people, seq);
   if (!r.ok) return r;
   const expense: Expense = { ...input, id, seq, shares: r.shares, createdAt: now };
+  delete expense.schedule;
   if (!input.photos?.length) delete expense.photos;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
@@ -318,6 +418,16 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   const r = splitExpense(input, trip.people, old.seq);
   if (!r.ok) return r;
   const expense: Expense = { ...old, ...input, shares: r.shares, updatedAt: now };
+  delete expense.schedule;
+  // Parcelas combinadas: as novas (alguém entrou), ou as de antes se a divisão não mudou.
+  const schedule = input.schedule ?? (sameSplit(old, input) ? old.schedule : undefined);
+  if (schedule) {
+    const shares = Object.fromEntries(Object.keys(r.shares).map((pid) => [pid, Array.isArray(schedule[pid]) ? sum(schedule[pid]) : -1]));
+    if (sum(Object.values(shares)) === input.cents && scheduleOf({ schedule, shares, installments: input.installments })) {
+      expense.schedule = schedule;
+      expense.shares = shares;
+    }
+  }
   if (input.split !== 'exact') delete expense.exact;
   // Voltou para à vista: deixa de ser parcelada (sem isso, a parcela antiga continuava no acerto).
   if (installmentsOf(input) === 1) delete expense.installments;
@@ -559,6 +669,14 @@ export function transferTraveler(trip: Trip, fromId: string, toId: string): Trip
     const people = [...new Set(e.people.map(swap))];
     const keepRule = e.split === 'equal' && !e.people.includes(toId);
     const next: Expense = { ...e, payerId, people, shares, split: keepRule ? 'equal' : 'exact' };
+    // Parcelas combinadas: as de quem sai passam para quem recebe (somadas mês a mês).
+    const plan = scheduleOf(e);
+    delete next.schedule;
+    if (plan) {
+      const schedule: Record<string, number[]> = {};
+      for (const [pid, parts] of Object.entries(plan)) schedule[swap(pid)] = parts.map((c, m) => c + (schedule[swap(pid)]?.[m] ?? 0));
+      next.schedule = schedule;
+    }
     if (keepRule) delete next.exact;
     else next.exact = { ...shares };
     return withCover(next);
@@ -676,6 +794,8 @@ export interface SettleRow extends Transfer {
   /** Só nas despesas parceladas: de qual despesa é e em quantas vezes. */
   expenseId?: string;
   installments?: number;
+  /** Quanto vale cada parcela, quando são combinadas (alguém entrou depois). Sem o campo: iguais. */
+  parts?: number[];
 }
 
 export interface TripSummary {
@@ -853,6 +973,12 @@ function installmentRows(trip: Trip, acc: Map<string, string>): SettleRow[] {
       const row = rows.find((r) => r.expenseId === e.id && r.from === from);
       if (row) row.cents += c;
       else rows.push({ from, to: payer, cents: c, paid: 0, remaining: 0, expenseId: e.id, installments: n });
+      // Parcelas combinadas: soma mês a mês as de quem entra na mesma conta.
+      if (scheduleOf(e)) {
+        const r = row ?? rows.at(-1)!;
+        const mine = partsOf(e, p.id);
+        r.parts = mine.map((x, m) => x + (r.parts?.[m] ?? 0));
+      }
     }
   }
   return rows;
@@ -1126,7 +1252,7 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
   /** "R$ 50,00 para Mauricio: parcela 2/6 de Airbnb (faltam R$ 250,00)". */
   const pay = (r: SettleRow) => {
     if (!r.expenseId) return `${formatBRL(r.remaining)} para ${name(r.to)}`;
-    const i = installmentInfo(r.cents, r.paid, r.installments ?? 1);
+    const i = installmentInfo(r.cents, r.paid, r.installments ?? 1, r.parts);
     const what = trip.expenses.find((e) => e.id === r.expenseId)?.description ?? 'despesa';
     const left = r.remaining > i.next ? ` (faltam ${formatBRL(r.remaining)})` : '';
     return `${formatBRL(i.next)} para ${name(r.to)}: parcela ${i.paidCount + 1}/${i.count} de ${what}${left}`;

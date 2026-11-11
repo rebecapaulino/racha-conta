@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expensePhotos, photoFields, tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, installmentInfo, joinSchedule, photoFields, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -342,5 +342,73 @@ describe('Pix na viagem', () => {
     );
     const text = tripSettleText(trip(s), tripSummary(trip(s)), 'direct');
     expect(text).toContain('*Pix de quem recebe*\n- Rebeca (e-mail): rebeca@x.com');
+  });
+});
+
+describe('alguém entra numa despesa parcelada já em andamento', () => {
+  // Airbnb de R$ 1.200 em 4x, pago pela Rebeca, dividido com a Bia (R$ 150 por mês cada).
+  // Passaram 2 parcelas (a Bia pagou as duas) e o Caio entra.
+  const start = () =>
+    run(
+      base(),
+      { type: 'addExpense', id: 'air', input: expense({ cents: 120000, people: ['eu', 'bia'], installments: 4 }) },
+      { type: 'settle', id: 's1', from: 'bia', to: 'eu', cents: 15000, expenseId: 'air' },
+      { type: 'settle', id: 's2', from: 'bia', to: 'eu', cents: 15000, expenseId: 'air' },
+    );
+  const old = () => trip(start()).expenses[0];
+  const withCaio = expense({ cents: 120000, people: ['eu', 'bia', 'caio'], installments: 4 });
+  const row = (s: TripsState, from: string) => tripSummary(trip(s)).plan.direct.find((r) => r.from === from && r.expenseId === 'air')!;
+
+  it('desde o início: o Caio paga as parcelas passadas na próxima, a Bia paga menos; depois todos iguais', () => {
+    const schedule = joinSchedule(old(), withCaio, trip(start()).people, 2, 'all')!;
+    expect(schedule).toEqual({ eu: [15000, 15000, 0, 10000], bia: [15000, 15000, 0, 10000], caio: [0, 0, 30000, 10000] });
+    const s = run(start(), { type: 'editExpense', id: 'air', input: { ...withCaio, schedule } });
+    expect(trip(s).expenses[0].shares).toEqual({ eu: 40000, bia: 40000, caio: 40000 });
+    // Caio: parcela 3 de 4, de R$ 300 (a parte dele das 2 que passaram + a 3ª).
+    const caio = row(s, 'caio');
+    expect(installmentInfo(caio.cents, caio.paid, 4, caio.parts)).toMatchObject({ paidCount: 2, next: 30000 });
+    // Bia: já pagou o bastante para a 3ª (fica sem pagar este mês) e falta a 4ª, de R$ 100.
+    const bia = row(s, 'bia');
+    expect(installmentInfo(bia.cents, bia.paid, 4, bia.parts)).toMatchObject({ paidCount: 3, next: 10000 });
+    expect(trip(s).log!.at(-1)!.text).toBe('Caio entrou em Mercado · parcelas reajustadas');
+  });
+
+  it('redividir o que falta: as parcelas passadas ficam com quem estava; o resto, entre os três', () => {
+    const schedule = joinSchedule(old(), withCaio, trip(start()).people, 2, 'rest')!;
+    expect(schedule).toEqual({ eu: [15000, 15000, 10000, 10000], bia: [15000, 15000, 10000, 10000], caio: [0, 0, 10000, 10000] });
+    const s = run(start(), { type: 'editExpense', id: 'air', input: { ...withCaio, schedule } });
+    expect(trip(s).expenses[0].shares).toEqual({ eu: 50000, bia: 50000, caio: 20000 });
+    const caio = row(s, 'caio');
+    expect(installmentInfo(caio.cents, caio.paid, 4, caio.parts)).toMatchObject({ paidCount: 2, next: 10000 });
+    const bia = row(s, 'bia');
+    expect(installmentInfo(bia.cents, bia.paid, 4, bia.parts)).toMatchObject({ paidCount: 2, next: 10000 });
+  });
+
+  it('as parcelas combinadas ficam ao mudar só o nome; mudar o valor volta às parcelas iguais', () => {
+    const schedule = joinSchedule(old(), withCaio, trip(start()).people, 2, 'rest')!;
+    let s = run(start(), { type: 'editExpense', id: 'air', input: { ...withCaio, schedule } });
+    s = run(s, { type: 'editExpense', id: 'air', input: { ...withCaio, description: 'Casa' } });
+    expect(trip(s).expenses[0].schedule).toEqual(schedule);
+    s = run(s, { type: 'editExpense', id: 'air', input: { ...withCaio, cents: 150000 } });
+    expect(trip(s).expenses[0].schedule).toBeUndefined();
+    expect(trip(s).expenses[0].shares).toEqual({ eu: 50000, bia: 50000, caio: 50000 });
+  });
+
+  it('sem parcela passada, valores exatos ou parcelas mudadas: não precisa combinar nada', () => {
+    const people = trip(start()).people;
+    expect(joinSchedule(old(), withCaio, people, 0, 'all')).toBeNull();
+    expect(joinSchedule(old(), { ...withCaio, installments: 6 }, people, 2, 'all')).toBeNull();
+    expect(joinSchedule(old(), { ...withCaio, split: 'exact', exact: { eu: 40000, bia: 40000, caio: 40000 } }, people, 2, 'rest')).toBeNull();
+  });
+
+  it('em qualquer caso, as parcelas fecham o valor da despesa e nenhuma é negativa', () => {
+    for (const mode of ['all', 'rest'] as const) {
+      for (let k = 1; k < 4; k++) {
+        const plan = joinSchedule(old(), withCaio, trip(start()).people, k, mode)!;
+        const months = [0, 1, 2, 3].map((m) => Object.values(plan).reduce((a, p) => a + p[m], 0));
+        expect(months.reduce((a, c) => a + c, 0)).toBe(120000);
+        expect(Object.values(plan).every((p) => p.every((c) => c >= 0))).toBe(true);
+      }
+    }
   });
 });
