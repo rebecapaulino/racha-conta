@@ -820,3 +820,5 @@ h3.field-label { margin: 0; }
 .pay-ahead { color: var(--info); font-size: .8rem; font-weight: 600; }
 /* Parcelas: "2ª de 5", "2ª parcela" e "5x" com respiro dos dois lados (o + não cola no número). */
 .join-elapsed .stepper output, .weight-row .stepper output { padding-inline: 14px; white-space: nowrap; text-align: center; }
+.person-starts .person-start { padding: 10px 0; border-top: 1px solid var(--line); }
+.person-starts .person-start .hint { margin-top: 6px; }

@@ -25,6 +25,7 @@ import {
   removeExpensePhoto,
   setExpenseReceipt,
   setExpenseSettled,
+  setPersonStart,
   TRIP_CATEGORIES,
   transferTraveler,
   updateExpense,
@@ -98,6 +99,8 @@ export type TripAction =
   | { type: 'addExpensePhoto'; id: string; photo: string }
   /** Tira uma foto da despesa (as outras ficam). */
   | { type: 'removeExpensePhoto'; id: string; photo: string }
+  /** A pessoa `id` só começa a pagar a parcelada `expenseId` na parcela `from` (as de antes ficam com quem já estava). */
+  | { type: 'startPaying'; id: string; expenseId: string; from: number }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
   | { type: 'unsettle'; id: string }
   // ---- compartilhamento (só o app manda; não entram no registro) ----
@@ -254,6 +257,13 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
     case 'removeExpensePhoto': {
       const e = exp(after, a.id);
       return e ? `Tirou uma foto de ${e.description}` : null;
+    }
+    case 'startPaying': {
+      const e = exp(after, a.expenseId);
+      if (!e) return null;
+      return a.from > 1
+        ? `${who(after, a.id)} começa a pagar ${e.description} na ${a.from}ª parcela · parcelas reajustadas`
+        : `${who(after, a.id)} paga ${e.description} desde a 1ª parcela · parcelas reajustadas`;
     }
     case 'settle':
       return `${who(after, a.from)} pagou ${formatBRL(a.cents)} para ${who(after, a.to)}`;
@@ -509,6 +519,12 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
       return onOpen(s, (t) => addExpensePhoto(t, a.id, a.photo, now()));
     case 'removeExpensePhoto':
       return onOpen(s, (t) => removeExpensePhoto(t, a.id, a.photo, now()));
+    case 'startPaying':
+      if (!isInt(a.from, 1)) return s;
+      return onOpen(s, (t) => {
+        const r = setPersonStart(t, a.expenseId, a.id, a.from, now());
+        return r.ok ? r.trip : null;
+      });
     case 'settle':
       return onOpen(s, (t) => {
         const r = addSettlement(t, { from: a.from, to: a.to, cents: a.cents, expenseId: a.expenseId }, a.id, now());

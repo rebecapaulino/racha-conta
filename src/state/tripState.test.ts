@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expensePhotos, installmentInfo, joinSchedule, photoFields, splitLike, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, installmentInfo, joinSchedule, personStart, photoFields, splitLike, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -587,6 +587,23 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     expect(next(s, 'rebeca').next).toBe(15804 - 1580);
     // Letícia: ainda faltam R$ 15,80 da 2ª (aparece "Pagar 2/5" de R$ 15,80); depois, a 3ª.
     expect(next(s, 'leticia')).toMatchObject({ paidCount: 1, next: 1580 });
+  });
+  it('Pessoas → Deise → "Começa a pagar na 2ª de 5": mesmo resultado, direto pela pessoa', () => {
+    let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 });
+    const e = trip(s).expenses[0];
+    expect(personStart(e, 'deise')).toBe(2);
+    expect(personStart(e, 'rebeca')).toBe(1);
+    expect(e.schedule!.deise[0]).toBe(0);
+    for (const id of ids) expect(e.schedule![id][0]).toBe(17384);
+    expect(Object.values(e.schedule!).flat().reduce((a, c) => a + c, 0)).toBe(869200);
+    expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: 15804 });
+    expect(next(s, 'rebeca').next).toBe(15804 - 1580);
+    expect(next(s, 'angela')).toMatchObject({ paidCount: 1, next: 1580 });
+    expect(trip(s).log!.at(-1)!.text).toBe('Deise começa a pagar Airbnb na 2ª parcela · parcelas reajustadas');
+    // Voltar para a 1ª: parcelas iguais para todos de novo.
+    s = run(s, { type: 'startPaying', id: 'deise', expenseId: 'air', from: 1 });
+    expect(trip(s).expenses[0].schedule).toBeUndefined();
+    expect(personStart(trip(s).expenses[0], 'deise')).toBe(1);
   });
 });
 

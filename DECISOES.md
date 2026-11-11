@@ -575,3 +575,14 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Por quê:** o link não aparecia no Airbnb da "Ano novo - Família": em viagem compartilhada, "Assumir despesas" muda a despesa para "Valores exatos", e a pergunta só funcionava com "Igual".
 - **Agora:** com valores exatos, a parte de antes (sem quem entrou) e o que falta são divididos **na proporção do valor de cada um** (`splitLike`). Vale para "Alguém entrou depois?" e para entrar/sair ao editar. Testado.
 - Os botões − / + das parcelas ("2ª de 5", "5x", "2ª parcela") ganharam espaço dos dois lados do número.
+
+## Pessoas → "Começa a pagar em qual parcela?"
+
+Quem entrou depois numa parcelada (a Deise, que chegou na 2ª parcela do Airbnb) se ajusta pela
+própria pessoa: em Pessoas → Deise, cada parcelada de que ela participa tem "Airbnb · 2ª de 5".
+As parcelas antes dela ficam só com quem já estava, divididas como se ela não estivesse (igual,
+por peso ou na proporção dos valores exatos); o que falta é redividido com ela, e todo mundo paga
+um pouco menos dali em diante. Voltar para a 1ª devolve as parcelas iguais. É a ação
+`startPaying` (calculada no reducer, igual em todos os aparelhos), com registro "Deise começa a
+pagar Airbnb na 2ª parcela · parcelas reajustadas". Pagamentos já registrados não mudam: se
+alguém registrou um valor diferente do novo, a diferença aparece na próxima parcela dele.

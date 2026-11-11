@@ -1,9 +1,10 @@
 import { useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
-import { accountMembers, canCover, travelerUsage, type Traveler, type Trip } from '../../core/trip';
+import { formatBRL } from '../../core/money';
+import { accountMembers, canCover, installmentsOf, personFromSchedule, personStart, travelerUsage, type Expense, type Traveler, type Trip } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
-import { IconTrash } from '../icons';
+import { IconMinus, IconPlus, IconTrash } from '../icons';
 import { PixField, usePixDraft } from '../Pix';
 import { Sheet } from './Sheet';
 
@@ -50,6 +51,11 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
     const u = travelerUsage(trip, p.id);
     return u.expenses + u.settlements > 0;
   });
+  // Parceladas de que a pessoa participa: em qual parcela ela começa a pagar (entrou depois).
+  const parceladas = trip.expenses.filter((e) => !e.deleted && !e.settled && installmentsOf(e) > 1 && e.people.includes(person.id));
+  const [starts, setStarts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(parceladas.map((e) => [e.id, personStart(e, person.id)])),
+  );
   const [from, setFrom] = useState('');
   const [dropFrom, setDropFrom] = useState(true);
   const giver = others.find((p) => p.id === from);
@@ -75,6 +81,9 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
       return;
     }
     dispatch({ type: 'editTraveler', id: person.id, name, coveredBy: coveredBy || null, pix: key });
+    for (const e of parceladas) {
+      if (starts[e.id] !== personStart(e, person.id)) dispatch({ type: 'startPaying', id: person.id, expenseId: e.id, from: starts[e.id] });
+    }
     if (isMe !== (person.id === meId)) dispatch({ type: 'setMe', id: isMe ? person.id : null });
     toast('Pessoa salva');
     onClose();
@@ -141,6 +150,16 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
 
       <PixField draft={pix} id="person-edit-pix" label={`Pix de ${name.trim() || person.name}`} />
       {shared && pix.value.trim() && <p className="hint pix-shared">Todo mundo do grupo vê a chave, para pagar direto.</p>}
+
+      {parceladas.length > 0 && (
+        <div className="note-field person-starts">
+          <h3 className="field-label">Começa a pagar em qual parcela?</h3>
+          <p className="hint">Para quem entrou depois: as parcelas de antes ficam só com quem já estava, e o resto é redividido com {name.trim() || person.name}.</p>
+          {parceladas.map((e) => (
+            <StartRow key={e.id} trip={trip} e={e} person={person} from={starts[e.id]} onChange={(v) => setStarts((s) => ({ ...s, [e.id]: v }))} />
+          ))}
+        </div>
+      )}
 
       <label className="scan-option">
         <input type="checkbox" checked={isMe} onChange={(e) => setIsMe(e.target.checked)} />
@@ -228,6 +247,44 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
         <button type="button" className="btn secondary" onClick={onClose}>Cancelar</button>
         <button type="button" className="btn primary" onClick={save}>Salvar</button>
       </div>
+    </div>
+  );
+}
+
+/** Uma parcelada no modal da pessoa: "Airbnb · Começa na 2ª de 5", com quanto cada um paga. */
+function StartRow({ trip, e, person, from, onChange }: { trip: Trip; e: Expense; person: Traveler; from: number; onChange: (from: number) => void }) {
+  const n = installmentsOf(e);
+  const plan = personFromSchedule(trip, e, person.id, from);
+  const parts = plan && Object.keys(plan).length ? plan : null;
+  const mine = parts?.[person.id]?.[from - 1];
+  const other = e.people.find((id) => id !== person.id && id !== e.payerId && parts?.[id]);
+  const otherName = trip.people.find((p) => p.id === other)?.name;
+  const label = `h-start-${e.id}`;
+  return (
+    <div className="person-start">
+      <div className="join-elapsed">
+        <span id={label}>{e.description}</span>
+        <div className="stepper" role="group" aria-labelledby={label}>
+          <button type="button" onClick={() => onChange(Math.max(1, from - 1))} disabled={from <= 1} aria-label="Parcela anterior">
+            <IconMinus size={18} />
+          </button>
+          <output aria-live="polite">{from}ª de {n}</output>
+          <button type="button" onClick={() => onChange(Math.min(n, from + 1))} disabled={from >= n} aria-label="Próxima parcela">
+            <IconPlus size={18} />
+          </button>
+        </div>
+      </div>
+      <p className="hint" aria-live="polite">
+        {from > 1 && parts && mine !== undefined ? (
+          <>
+            {from === 2 ? 'Na 1ª' : `Da 1ª à ${from - 1}ª`}, só quem já estava{other && otherName ? ` (${otherName}: ${formatBRL(parts[other][0])})` : ''}. Da {from}ª em diante,{' '}
+            {person.name} paga {formatBRL(mine)}
+            {other && otherName ? ` e ${otherName}, ${formatBRL(parts[other][from - 1])}` : ''} por parcela.
+          </>
+        ) : (
+          `${person.name} paga desde a 1ª parcela.`
+        )}
+      </p>
     </div>
   );
 }

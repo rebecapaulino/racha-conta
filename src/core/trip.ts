@@ -374,6 +374,51 @@ export function startOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>
   return k + 1;
 }
 
+/** Em qual parcela a pessoa começa a pagar a despesa parcelada (1 = desde a 1ª; antes, só zero). */
+export function personStart(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>, id: string): number {
+  const parts = partsOf(e, id);
+  let k = startOf(e) - 1;
+  while (k < parts.length - 1 && parts[k] === 0) k++;
+  return k + 1;
+}
+
+/**
+ * Parcelas da despesa quando `id` só começa a pagar na parcela `from` (entrou depois, como a
+ * Deise na 2ª do Airbnb): as anteriores ficam com quem já estava, como se ela não estivesse, e o
+ * que falta é dividido entre todos, ela junto (cada um paga um pouco menos dali em diante).
+ * `from` na 1ª (ou antes de a despesa começar) volta às parcelas iguais. null se não dá.
+ */
+export function personFromSchedule(trip: Trip, e: Expense, id: string, from: number): Record<string, number[]> | null {
+  const n = installmentsOf(e);
+  if (n < 2 || !e.people.includes(id)) return null;
+  const drift = tripDrift(trip, e.id);
+  const begin = startOf(e);
+  const k = Math.max(0, Math.min(n - 1, Math.floor(from) - 1));
+  if (k < begin) {
+    const all = splitExpense(e, trip.people, e.seq, drift);
+    if (!all.ok) return null;
+    return begin > 1 ? startSchedule(all.shares, n, begin) : {};
+  }
+  const before = { ...e, people: e.people.filter((p) => p !== id) };
+  if (!before.people.length) return null;
+  const shares = splitLike(before, trip.people, e.seq, e.cents, drift);
+  if (!shares) return null;
+  const base: Expense = { ...before, shares };
+  const delayed = begin > 1 ? startSchedule(shares, n, begin) : null;
+  if (delayed) base.schedule = delayed;
+  else delete base.schedule;
+  return joinSchedule(base, e, trip.people, k, 'rest', drift);
+}
+
+/** A pessoa passa a pagar a despesa parcelada só a partir da parcela `from` (ver personFromSchedule). */
+export function setPersonStart(trip: Trip, expenseId: string, id: string, from: number, now: string): TripResult {
+  const e = trip.expenses.find((x) => x.id === expenseId && !x.deleted);
+  if (!e) return { ok: false, error: 'Essa despesa não existe mais.' };
+  const schedule = personFromSchedule(trip, e, id, from);
+  if (!schedule) return { ok: false, error: 'Não deu para reajustar as parcelas.' };
+  return updateExpense(trip, expenseId, { ...e, schedule }, now);
+}
+
 /** Guarda as parcelas combinadas se fecham com o valor; senão, a despesa fica com parcelas iguais. */
 function applySchedule(expense: Expense, schedule: Record<string, number[]> | undefined, people: Traveler[], shares: Record<string, number>): void {
   delete expense.schedule;
