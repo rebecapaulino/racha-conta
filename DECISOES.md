@@ -540,3 +540,8 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - Quando o card tem mais de uma linha em aberto para a mesma pessoa (ex.: Deise deve R$ 58,50 ao Mauricio pelas despesas comuns e a parcela do Airbnb), só a última linha tem "Pago" e "Pix", com o total das duas (cada linha continua mostrando o seu valor).
 - "Pago" abre "Registrar pagamento" com o total e o que entra nele ("R$ 58,50 das outras despesas + Airbnb · parcela 1 de 5 (R$ 158,04)"). Ao registrar, vira um pagamento para cada linha, na ordem; pagou menos, completa na ordem; pagou mais, a sobra fica no acerto comum (`splitPayment`, testado). Um só Desfazer desfaz os dois.
 - O topo do card conta pessoas, não linhas: "R$ 216,54 no total, para Mauricio" (antes dizia "para 2 pessoas").
+
+## "A partir de qual parcela?" — 11/11/2026
+
+- A pergunta de quem entra numa despesa parcelada virou **"Deise entra nesta despesa parcelada a partir de qual parcela?"**, com "A partir da [2ª] de 5" (antes: "Parcelas que já passaram"). As opções: **"A partir da 2ª parcela"** (a 1ª continua com quem já estava; da 2ª em diante o valor é reajustado para todos, mostrando quanto cada um pagava antes) e **"Desde a 1ª parcela"** (quem entrou paga também a parte das que já foram, na parcela em que entra). Mesma conta de antes (`joinSchedule` 'rest' e 'all').
+- **Caso da Rebeca (Deise e os cachorros):** em Pessoas, "Cachorros" com "Quem paga a parte de Cachorros?" = Deise (viagem toda); na despesa, marcar Deise e Cachorros e escolher "A partir da 2ª parcela". A Deise paga a dela e a dos cachorros a partir da 2ª; quem estava paga menos dali em diante. Testado.

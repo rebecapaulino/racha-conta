@@ -245,7 +245,7 @@ export function scheduleOf(e: Pick<Expense, 'schedule' | 'shares' | 'installment
 }
 
 /** Quanto a pessoa paga em cada parcela da despesa (as combinadas, ou a parte em parcelas iguais). */
-function partsOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>, id: string): number[] {
+export function partsOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>, id: string): number[] {
   const n = installmentsOf(e);
   return scheduleOf(e)?.[id] ?? splitEven(Object.hasOwn(e.shares, id) ? e.shares[id] : 0, n);
 }

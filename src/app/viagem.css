@@ -805,7 +805,8 @@ h3.field-label { margin: 0; }
 
 /* ---------- Viagem: alguém entrou numa despesa parcelada ---------- */
 .join-ask { display: flex; flex-direction: column; gap: 10px; }
-.join-ask:focus, .join-ask:focus-visible { outline: none; }
+/* Recebe o foco só para o leitor de tela anunciar a pergunta: sem contorno (vence o do visual fluent). */
+:root .confirm.join-ask:focus, :root .confirm.join-ask:focus-visible { outline: none; }
 .join-elapsed { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 600; }
 .join-option {
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; min-height: 44px;

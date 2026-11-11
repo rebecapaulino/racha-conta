@@ -9,6 +9,7 @@ import {
   installmentsOf,
   joinSchedule,
   MAX_DESCRIPTION,
+  partsOf,
   MAX_INSTALLMENTS,
   photoFields,
   splitExpense,
@@ -284,60 +285,64 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
 
   const nameOf = (id: string) => (id === meId ? 'você' : people.find((p) => p.id === id)?.name ?? 'quem pagou');
   // "Deseja redividir o valor restante, ou dividir tudo desde o início?", com os valores de cada jeito.
+  // "A partir de qual parcela a pessoa nova entra?": da parcela escolhida em diante (o valor de
+  // todos é reajustado ali) ou desde a 1ª (ela paga também a parte das que já foram).
   const joinAsk = (() => {
     if (!editing || !joined.length || elapsed === null) return null;
     const n = installmentsOf(editing);
     const k = elapsed;
+    const from = k + 1;
     const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
     const names = joined.map(nameOf);
     const newcomers = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0];
+    const plural = joined.length > 1;
     const one = joined[0];
     const stayer = who.find((id) => editing.people.includes(id) && id !== payerId) ?? who.find((id) => editing.people.includes(id));
+    const before = stayer ? partsOf(editing, stayer)[k] : 0;
     const rest = k ? joinSchedule(editing, input, people, k, 'rest', drift) : null;
     const all = k ? joinSchedule(editing, input, people, k, 'all', drift) : null;
+    const gone = k === 1 ? 'A 1ª parcela continua' : `As parcelas 1 a ${k} continuam`;
     return (
       <div className="confirm join-ask" role="group" aria-labelledby="h-join" ref={joinRef} tabIndex={-1}>
         <p id="h-join">
-          <b>{cap(newcomers)} {joined.length > 1 ? 'entraram' : 'entrou'} numa despesa parcelada.</b> Como dividir?
+          <b>{cap(newcomers)} {plural ? 'entram' : 'entra'} nesta despesa parcelada a partir de qual parcela?</b>
         </p>
         <div className="join-elapsed">
-          <span id="h-join-k">Parcelas que já passaram</span>
+          <span id="h-join-k">A partir da</span>
           <div className="stepper" role="group" aria-labelledby="h-join-k">
-            <button type="button" onClick={() => setElapsed(Math.max(0, k - 1))} disabled={k <= 0} aria-label="Menos parcelas passadas">
+            <button type="button" onClick={() => setElapsed(Math.max(0, k - 1))} disabled={k <= 0} aria-label="Parcela anterior">
               <IconMinus size={18} />
             </button>
-            <output aria-live="polite">{k} de {n}</output>
-            <button type="button" onClick={() => setElapsed(Math.min(n - 1, k + 1))} disabled={k >= n - 1} aria-label="Mais parcelas passadas">
+            <output aria-live="polite">{from}ª de {n}</output>
+            <button type="button" onClick={() => setElapsed(Math.min(n - 1, k + 1))} disabled={k >= n - 1} aria-label="Próxima parcela">
               <IconPlus size={18} />
             </button>
           </div>
         </div>
         {!rest || !all ? (
           <>
-            <p className="hint">Nenhuma parcela passou ainda: todos dividem igual desde a primeira.</p>
+            <p className="hint">Desde a 1ª parcela: a despesa inteira é dividida igual entre todos.</p>
             <button type="button" className="btn primary" onClick={() => save('all')}>Salvar</button>
           </>
         ) : (
           <>
             <button type="button" className="join-option" onClick={() => save('rest')}>
-              <b>Redividir o valor restante</b>
+              <b>A partir da {from}ª parcela</b>
               <small>
-                As {k} {k === 1 ? 'parcela que já passou fica' : 'parcelas que já passaram ficam'} com quem estava. Nas {n - k} que faltam, cada um paga{' '}
-                {formatBRL(rest[one][k])} por mês.
+                {gone} com quem já estava. Da {from}ª em diante, o valor é reajustado e cada um paga {formatBRL(rest[one][k])} por mês
+                {stayer && before !== rest[stayer][k] && <> ({nameOf(stayer)} pagava {formatBRL(before)})</>}.
               </small>
             </button>
             <button type="button" className="join-option" onClick={() => save('all')}>
-              <b>Dividir tudo desde o início</b>
+              <b>Desde a 1ª parcela</b>
               <small>
-                {cap(newcomers)} {joined.length > 1 ? 'pagam' : 'paga'} {formatBRL(all[one][k])} na próxima parcela (a parte {k === 1 ? 'da que passou' : `das ${k} que passaram`}{' '}
-                + a da próxima)
+                {cap(newcomers)} {plural ? 'pagam' : 'paga'} também a parte {k === 1 ? 'da 1ª' : `das parcelas 1 a ${k}`}: {formatBRL(all[one][k])}{plural ? ' cada' : ''} na {from}ª
                 {stayer && (
                   <>
-                    {' '}e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${formatBRL(all[stayer][k])}` : 'não paga nada nesse mês'}, porque já pagou a mais
+                    , e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${formatBRL(all[stayer][k])}` : 'não paga nada'} nela, porque já pagou a mais
                   </>
                 )}
-                .
-                {k + 1 < n && <> Depois, todos {formatBRL(all[one][k + 1])} por mês.</>}
+                .{k + 1 < n && <> Depois, todos {formatBRL(all[one][k + 1])} por mês.</>}
               </small>
             </button>
           </>

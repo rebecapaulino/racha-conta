@@ -434,3 +434,35 @@ describe('centavos na viagem', () => {
     expect(tripSummary(trip(s)).people.map((p) => p.owes)).toEqual([6667, 6667, 6667]);
   });
 });
+
+describe('Deise entra a partir da 2ª parcela e paga a parte dos cachorros', () => {
+  it('a 1ª fica com quem estava; da 2ª em diante, todos reajustados, e a conta da Deise junta a dos cachorros', () => {
+    // Airbnb de R$ 1.500 em 5x, pago pela Rebeca (eu), dividido com a Bia: R$ 150 por mês cada.
+    let s = run(
+      base(),
+      { type: 'addExpense', id: 'air', input: expense({ cents: 150000, people: ['eu', 'bia'], installments: 5 }) },
+      { type: 'settle', id: 's1', from: 'bia', to: 'eu', cents: 15000, expenseId: 'air' },
+      { type: 'addTraveler', id: 'deise', name: 'Deise' },
+      { type: 'addTraveler', id: 'dogs', name: 'Cachorros' },
+      { type: 'editTraveler', id: 'dogs', coveredBy: 'deise' },
+    );
+    const input = expense({ cents: 150000, people: ['eu', 'bia', 'deise', 'dogs'], installments: 5 });
+    const schedule = joinSchedule(trip(s).expenses[0], input, trip(s).people, 1, 'rest')!;
+    s = run(s, { type: 'editExpense', id: 'air', input: { ...input, schedule } });
+    // 1ª: R$ 150 Rebeca + R$ 150 Bia. Faltam R$ 1.200 ÷ 4 = R$ 300 cada, em 4x de R$ 75.
+    expect(trip(s).expenses[0].schedule).toEqual({
+      eu: [15000, 7500, 7500, 7500, 7500],
+      bia: [15000, 7500, 7500, 7500, 7500],
+      deise: [0, 7500, 7500, 7500, 7500],
+      dogs: [0, 7500, 7500, 7500, 7500],
+    });
+    const rows = tripSummary(trip(s)).plan.direct.filter((r) => r.expenseId === 'air');
+    // Deise paga a dela e a dos cachorros: R$ 150 por mês, começando na 2ª.
+    const deise = rows.find((r) => r.from === 'deise')!;
+    expect(installmentInfo(deise.cents, deise.paid, 5, deise.parts)).toMatchObject({ paidCount: 1, next: 15000 });
+    expect(deise.cents).toBe(60000);
+    // Bia já pagou a 1ª; a 2ª dela agora é R$ 75.
+    const bia = rows.find((r) => r.from === 'bia')!;
+    expect(installmentInfo(bia.cents, bia.paid, 5, bia.parts)).toMatchObject({ paidCount: 1, next: 7500 });
+  });
+});
