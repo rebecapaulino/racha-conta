@@ -598,4 +598,5 @@ devendo. Os pagamentos registrados não mudam (o histórico mostra o que foi pag
 só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Mauricio).
 - No Saldos, a linha que ficou com um restinho de uma parcela (até meia parcela, ex.: R$ 15,80
   de R$ 158,04) mostra "Todos já pagaram a 2ª? Marcar como paga": é o mesmo "Já pagas por
-  todos", direto onde a diferença aparece, com Desfazer.
+  todos", direto onde a diferença aparece, com Desfazer. Também no card de quem pagou a mais (a 3ª
+  saiu menor, R$ 142,24): "Todos já pagaram até a 2ª?".

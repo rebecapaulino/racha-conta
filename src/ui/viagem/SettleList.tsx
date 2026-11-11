@@ -136,12 +136,20 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                     Desta parcela de {glued(inst.parts[inst.paidCount])}, {glued(inst.parts[inst.paidCount] - inst.next)} já foram pagos.
                   </small>
                 )}
-                {/* Sobrou um restinho de uma parcela já paga (pagou o valor de antes do reajuste): quita para todos. */}
-                {!done && onPaidThrough && r.expenseId && inst.next <= inst.parts[inst.paidCount] / 2 && inst.next < inst.parts[inst.paidCount] && (
-                  <button type="button" className="link-btn late-link" onClick={() => onPaidThrough(r.expenseId!, inst.paidCount + 1)}>
-                    Todos já pagaram a {inst.paidCount + 1}ª? Marcar como paga
-                  </button>
-                )}
+                {/* Diferença pequena numa parcela (pagou o valor de antes do reajuste): sobrou um restinho da
+                    parcela (R$ 15,80 de R$ 158,04) ou já pagou um pouco da próxima. Quita até ali para todos. */}
+                {!done && onPaidThrough && r.expenseId && (() => {
+                  const part = inst.parts[inst.paidCount];
+                  const ahead = part - inst.next;
+                  if (ahead <= 0) return null;
+                  const k = inst.next <= part / 2 ? inst.paidCount + 1 : ahead <= part / 2 ? inst.paidCount : 0;
+                  if (k < 1) return null;
+                  return (
+                    <button type="button" className="link-btn late-link" onClick={() => onPaidThrough(r.expenseId!, k)}>
+                      Todos já pagaram {k === 1 ? 'a 1ª' : `até a ${k}ª`}? Marcar como paga
+                    </button>
+                  );
+                })()}
               </span>
             </span>
           )}
