@@ -4,7 +4,7 @@
 // Pense num caixa comum: quem paga uma despesa põe dinheiro no caixa, quem participa dela
 // tira. No fim, quem pôs mais do que tirou recebe; quem tirou mais do que pôs paga.
 
-import { formatBRL, splitEven, splitWeighted } from './money';
+import { formatBRL, fracAdd, fracOf, fracSub, splitEven, splitEvenFair, splitWeighted, type CentDrift } from './money';
 import { MAX_NAME, PERSON_COLORS } from './bill';
 import { newcomerName } from './faces';
 import { pixBlock } from './pix';
@@ -270,11 +270,12 @@ export function joinSchedule(
   people: Traveler[],
   elapsed: number,
   mode: JoinMode,
+  drift: CentDrift = new Map(),
 ): Record<string, number[]> | null {
   const n = installmentsOf(input);
   const k = Math.max(0, Math.min(n - 1, Math.floor(elapsed)));
   if (n < 2 || installmentsOf(old) !== n || k === 0 || input.split === 'exact') return null;
-  const full = splitExpense(input, people, old.seq);
+  const full = splitExpense(input, people, old.seq, drift);
   if (!full.ok) return null;
   const ids = Object.keys(full.shares);
   const out: Record<string, number[]> = {};
@@ -302,7 +303,7 @@ export function joinSchedule(
   const past = Object.fromEntries(ids.map((id) => [id, partsOf(old, id).slice(0, k)]));
   const rest = input.cents - ids.reduce((a, id) => a + sum(past[id]), 0);
   if (rest < 0) return null;
-  const split = rest > 0 ? splitExpense({ ...input, cents: rest }, people, old.seq) : null;
+  const split = rest > 0 ? splitExpense({ ...input, cents: rest }, people, old.seq, drift) : null;
   if (rest > 0 && !split?.ok) return null;
   for (const id of ids) {
     const mine = split?.ok ? split.shares[id] : 0;
@@ -358,14 +359,15 @@ export type SharesResult = { ok: true; shares: Record<string, number> } | { ok: 
 /**
  * Calcula quanto cada participante deve numa despesa, ao centavo.
  *
- * - Igual: floor(valor / N) para cada um; os centavos que sobram vão 1 por pessoa, começando
- *   numa posição que gira com a ordem da despesa (`seq`).
+ * - Igual: floor(valor / N) para cada um; os centavos que sobram vão 1 por pessoa, para quem
+ *   ficou com menos centavo a mais nas outras despesas da viagem (`drift`, ver `tripDrift`);
+ *   empate: a posição gira com a ordem da despesa (`seq`).
  * - Por peso: proporcional ao peso, pelo método do maior resto (empate também gira).
  * - Valores exatos: a soma tem que bater com o valor; se não bater, diz a diferença.
  *
  * Os participantes seguem a ordem da viagem (não a ordem dos toques) para o resultado ser estável.
  */
-export function splitExpense(input: ExpenseInput, people: Traveler[], seq: number): SharesResult {
+export function splitExpense(input: ExpenseInput, people: Traveler[], seq: number, drift: CentDrift = new Map()): SharesResult {
   if (!Number.isSafeInteger(input.cents) || input.cents <= 0) return { ok: false, error: 'Digite o valor da despesa.' };
   if (!people.some((p) => p.id === input.payerId)) return { ok: false, error: 'Escolha quem pagou.' };
   const who = people.filter((p) => input.people.includes(p.id));
@@ -373,7 +375,7 @@ export function splitExpense(input: ExpenseInput, people: Traveler[], seq: numbe
 
   let parts: number[];
   if (input.split === 'equal') {
-    parts = splitEven(input.cents, who.length, seq);
+    parts = splitEvenFair(input.cents, who.map((p) => p.id), new Map(drift), seq);
   } else if (input.split === 'weight') {
     const split = splitWeighted(input.cents, who.map((p) => weightUnits(p.weight)), seq);
     if (!split) return { ok: false, error: 'Quem participa está com peso 0. Ajuste os pesos ou divida igual.' };
@@ -395,12 +397,29 @@ export function splitExpense(input: ExpenseInput, people: Traveler[], seq: numbe
   return { ok: true, shares: Object.fromEntries(who.map((p, k) => [p.id, parts[k]])) };
 }
 
+/**
+ * Centavo a mais (ou a menos) que cada um já recebeu nas despesas divididas igual da viagem
+ * (fora `exceptId`, a que está sendo editada). Assim o centavo que sobra numa despesa nova vai
+ * para quem está atrás, e quem participa de tudo igual fica com a mesma parte no total.
+ */
+export function tripDrift(trip: Pick<Trip, 'expenses'>, exceptId?: string): CentDrift {
+  const drift: CentDrift = new Map();
+  for (const e of [...trip.expenses].sort((a, b) => a.seq - b.seq)) {
+    if (e.deleted || e.id === exceptId || e.split !== 'equal' || e.schedule) continue;
+    const ids = Object.keys(e.shares);
+    if (!ids.length) continue;
+    const fair = fracOf(e.cents, ids.length);
+    for (const id of ids) drift.set(id, fracAdd(drift.get(id) ?? fracOf(0), fracSub(fracOf(e.shares[id]), fair)));
+  }
+  return drift;
+}
+
 export type TripResult = { ok: true; trip: Trip } | { ok: false; error: string };
 
 /** Lança uma despesa nova (com as partes já calculadas). */
 export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: string): TripResult {
   const seq = trip.nextSeq;
-  const r = splitExpense(input, trip.people, seq);
+  const r = splitExpense(input, trip.people, seq, tripDrift(trip));
   if (!r.ok) return r;
   const expense: Expense = { ...input, id, seq, shares: r.shares, createdAt: now };
   delete expense.schedule;
@@ -415,7 +434,7 @@ export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: str
 export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: string): TripResult {
   const old = trip.expenses.find((e) => e.id === id);
   if (!old) return { ok: false, error: 'Essa despesa não existe mais.' };
-  const r = splitExpense(input, trip.people, old.seq);
+  const r = splitExpense(input, trip.people, old.seq, tripDrift(trip, id));
   if (!r.ok) return r;
   const expense: Expense = { ...old, ...input, shares: r.shares, updatedAt: now };
   delete expense.schedule;

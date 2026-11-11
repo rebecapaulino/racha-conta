@@ -13,6 +13,7 @@ import {
   photoFields,
   splitExpense,
   TRIP_CATEGORIES,
+  tripDrift,
   tripSummary,
   type Expense,
   type ExpenseInput,
@@ -174,7 +175,9 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     if (!id) return null;
     return { id, share: preview.shares[id], first: installmentInfo(preview.shares[id], 0, parts).parts[0] };
   }
-  const preview = cents ? splitExpense(input, people, seq) : null;
+  // Centavos das outras despesas: o que sobra nesta vai para quem está atrás (igual ao que é salvo).
+  const drift = tripDrift(trip, editing?.id);
+  const preview = cents ? splitExpense(input, people, seq, drift) : null;
   const installment = sampleInstallment();
   const duplicate = cents ? findDuplicate(trip, { cents, date }, editing?.id) : null;
 
@@ -191,7 +194,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   function chooseSplit(next: SplitMode) {
     // Valores exatos começam com a divisão igual: é só ajustar quem gastou diferente.
     if (next === 'exact' && cents && who.length) {
-      const base = splitExpense({ ...input, split: 'equal' }, people, seq);
+      const base = splitExpense({ ...input, split: 'equal' }, people, seq, drift);
       if (base.ok) setExact(Object.fromEntries(Object.entries(base.shares).map(([id, c]) => [id, typed(c)])));
     }
     setSplit(next);
@@ -244,7 +247,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
 
   function save(mode?: JoinMode) {
     if (needAmount()) return;
-    const r = splitExpense(input, people, seq);
+    const r = splitExpense(input, people, seq, drift);
     if (!r.ok) {
       go(who.length === 0 ? steps.findIndex((x) => x.key === 'quem') : LAST);
       setError(r.error);
@@ -262,7 +265,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
       requestAnimationFrame(() => joinRef.current?.focus());
       return;
     }
-    const schedule = editing && mode && elapsed ? joinSchedule(editing, input, people, elapsed, mode) : null;
+    const schedule = editing && mode && elapsed ? joinSchedule(editing, input, people, elapsed, mode, drift) : null;
     // Na viagem toda: a pessoa entra na conta de quem pagou (como em Pessoas), antes da despesa.
     for (const id of dropped) dispatch({ type: 'editTraveler', id, coveredBy: null });
     if (cover.scope === 'trip') {
@@ -290,8 +293,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     const newcomers = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0];
     const one = joined[0];
     const stayer = who.find((id) => editing.people.includes(id) && id !== payerId) ?? who.find((id) => editing.people.includes(id));
-    const rest = k ? joinSchedule(editing, input, people, k, 'rest') : null;
-    const all = k ? joinSchedule(editing, input, people, k, 'all') : null;
+    const rest = k ? joinSchedule(editing, input, people, k, 'rest', drift) : null;
+    const all = k ? joinSchedule(editing, input, people, k, 'all', drift) : null;
     return (
       <div className="confirm join-ask" role="group" aria-labelledby="h-join" ref={joinRef} tabIndex={-1}>
         <p id="h-join">

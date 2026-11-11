@@ -1,7 +1,7 @@
 // Modelo da conta e regras de negócio. Sem nenhuma dependência de interface,
 // para poder ser testado sozinho e reaproveitado (ex.: app Capacitor depois).
 
-import { formatBRL, splitEven, splitWeighted } from './money';
+import { formatBRL, fracAdd, fracOf, splitEvenFair, splitToward, type CentDrift, type Frac } from './money';
 import { newcomerName } from './faces';
 import { categoryEmoji } from './noteCategory';
 import { isPixKey, pixBlock, pixText } from './pix';
@@ -235,10 +235,12 @@ export function computeSplit(bill: Bill): SplitResult {
  * Calcula quanto cada pessoa paga numa nota.
  *
  * - Item dividido entre N pessoas: cada uma paga floor(valor / N); os centavos
- *   que sobram vão 1 por pessoa, começando numa posição que gira conforme o
- *   índice do item, para o centavo extra não cair sempre na mesma pessoa.
+ *   que sobram vão 1 por pessoa, para quem até ali recebeu menos centavo a mais
+ *   (empate: a posição gira conforme o índice do item). Ver `splitEvenFair`.
  * - Serviço total = round(subtotal × % / 100), dividido proporcionalmente ao
- *   consumo pelo método do maior resto.
+ *   consumo, com os centavos indo para quem está mais atrás no total.
+ * - Quem consumiu igual paga igual sempre que o total divide certinho, e ninguém
+ *   fica a 1 centavo ou mais da parte justa.
  * - Garantia: soma dos totais individuais === subtotal + serviço.
  */
 function splitOne(bill: Bill): SplitResult {
@@ -252,6 +254,9 @@ function splitOne(bill: Bill): SplitResult {
   let subtotal = 0;
   let unassigned = 0;
   const unassignedItems: Item[] = [];
+  // Centavo a mais (ou a menos) de cada um até aqui, e a parte justa exata do consumo.
+  const drift: CentDrift = new Map();
+  const fair = new Map<string, Frac>(bill.people.map((p) => [p.id, fracOf(0)]));
 
   bill.items.forEach((item, idx) => {
     // Ordem da mesa (não a ordem dos cliques) para o resultado ser estável.
@@ -263,8 +268,9 @@ function splitOne(bill: Bill): SplitResult {
       return;
     }
     const n = who.length;
-    const split = splitEven(value, n, idx % n);
+    const split = splitEvenFair(value, who, drift, idx % n);
     who.forEach((id, k) => {
+      fair.set(id, fracAdd(fair.get(id)!, fracOf(value, n)));
       const cents = split[k];
       consumption.set(id, consumption.get(id)! + cents);
       parts.get(id)!.push({ item, cents, splitBy: n });
@@ -275,9 +281,13 @@ function splitOne(bill: Bill): SplitResult {
   // Arredondamento "meio para cima" só com inteiros.
   const service = Math.floor((subtotal * bill.servicePct + 50) / 100);
 
-  // Maior resto primeiro; empate decidido pela ordem na mesa.
-  const serviceSplit = splitWeighted(service, bill.people.map((p) => consumption.get(p.id)!)) ?? bill.people.map(() => 0);
-  const serviceBy = new Map(bill.people.map((p, k) => [p.id, serviceSplit[k]]));
+  // Proporcional ao consumo justo de cada um; o centavo vai para quem está mais atrás no total.
+  const eaters = bill.people.map((p) => p.id).filter((id) => consumption.get(id)! > 0);
+  const serviceSplit = service > 0 && subtotal > 0
+    ? splitToward(service, eaters, eaters.map((id) => { const [n, d] = fair.get(id)!; return [n * BigInt(service), d * BigInt(subtotal)] as Frac; }), drift)
+    : eaters.map(() => 0);
+  const serviceBy = new Map(bill.people.map((p) => [p.id, 0]));
+  eaters.forEach((id, k) => serviceBy.set(id, serviceSplit[k]));
 
   const shares = bill.people.map((person) => {
     const c = consumption.get(person.id)!;

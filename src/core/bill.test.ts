@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSplit, itemTotal, payments, removePerson, summaryText, whatsappUrl, type Bill, type Person } from './bill';
+import { computeSplit, itemTotal, payments, removePerson, SERVICE_OPTIONS, summaryText, whatsappUrl, type Bill, type Person } from './bill';
 import { formatBRL, parseBRL } from './money';
 
 const people = (...names: string[]): Person[] =>
@@ -330,5 +330,42 @@ describe('quem já pagou', () => {
     );
     expect(summaryText({ ...base, paid: { ana: 1100, bruno: 1100, carla: 1100 } }).endsWith('Tudo pago ✅')).toBe(true);
     expect(summaryText({ ...base, paid: { ana: 1500 } })).toContain('- Ana: R$ 11,00 ✅ pago (pagou R$ 4,00 a mais, receber de volta)');
+  });
+});
+
+describe('centavo que sobra vai para quem está mais atrás', () => {
+  const trio = ['Eu', 'Ana', 'Bia'].map((name, color) => ({ id: name.toLowerCase(), name, color }));
+  const all = trio.map((p) => p.id);
+
+  it('três pessoas que dividem tudo pagam igual quando o total divide certinho (com serviço)', () => {
+    const bill: Bill = {
+      title: '', servicePct: 10, payerId: null, people: trio,
+      items: [2020, 7228, 884].map((cents, i) => ({ id: 'i' + i, name: 'x', cents, who: all })),
+    };
+    const r = computeSplit(bill);
+    expect(r.total).toBe(11145);
+    expect(r.shares.map((s) => s.total)).toEqual([3715, 3715, 3715]);
+  });
+
+  it('em qualquer conta: soma bate, ninguém fica a 1 centavo da parte justa, e quem consome igual paga igual se der', () => {
+    let seed = 11;
+    const rnd = (n: number) => ((seed = (seed * 1103515245 + 12345) % 2147483648), seed % n);
+    for (let t = 0; t < 3000; t++) {
+      const items = Array.from({ length: 1 + rnd(8) }, (_, i) => {
+        const who = all.filter(() => rnd(3) > 0);
+        return { id: 'i' + i, name: 'x', cents: 1 + rnd(20000), qty: 1 + rnd(3), who: who.length ? who : all };
+      });
+      const pct = SERVICE_OPTIONS[rnd(4)];
+      const r = computeSplit({ title: '', servicePct: pct, payerId: null, people: trio, items });
+      expect(r.shares.reduce((a, s) => a + s.total, 0)).toBe(r.total);
+      for (const s of r.shares) {
+        const fairCons = items.reduce((a, i) => a + (i.who.includes(s.person.id) ? itemTotal(i) / i.who.length : 0), 0);
+        expect(Math.abs(s.consumption + s.service - (fairCons * r.total) / r.subtotal)).toBeLessThan(1 + 1e-6);
+        expect(s.service).toBeGreaterThanOrEqual(0);
+      }
+      if (items.every((i) => i.who.length === 3) && r.total % 3 === 0) {
+        expect(new Set(r.shares.map((s) => s.total)).size).toBe(1);
+      }
+    }
   });
 });

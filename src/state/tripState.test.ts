@@ -412,3 +412,25 @@ describe('alguém entra numa despesa parcelada já em andamento', () => {
     }
   });
 });
+
+describe('centavos na viagem', () => {
+  it('quem participa de tudo igual fica com a mesma parte no total, quando divide certinho', () => {
+    // R$ 100,01 (sobram 2 centavos) e R$ 100,00 (sobra 1): R$ 200,01 = R$ 66,67 para cada um.
+    const s = run(
+      base(),
+      { type: 'addExpense', id: 'a', input: expense({ cents: 10001 }) },
+      { type: 'addExpense', id: 'b', input: expense({ cents: 10000, payerId: 'bia' }) },
+    );
+    expect(tripSummary(trip(s)).people.map((p) => p.owes)).toEqual([6667, 6667, 6667]);
+  });
+
+  it('editar uma despesa antiga não tira o equilíbrio das outras', () => {
+    let s = run(
+      base(),
+      { type: 'addExpense', id: 'a', input: expense({ cents: 10001 }) },
+      { type: 'addExpense', id: 'b', input: expense({ cents: 10000 }) },
+    );
+    s = run(s, { type: 'editExpense', id: 'a', input: expense({ cents: 10001, description: 'Feira' }) });
+    expect(tripSummary(trip(s)).people.map((p) => p.owes)).toEqual([6667, 6667, 6667]);
+  });
+});
