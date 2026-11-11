@@ -770,7 +770,9 @@ h3.field-label { margin: 0; }
 .cover-item:has(.cover.has-photo) .cover-more:hover { background: rgba(0, 0, 0, 0.5); }
 
 /* ---------- Pix de quem recebe (acerto, divisão e quem pagou no caixa) ---------- */
-.pix-btn { flex: none; min-height: 44px; padding-inline: 12px; }
+/* Sempre na linha de baixo do "Pago": igual no Rolê e na Viagem, com o card largo ou estreito. */
+.pay-actions:has(.pix-btn, .pix-add) { flex-direction: column; align-items: flex-start; }
+.pix-btn { flex: none; min-height: 44px; padding-inline: 12px; max-width: 100%; white-space: normal; text-align: left; }
 .pix-add { display: inline-flex; align-items: center; gap: 4px; white-space: normal; text-align: left; }
 .pix-qr { display: block; width: min(240px, 70vw); height: auto; aspect-ratio: 1; margin: 2px auto 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); }
 .pix-how { margin: 0; text-align: center; }
