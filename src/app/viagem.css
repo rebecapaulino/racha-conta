@@ -816,3 +816,5 @@ h3.field-label { margin: 0; }
 .join-option:hover { border-color: var(--primary); }
 .join-option b { font-size: .98rem; }
 .join-option small { color: var(--muted); font-size: .85rem; line-height: 1.4; }
+.late-link { align-self: flex-start; padding: 0; white-space: normal; text-align: left; }
+.pay-ahead { color: var(--info); font-size: .8rem; font-weight: 600; }

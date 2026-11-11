@@ -121,6 +121,12 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                     <>parcela {inst.paidCount + 1} de {inst.count} · faltam {glued(r.remaining)} de {glued(r.cents)}</>
                   )}
                 </small>
+                {/* A parcela do mês saiu menor: já tinha pagado parte dela antes (mostra de onde vem o valor). */}
+                {!done && inst.next < inst.parts[inst.paidCount] && (
+                  <small className="pay-ahead">
+                    Desta parcela de {glued(inst.parts[inst.paidCount])}, {glued(inst.parts[inst.paidCount] - inst.next)} já foram pagos.
+                  </small>
+                )}
               </span>
             </span>
           )}

@@ -521,3 +521,66 @@ describe('despesa nova que começa numa parcela (cachorros a partir da 2ª)', ()
     expect(trip(s).expenses[0].schedule).toEqual({ deise: [0, 10000, 10000, 10000, 10000], bia: [0, 10000, 10000, 10000, 10000] });
   });
 });
+
+describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou na 2ª parcela', () => {
+  const names = ['Mauricio', 'Natacha', 'Clari', 'João', 'Angela', 'Marcelo', 'Léo', 'Rebeca', 'Robin', 'Leticia'];
+  const ids = names.map((n) => n.toLowerCase().normalize('NFD').replace(/[^a-z]/g, ''));
+  const all = [...ids, 'deise'];
+  const air = (people: string[]) => expense({ description: 'Airbnb', cents: 869200, payerId: 'mauricio', people, installments: 5 });
+
+  function today() {
+    let s = run(blankTrips(), { type: 'createTrip', id: 't1', name: 'Ano novo - Família' });
+    for (const [k, id] of ids.entries()) s = run(s, { type: 'addTraveler', id, name: names[k] });
+    s = run(
+      s,
+      { type: 'addTraveler', id: 'deise', name: 'Deise' },
+      { type: 'editTraveler', id: 'clari', coveredBy: 'natacha' },
+      { type: 'editTraveler', id: 'leo', coveredBy: 'marcelo' },
+      { type: 'addExpense', id: 'air', input: air(ids) },
+      // A Deise foi posta no Airbnb desde a 1ª: todo mundo caiu de R$ 173,84 para R$ 158,04.
+      { type: 'editExpense', id: 'air', input: air(all) },
+    );
+    // Pagamentos como estão registrados: uns com o valor antigo (R$ 173,84), outros com o novo (R$ 158,04).
+    const pay = (from: string, cents: number, n: number) => {
+      for (let i = 0; i < n; i++) s = run(s, { type: 'settle', id: `${from}${i}`, from, to: 'mauricio', cents, expenseId: 'air' });
+    };
+    pay('rebeca', 17384, 2);
+    pay('robin', 17384, 2);
+    pay('natacha', 34768, 2);
+    pay('joao', 15804, 2);
+    pay('leticia', 15804, 2);
+    pay('angela', 15804, 2);
+    s = run(s, { type: 'settle', id: 'm1', from: 'marcelo', to: 'mauricio', cents: 31608, expenseId: 'air' });
+    s = run(s, { type: 'settle', id: 'm2', from: 'marcelo', to: 'mauricio', cents: 31607, expenseId: 'air' });
+    return s;
+  }
+  const next = (s: TripsState, from: string) => {
+    const r = tripSummary(trip(s)).plan.direct.find((x) => x.expenseId === 'air' && x.from === from)!;
+    return installmentInfo(r.cents, r.paid, 5, r.parts);
+  };
+
+  it('reproduz os valores da tela: R$ 126,44 para quem registrou R$ 173,84 e R$ 158,04 para quem registrou R$ 158,04', () => {
+    const s = today();
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 12644 });
+    expect(next(s, 'leticia')).toMatchObject({ paidCount: 2, next: 15804 });
+    expect(next(s, 'deise')).toMatchObject({ paidCount: 0, next: 15804 });
+  });
+
+  it('"Alguém entrou depois?" → Deise a partir da 2ª: a 1ª volta a ser R$ 173,84 para os 10 e a Deise vai para a 2/5', () => {
+    let s = today();
+    const e = trip(s).expenses[0];
+    // A despesa como era antes da Deise (o que a tela monta em "Alguém entrou depois?").
+    const before = { ...e, people: ids, shares: Object.fromEntries(ids.map((id) => [id, 86920])) };
+    delete before.schedule;
+    const schedule = joinSchedule(before, air(all), trip(s).people, 1, 'rest')!;
+    s = run(s, { type: 'editExpense', id: 'air', input: { ...air(all), schedule } });
+    expect(schedule.rebeca[0]).toBe(17384);
+    expect(schedule.deise[0]).toBe(0);
+    expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: 15804 });
+    // Até a 2ª, cada um devia R$ 173,84 + R$ 158,04 = R$ 331,88. Quem registrou R$ 347,68 pagou
+    // R$ 15,80 a mais; quem registrou R$ 316,08, R$ 15,80 a menos.
+    expect(next(s, 'rebeca').next).toBe(15804 - 1580);
+    // Letícia: ainda faltam R$ 15,80 da 2ª (aparece "Pagar 2/5" de R$ 15,80); depois, a 3ª.
+    expect(next(s, 'leticia')).toMatchObject({ paidCount: 1, next: 1580 });
+  });
+});

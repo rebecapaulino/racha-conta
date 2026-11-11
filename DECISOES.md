@@ -556,3 +556,10 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Por quê:** a Rebeca não achava como lançar a despesa dos cachorros "a partir da 2ª parcela". A pergunta "a partir de qual parcela?" só aparecia ao editar uma despesa e mudar quem participa; ao lançar uma despesa nova, não havia campo.
 - **Como fica:** em "Como foi pago?" → Parcelado, abaixo do número de parcelas, **"Começa a ser dividida na [1ª] parcela"** (− +). Na 2ª: a 1ª fica de fora para todos e cada um devolve a sua parte nas que faltam ("A 1ª parcela fica de fora: cada um devolve a sua parte em 4x, da 2ª à 5ª"). Vale também ao editar (voltar para a 1ª tira). Na lista de despesas: "5x, da 2ª".
 - **Conta:** `startSchedule` monta as parcelas (zero nas anteriores) e `startOf` lê em qual começa; ficam no mesmo `schedule` das outras parcelas combinadas. Testado.
+
+## "Alguém entrou depois?" e por que a parcela do mês muda — 11/11/2026
+
+- **Caso "Ano novo - Família":** Airbnb de R$ 8.692 em 5x (Mauricio), 10 pessoas (R$ 173,84 cada por parcela). A Deise foi posta no Airbnb **desde a 1ª** (antes da pergunta existir) e todo mundo passou a R$ 158,04 em todas as parcelas. Quem tinha registrado as parcelas 1 e 2 com R$ 173,84 (Rebeca, Robin, Natacha) ficou com R$ 31,60 "a mais" e a 3ª saía R$ 126,44; quem registrou R$ 158,04 (João, Angela, Letícia, Marcelo) ficava em R$ 158,04. Parecia conta errada, mas era a soma dos pagamentos registrados.
+- **"Alguém entrou depois da 1ª parcela?"** (link em "Quem participa?", ao editar uma parcelada): para quem **já está** na despesa. Escolhe quem entrou depois e a partir de qual parcela; as opções são as mesmas ("A partir da Xª" ou "Desde a 1ª"). A conta usa a despesa como era sem essas pessoas.
+- **Linha do acerto explica a parcela:** quando a parcela do mês sai menor que o normal, aparece "Desta parcela de R$ 158,04, R$ 15,80 já foram pagos".
+- Os pagamentos registrados não são mexidos: se algum foi registrado com o valor errado, corrige-se no "Histórico de pagamentos" (Desfazer e registrar de novo).
