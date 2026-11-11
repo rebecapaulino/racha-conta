@@ -108,6 +108,8 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const [startAt, setStartAt] = useState(editing ? startOf(editing) : 1);
   const from = parts > 1 ? Math.min(startAt, parts) : 1;
   const count = parts - from + 1;
+  // À vista cobrada junto com a parcela de outra despesa do mesmo pagador (os cachorros na 2ª do Airbnb).
+  const [along, setAlong] = useState<{ expenseId: string; installment: number } | null>(editing?.alongWith ?? null);
   const [dupOk, setDupOk] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -171,6 +173,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     people: who,
     ...(split === 'exact' ? { exact: Object.fromEntries(who.map((id) => [id, exactCents(id) ?? -1])) } : {}),
     ...(parts > 1 ? { installments: parts } : {}),
+    ...(parts === 1 && alongTargetOf() ? { alongWith: along! } : {}),
     ...photoFields(photos),
     ...(cover.scope === 'expense' && cover.ids.some((id) => who.includes(id))
       ? { coveredBy: Object.fromEntries(cover.ids.filter((id) => who.includes(id)).map((id) => [id, payerId])) }
@@ -246,6 +249,17 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const leaving = sameParts && who.length ? editing!.people.filter((id) => !who.includes(id)) : [];
 
   /** Parcelas que já passaram: as registradas como pagas no acerto ou os meses desde a compra (a maior). */
+  /** Despesas parceladas do mesmo pagador com que esta pode ser cobrada junto. */
+  function alongOptions(): Expense[] {
+    return trip.expenses.filter((x) => !x.deleted && !x.settled && installmentsOf(x) > 1 && x.payerId === payerId && x.id !== editing?.id);
+  }
+  /** A escolhida, se ainda vale (mesmo pagador, parcela dentro do número de parcelas). */
+  function alongTargetOf(): Expense | null {
+    if (!along) return null;
+    const t = alongOptions().find((x) => x.id === along.expenseId);
+    return t && along.installment >= 1 && along.installment <= installmentsOf(t) ? t : null;
+  }
+
   function guessElapsed(e: Expense): number {
     const n = installmentsOf(e);
     const rows = tripSummary(trip).plan.direct.filter((r) => r.expenseId === e.id);
@@ -691,6 +705,51 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
                   )}
                 </>
               )}
+              {parts === 1 && alongOptions().length > 0 && (() => {
+                const options = alongOptions();
+                const target = alongTargetOf();
+                const n = target ? installmentsOf(target) : 0;
+                const pick = (t: Expense) => setAlong({ expenseId: t.id, installment: Math.min(installmentsOf(t), guessElapsed(t) + 1) });
+                return (
+                  <>
+                    <label className="scan-option">
+                      <input type="checkbox" checked={!!target} onChange={(e) => (e.target.checked ? pick(options[0]) : setAlong(null))} />
+                      <span>
+                        Cobrar junto com a parcela de outra despesa <small className="muted">· ex.: entra na 2ª parcela do Airbnb</small>
+                      </span>
+                    </label>
+                    {target && (
+                      <>
+                        {options.length > 1 && (
+                          <div className="chips" role="group" aria-label="Junto com qual despesa">
+                            {options.map((o) => (
+                              <button key={o.id} type="button" className="chip" aria-pressed={o.id === target.id} onClick={() => pick(o)}>
+                                {o.description}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="join-elapsed">
+                          <span id="h-exp-along">Junto com a</span>
+                          <div className="stepper" role="group" aria-labelledby="h-exp-along">
+                            <button type="button" onClick={() => setAlong({ expenseId: target.id, installment: Math.max(1, along!.installment - 1) })} disabled={along!.installment <= 1} aria-label="Parcela anterior">
+                              <IconMinus size={18} />
+                            </button>
+                            <output aria-live="polite">{along!.installment}ª de {n}</output>
+                            <button type="button" onClick={() => setAlong({ expenseId: target.id, installment: Math.min(n, along!.installment + 1) })} disabled={along!.installment >= n} aria-label="Próxima parcela">
+                              <IconPlus size={18} />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="hint" aria-live="polite">
+                          {cents ? formatBRL(cents) : 'O valor'} entra na {along!.installment}ª parcela de <b>{target.description}</b>: cada um paga a sua parte junto com
+                          ela, para {nameOf(payerId)}, num pagamento só.
+                        </p>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </>
         )}

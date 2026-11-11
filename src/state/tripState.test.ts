@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expensePhotos, installmentInfo, joinSchedule, photoFields, startOf, startSchedule, tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, installmentInfo, joinSchedule, photoFields, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -582,5 +582,57 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     expect(next(s, 'rebeca').next).toBe(15804 - 1580);
     // Letícia: ainda faltam R$ 15,80 da 2ª (aparece "Pagar 2/5" de R$ 15,80); depois, a 3ª.
     expect(next(s, 'leticia')).toMatchObject({ paidCount: 1, next: 1580 });
+  });
+});
+
+describe('despesa à vista cobrada junto com uma parcela (cachorros na 2ª do Airbnb)', () => {
+  // Airbnb: R$ 1.000 em 5x, pago pela Rebeca (eu), dividido com a Bia e a Deise, que entrou na 2ª.
+  // Hospedagem dos cachorros: R$ 117 à vista, paga pela Rebeca, só da Deise, cobrada na 2ª parcela.
+  function setup(installment = 2) {
+    let s = run(base(), { type: 'addTraveler', id: 'deise', name: 'Deise' });
+    s = run(s, { type: 'addExpense', id: 'air', input: expense({ cents: 100000, people: ['eu', 'bia', 'deise'], installments: 5 }) });
+    const air = trip(s).expenses[0];
+    const before = { ...air, people: ['eu', 'bia'], shares: { eu: 50000, bia: 50000 } };
+    delete before.schedule;
+    const schedule = joinSchedule(before, expense({ cents: 100000, people: ['eu', 'bia', 'deise'], installments: 5 }), trip(s).people, 1, 'rest')!;
+    s = run(
+      s,
+      { type: 'editExpense', id: 'air', input: { ...expense({ cents: 100000, people: ['eu', 'bia', 'deise'], installments: 5 }), schedule } },
+      { type: 'addExpense', id: 'dogs', input: expense({ description: 'Hospedagem cachorros', cents: 11700, people: ['deise'], alongWith: { expenseId: 'air', installment } }) },
+    );
+    return s;
+  }
+  const rowsOf = (s: TripsState) => tripSummary(trip(s)).plan.direct;
+
+  it('a Deise paga a 2ª parcela do Airbnb com os R$ 117 dentro, numa linha só', () => {
+    const s = setup();
+    const deise = rowsOf(s).filter((r) => r.from === 'deise');
+    expect(deise).toHaveLength(1);
+    // Airbnb: a 1ª (R$ 200) fica com Rebeca e Bia; as outras 4 entre os três: R$ 266,66 da Deise.
+    expect(deise[0]).toMatchObject({ expenseId: 'air', cents: 26666 + 11700 });
+    expect(deise[0].along).toEqual([{ expenseId: 'dogs', description: 'Hospedagem cachorros', installment: 2, cents: 11700 }]);
+    // 2ª parcela: R$ 66,67 do Airbnb + R$ 117 dos cachorros.
+    expect(installmentInfo(deise[0].cents, deise[0].paid, 5, deise[0].parts)).toMatchObject({ paidCount: 1, next: 6667 + 11700 });
+    expect(tripSettleText(trip(s), tripSummary(trip(s)), 'direct')).toContain('R$ 183,67 para Rebeca: parcela 2/5 de Mercado + Hospedagem cachorros');
+    // O saldo da Deise continua batendo: R$ 266,66 do Airbnb + R$ 117.
+    expect(tripSummary(trip(s)).people.find((p) => p.person.id === 'deise')!.balance).toBe(-(26666 + 11700));
+  });
+
+  it('na 3ª parcela, os R$ 117 entram na 3ª', () => {
+    const r = rowsOf(setup(3)).find((x) => x.from === 'deise')!;
+    expect(r.parts).toEqual([0, 6667, 6667 + 11700, 6666, 6666]);
+  });
+
+  it('se o Airbnb for excluído, os cachorros voltam a ser cobrados à vista', () => {
+    const s = run(setup(), { type: 'deleteExpense', id: 'air', deleted: true });
+    expect(rowsOf(s).filter((r) => r.from === 'deise')).toEqual([expect.objectContaining({ cents: 11700, remaining: 11700 })]);
+    expect(rowsOf(s).find((r) => r.from === 'deise')!.expenseId).toBeUndefined();
+  });
+
+  it('editar e tirar a ligação volta a ser à vista comum', () => {
+    let s = setup();
+    s = run(s, { type: 'editExpense', id: 'dogs', input: expense({ description: 'Hospedagem cachorros', cents: 11700, people: ['deise'] }) });
+    expect(trip(s).expenses.find((e) => e.id === 'dogs')!.alongWith).toBeUndefined();
+    expect(rowsOf(s).filter((r) => r.from === 'deise')).toHaveLength(2);
   });
 });

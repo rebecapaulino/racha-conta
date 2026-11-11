@@ -563,3 +563,9 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **"Alguém entrou depois da 1ª parcela?"** (link ao editar uma parcelada, nas etapas Pagamento — embaixo das parcelas — e Pessoas; não é a aba Pessoas da viagem): para quem **já está** na despesa. Escolhe quem entrou depois e a partir de qual parcela; as opções são as mesmas ("A partir da Xª" ou "Desde a 1ª"). A conta usa a despesa como era sem essas pessoas.
 - **Linha do acerto explica a parcela:** quando a parcela do mês sai menor que o normal, aparece "Desta parcela de R$ 158,04, R$ 15,80 já foram pagos".
 - Os pagamentos registrados não são mexidos: se algum foi registrado com o valor errado, corrige-se no "Histórico de pagamentos" (Desfazer e registrar de novo).
+
+## Despesa à vista cobrada junto com uma parcela — 11/11/2026
+
+- **Caso:** "Hospedagem cachorros" (R$ 117, à vista, paga pelo Mauricio, só da Deise) deve ser cobrada **junto com a 2ª parcela do Airbnb**, não numa linha à parte.
+- **Como fica:** ao lançar ou editar uma despesa **à vista**, em Pagamento → "Como foi pago?", aparece **"Cobrar junto com a parcela de outra despesa"** quando há uma despesa parcelada do mesmo pagador. Escolhe a despesa (se houver mais de uma) e a parcela ("Junto com a 2ª de 5"). Na lista de despesas: "na 2ª de Airbnb".
+- **Conta:** `alongWith` na despesa; `alongTarget` diz se ainda vale (a outra existe, não está "Todos pagos", mesmo pagador, parcela válida, esta continua à vista). No acerto, a parte de cada um soma naquela parcela da linha da outra despesa (`along` na linha mostra "+ Hospedagem cachorros (R$ 117,00) nesta parcela"); no texto do WhatsApp, "parcela 2/5 de Airbnb + Hospedagem cachorros". Se a ligação deixa de valer, volta a ser cobrada à vista. Testado.

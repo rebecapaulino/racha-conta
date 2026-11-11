@@ -1,6 +1,6 @@
 import { useState, type Dispatch } from 'react';
 import { formatBRL } from '../../core/money';
-import { activeExpenses, categoryLabel, expensePhotos, installmentsOf, nextPayer, startOf, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
+import { activeExpenses, alongTarget, categoryLabel, expensePhotos, installmentsOf, nextPayer, startOf, TRIP_CATEGORIES, type Expense, type Trip, type TripSummary } from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, AvatarStack } from '../Avatar';
 import { IconBulb, IconCheck, IconFilter, IconReceipt, IconX } from '../icons';
@@ -217,6 +217,10 @@ export function TripExpenses({ trip, summary, meId, fluent, dispatch, toast, onE
                           <span>{everyone ? 'todos' : who.length === 1 ? `só ${who[0].id === meId ? 'você' : who[0].name}` : `${who.length} pessoas`}</span>
                           {tag && <> · <span>{tag}</span></>}
                           {installmentsOf(e) > 1 && <> · <span className="parts-tag">{installmentsOf(e)}x{startOf(e) > 1 ? `, da ${startOf(e)}ª` : ''}</span></>}
+                          {(() => {
+                            const link = alongTarget(trip, e);
+                            return link && <> · <span className="parts-tag">na {link.index + 1}ª de {link.target.description}</span></>;
+                          })()}
                           {expensePhotos(e).length > 0 && <> · <span className="receipt-tag"><IconReceipt size={13} /> {expensePhotos(e).length === 1 ? 'foto' : `${expensePhotos(e).length} fotos`}</span></>}
                         </small>
                       </span>

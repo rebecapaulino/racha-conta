@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Person } from '../../core/bill';
 import { formatBRL } from '../../core/money';
 import { accountIn, type PlanRow } from '../../core/settle';
-import { installmentInfo, type TripCategory } from '../../core/trip';
+import { installmentInfo, type SettleRow, type TripCategory } from '../../core/trip';
 import { Avatar } from '../Avatar';
 import { IconArrowRight, IconCheck } from '../icons';
 import { PixPay } from '../Pix';
@@ -11,7 +11,7 @@ import type { SettleTarget } from './SettleSheet';
 import { Signed } from './Signed';
 
 /** Uma linha do acerto (Viagem: pode ser a parcela de uma despesa). */
-export type ListRow = PlanRow & { expenseId?: string; installments?: number; parts?: number[] };
+export type ListRow = PlanRow & { expenseId?: string; installments?: number; parts?: number[]; along?: SettleRow['along'] };
 
 /** "R$ 1.486,75" sem quebrar a linha entre o "R$" e o número. */
 const glued = (cents: number) => formatBRL(cents).replace(' ', ' ');
@@ -121,6 +121,13 @@ export function SettleList({ people, rows, meId, onSettle, onUnpay, onExplain, e
                     <>parcela {inst.paidCount + 1} de {inst.count} · faltam {glued(r.remaining)} de {glued(r.cents)}</>
                   )}
                 </small>
+                {/* Despesas à vista cobradas junto com uma parcela (os cachorros na 2ª do Airbnb). */}
+                {!done &&
+                  r.along?.map((a) => (
+                    <small key={a.expenseId} className="pay-ahead">
+                      + {a.description} ({glued(a.cents)}) {a.installment === inst.paidCount + 1 ? 'nesta parcela' : `na ${a.installment}ª parcela`}
+                    </small>
+                  ))}
                 {/* A parcela do mês saiu menor: já tinha pagado parte dela antes (mostra de onde vem o valor). */}
                 {!done && inst.next < inst.parts[inst.paidCount] && (
                   <small className="pay-ahead">

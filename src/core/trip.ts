@@ -77,6 +77,12 @@ export interface ExpenseInput {
    */
   schedule?: Record<string, number[]>;
   /**
+   * Despesa à vista cobrada junto com uma parcela de outra despesa parcelada do mesmo pagador
+   * (a hospedagem dos cachorros entra na 2ª parcela do Airbnb). No acerto, a parte de cada um
+   * soma nessa parcela. Ver `alongTarget`.
+   */
+  alongWith?: { expenseId: string; installment: number };
+  /**
    * Quem paga a parte de quem só nesta despesa (o Mauricio paga a da Lara só no jantar):
    * participante → quem paga. A despesa continua no nome de quem consumiu; no acerto, essa
    * parte entra na conta de quem paga. Para valer na viagem toda, é o `coveredBy` da pessoa.
@@ -242,6 +248,21 @@ export function scheduleOf(e: Pick<Expense, 'schedule' | 'shares' | 'installment
     if (!Array.isArray(parts) || parts.length !== n || parts.some((c) => !Number.isSafeInteger(c) || c < 0) || sum(parts) !== e.shares[id]) return null;
   }
   return s;
+}
+
+/**
+ * A despesa parcelada com que esta (à vista) é cobrada junto, e o índice da parcela. null se não
+ * vale mais: a outra foi excluída ou marcada "Todos pagos", mudou de pagador ou de parcelas,
+ * ou esta virou parcelada. Aí ela volta a ser cobrada como uma despesa à vista comum.
+ */
+export function alongTarget(trip: Pick<Trip, 'expenses'>, e: Pick<ExpenseInput, 'alongWith' | 'payerId' | 'installments'>): { target: Expense; index: number } | null {
+  const a = e.alongWith;
+  if (!a || installmentsOf(e) > 1) return null;
+  const target = trip.expenses.find((x) => x.id === a.expenseId && !x.deleted && !x.settled);
+  if (!target || target.payerId !== e.payerId) return null;
+  const n = installmentsOf(target);
+  if (n < 2 || !Number.isInteger(a.installment) || a.installment < 1 || a.installment > n) return null;
+  return { target, index: a.installment - 1 };
 }
 
 /** Quanto a pessoa paga em cada parcela da despesa (as combinadas, ou a parte em parcelas iguais). */
@@ -464,6 +485,7 @@ export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: str
   const expense: Expense = { ...input, id, seq, shares: r.shares, createdAt: now };
   applySchedule(expense, input.schedule, trip.people, r.shares);
   if (!input.photos?.length) delete expense.photos;
+  if (!input.alongWith || installmentsOf(input) > 1) delete expense.alongWith;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
   else delete expense.coveredBy;
@@ -485,6 +507,7 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   if (installmentsOf(input) === 1) delete expense.installments;
   if (!input.receipt) delete expense.receipt;
   if (!input.photos?.length) delete expense.photos;
+  if (!input.alongWith || installmentsOf(input) > 1) delete expense.alongWith;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
   else delete expense.coveredBy;
@@ -848,6 +871,8 @@ export interface SettleRow extends Transfer {
   installments?: number;
   /** Quanto vale cada parcela, quando são combinadas (alguém entrou depois). Sem o campo: iguais. */
   parts?: number[];
+  /** Despesas à vista cobradas junto com uma parcela desta (ex.: os cachorros na 2ª do Airbnb). */
+  along?: { expenseId: string; description: string; installment: number; cents: number }[];
 }
 
 export interface TripSummary {
@@ -1033,6 +1058,30 @@ function installmentRows(trip: Trip, acc: Map<string, string>): SettleRow[] {
       }
     }
   }
+  // À vista cobrada junto com uma parcela: a parte de cada um soma naquela parcela da outra despesa.
+  for (const e of openExpenses(trip)) {
+    const link = alongTarget(trip, e);
+    const payer = acc.get(e.payerId);
+    if (!link || !payer) continue;
+    const n = installmentsOf(link.target);
+    for (const p of trip.people) {
+      const c = Object.hasOwn(e.shares, p.id) ? e.shares[p.id] : 0;
+      const from = acc.get(chargedTo(e, p.id))!;
+      if (c <= 0 || from === payer) continue;
+      let row = rows.find((r) => r.expenseId === link.target.id && r.from === from);
+      if (!row) {
+        row = { from, to: payer, cents: 0, paid: 0, remaining: 0, expenseId: link.target.id, installments: n, parts: Array.from({ length: n }, () => 0) };
+        rows.push(row);
+      }
+      const parts = row.parts ?? splitEven(row.cents, n);
+      row.parts = parts.map((x, m) => (m === link.index ? x + c : x));
+      row.cents += c;
+      const along = (row.along ??= []);
+      const same = along.find((x) => x.expenseId === e.id);
+      if (same) same.cents += c;
+      else along.push({ expenseId: e.id, description: e.description, installment: link.index + 1, cents: c });
+    }
+  }
   return rows;
 }
 
@@ -1175,7 +1224,8 @@ export function directTransfers(trip: Trip, withSettlements = true, skipInstallm
   const addDebt = (a: string, b: string, c: number) => debt.set(key(a, b), (debt.get(key(a, b)) ?? 0) + c);
   for (const e of openExpenses(trip)) {
     const payer = acc.get(e.payerId);
-    if (!payer || (skipInstallments && installmentsOf(e) > 1)) continue;
+    // Parceladas (e as à vista cobradas junto com uma parcela) viram linhas próprias no acerto.
+    if (!payer || (skipInstallments && (installmentsOf(e) > 1 || alongTarget(trip, e)))) continue;
     for (const [pid, c] of Object.entries(e.shares)) {
       const who = acc.get(chargedTo(e, pid));
       if (who && who !== payer) addDebt(who, payer, c);
@@ -1307,7 +1357,8 @@ export function tripSettleText(trip: Trip, summary: TripSummary, mode: SettleMod
     const i = installmentInfo(r.cents, r.paid, r.installments ?? 1, r.parts);
     const what = trip.expenses.find((e) => e.id === r.expenseId)?.description ?? 'despesa';
     const left = r.remaining > i.next ? ` (faltam ${formatBRL(r.remaining)})` : '';
-    return `${formatBRL(i.next)} para ${name(r.to)}: parcela ${i.paidCount + 1}/${i.count} de ${what}${left}`;
+    const extra = (r.along ?? []).filter((a) => a.installment === i.paidCount + 1).map((a) => ` + ${a.description}`).join('');
+    return `${formatBRL(i.next)} para ${name(r.to)}: parcela ${i.paidCount + 1}/${i.count} de ${what}${extra}${left}`;
   };
   if (mode === 'direct') {
     return [
