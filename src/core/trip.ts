@@ -745,9 +745,10 @@ export function countedSettlements(trip: Trip): Settlement[] {
     for (const r of rows.filter((x) => x.expenseId === e.id)) {
       const parts = r.parts ?? splitEven(r.cents, installmentsOf(e));
       const due = sum(parts.slice(0, k));
-      // Ficam por conta das parcelas quitadas os pagamentos até a marcação, até chegar a menos de
-      // meia parcela do valor (um pagamento adiantado da parcela seguinte continua valendo). Quem
-      // não chegou perto (ainda não pagou a última delas) continua com o que pagou de verdade.
+      // Ficam por conta das parcelas quitadas os pagamentos até a marcação, enquanto cada um deixa
+      // o total mais perto do valor delas (o restinho de R$ 15,80 pago depois entra; um pagamento
+      // adiantado da parcela seguinte continua valendo). Quem não chegou a meia parcela do valor
+      // (ainda não pagou a última delas) continua com o que pagou de verdade.
       const half = parts[k - 1] / 2;
       let got = 0;
       const used: Settlement[] = [];
@@ -755,11 +756,11 @@ export function countedSettlements(trip: Trip): Settlement[] {
         .filter((x) => x.expenseId === e.id && x.at <= at && acc.get(x.from) === r.from && acc.get(x.to) === r.to)
         .sort((a, b) => a.at.localeCompare(b.at));
       for (const x of mine) {
-        if (due - got <= half) break;
+        if (Math.abs(due - got - x.cents) >= Math.abs(due - got)) break;
         used.push(x);
         got += x.cents;
       }
-      if (due <= 0 || due - got > half) continue;
+      if (due <= 0 || Math.abs(due - got) > half) continue;
       for (const x of used) drop.add(x);
       extra.push({ id: `quitadas:${e.id}:${r.from}`, from: r.from, to: r.to, cents: due, expenseId: e.id, at });
     }

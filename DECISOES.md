@@ -600,3 +600,6 @@ só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Ma
   de R$ 158,04) mostra "Todos já pagaram a 2ª? Marcar como paga": é o mesmo "Já pagas por
   todos", direto onde a diferença aparece, com Desfazer. Também no card de quem pagou a mais (a 3ª
   saiu menor, R$ 142,24): "Todos já pagaram até a 2ª?".
+- Quem já pagou o restinho (R$ 15,80) antes de marcar: o pagamento entra nas parcelas quitadas
+  se deixa o total mais perto do valor delas (não só até meia parcela). Sem isso, o restinho ia
+  para a 3ª e ela saía menor.

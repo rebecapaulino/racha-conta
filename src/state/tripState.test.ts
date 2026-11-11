@@ -609,6 +609,17 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     expect(next(s, 'angela')).toMatchObject({ paidCount: 1, next: 1580 });
   });
 
+  it('quem já pagou o restinho de R$ 15,80 antes de marcar: continua com a 3ª igual aos outros', () => {
+    let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 });
+    for (const id of ['joao', 'angela', 'leticia']) s = run(s, { type: 'settle', id: `${id}-resto`, from: id, to: 'mauricio', cents: 1580, expenseId: 'air' });
+    s = run(s, { type: 'settle', id: 'marcelo-resto', from: 'marcelo', to: 'mauricio', cents: 3161, expenseId: 'air' });
+    expect(next(s, 'angela')).toMatchObject({ paidCount: 2, next: 15804 });
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15804 - 1580 });
+    s = run(s, { type: 'paidThrough', expenseId: 'air', installment: 2 });
+    for (const id of ['rebeca', 'robin', 'joao', 'angela', 'leticia']) expect(next(s, id)).toMatchObject({ paidCount: 2, next: 15804 });
+    for (const id of ['natacha', 'marcelo']) expect(next(s, id)).toMatchObject({ paidCount: 2, next: 31608 });
+  });
+
   it('Pessoas → Deise → "Começa a pagar na 2ª de 5": mesmo resultado, direto pela pessoa', () => {
     let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 });
     const e = trip(s).expenses[0];
