@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expensePhotos, installmentInfo, joinSchedule, photoFields, tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, installmentInfo, joinSchedule, photoFields, startOf, startSchedule, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -487,5 +487,37 @@ describe('Deise assume a despesa dos cachorros a partir da 2ª parcela', () => {
       bia: [15000, 10000, 10000, 10000, 10000],
       deise: [0, 10000, 10000, 10000, 10000],
     });
+  });
+});
+
+describe('despesa nova que começa numa parcela (cachorros a partir da 2ª)', () => {
+  // Cachorros: R$ 800 em 5x, pagos pela Rebeca (eu); a Deise é quem cuida e paga, a partir da 2ª.
+  const withDeise = () => run(base(), { type: 'addTraveler', id: 'deise', name: 'Deise' });
+  const input = expense({ description: 'Cachorros', cents: 80000, people: ['deise'], installments: 5 });
+
+  it('a 1ª fica de fora; a Deise devolve tudo em 4x, da 2ª à 5ª', () => {
+    const schedule = startSchedule({ deise: 80000 }, 5, 2)!;
+    const s = run(withDeise(), { type: 'addExpense', id: 'dogs', input: { ...input, schedule } });
+    const e = trip(s).expenses[0];
+    expect(e.schedule).toEqual({ deise: [0, 20000, 20000, 20000, 20000] });
+    expect(startOf(e)).toBe(2);
+    const row = tripSummary(trip(s)).plan.direct.find((r) => r.expenseId === 'dogs')!;
+    expect(installmentInfo(row.cents, row.paid, 5, row.parts)).toMatchObject({ paidCount: 1, next: 20000 });
+  });
+
+  it('começar na 1ª não muda nada; voltar para a 1ª depois limpa', () => {
+    expect(startSchedule({ deise: 80000 }, 5, 1)).toBeNull();
+    let s = run(withDeise(), { type: 'addExpense', id: 'dogs', input: { ...input, schedule: startSchedule({ deise: 80000 }, 5, 3)! } });
+    expect(startOf(trip(s).expenses[0])).toBe(3);
+    s = run(s, { type: 'editExpense', id: 'dogs', input: { ...input, schedule: {} } });
+    expect(trip(s).expenses[0].schedule).toBeUndefined();
+    expect(startOf(trip(s).expenses[0])).toBe(1);
+  });
+
+  it('dividida entre duas pessoas, cada uma começa na mesma parcela', () => {
+    const shares = { deise: 40000, bia: 40000 };
+    const s = run(withDeise(), { type: 'addExpense', id: 'dogs', input: { ...input, people: ['deise', 'bia'], schedule: startSchedule(shares, 5, 2)! } });
+    expect(trip(s).expenses[0].shares).toEqual(shares);
+    expect(trip(s).expenses[0].schedule).toEqual({ deise: [0, 10000, 10000, 10000, 10000], bia: [0, 10000, 10000, 10000, 10000] });
   });
 });

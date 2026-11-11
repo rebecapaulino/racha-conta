@@ -318,6 +318,40 @@ export function joinSchedule(
   return out;
 }
 
+/**
+ * Despesa que só começa a ser dividida numa parcela (`from`, de 1 a n): as anteriores ficam com
+ * zero para todos e a parte de cada um é dividida só nas que faltam. Ex.: os cachorros, assumidos
+ * pela Deise na 2ª parcela do Airbnb: a 1ª fica de fora. null quando começa na 1ª (sem mudança).
+ */
+export function startSchedule(shares: Record<string, number>, n: number, from: number): Record<string, number[]> | null {
+  const k = Math.floor(from) - 1;
+  if (n < 2 || k <= 0 || k >= n) return null;
+  return Object.fromEntries(Object.entries(shares).map(([id, c]) => [id, [...Array.from({ length: k }, () => 0), ...splitEven(c, n - k)]]));
+}
+
+/** Em qual parcela a despesa começa a ser dividida (1 = desde o início): as primeiras sem nada para todos. */
+export function startOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>): number {
+  const plan = scheduleOf(e);
+  if (!plan) return 1;
+  const n = installmentsOf(e);
+  let k = 0;
+  while (k < n - 1 && Object.values(plan).every((parts) => parts[k] === 0)) k++;
+  return k + 1;
+}
+
+/** Guarda as parcelas combinadas se fecham com o valor; senão, a despesa fica com parcelas iguais. */
+function applySchedule(expense: Expense, schedule: Record<string, number[]> | undefined, people: Traveler[], shares: Record<string, number>): void {
+  delete expense.schedule;
+  if (!schedule) return;
+  // Também quem saiu e ficou com as parcelas que já tinham passado (está nas parcelas, não em quem participa).
+  const ids = [...new Set([...Object.keys(shares), ...Object.keys(schedule).filter((pid) => people.some((p) => p.id === pid))])];
+  const own = Object.fromEntries(ids.map((pid) => [pid, Array.isArray(schedule[pid]) ? sum(schedule[pid]) : -1]));
+  if (sum(Object.values(own)) === expense.cents && scheduleOf({ schedule, shares: own, installments: expense.installments })) {
+    expense.schedule = schedule;
+    expense.shares = own;
+  }
+}
+
 /** O que muda na divisão (valor, quem participa, como divide, parcelas): sem mudança, as parcelas combinadas continuam. */
 function sameSplit(a: ExpenseInput, b: ExpenseInput): boolean {
   const ids = (x: ExpenseInput) => [...x.people].sort().join();
@@ -428,7 +462,7 @@ export function addExpense(trip: Trip, input: ExpenseInput, id: string, now: str
   const r = splitExpense(input, trip.people, seq, tripDrift(trip));
   if (!r.ok) return r;
   const expense: Expense = { ...input, id, seq, shares: r.shares, createdAt: now };
-  delete expense.schedule;
+  applySchedule(expense, input.schedule, trip.people, r.shares);
   if (!input.photos?.length) delete expense.photos;
   const covered = cleanCovered(input.coveredBy, r.shares, trip.people);
   if (covered) expense.coveredBy = covered;
@@ -443,18 +477,9 @@ export function updateExpense(trip: Trip, id: string, input: ExpenseInput, now: 
   const r = splitExpense(input, trip.people, old.seq, tripDrift(trip, id));
   if (!r.ok) return r;
   const expense: Expense = { ...old, ...input, shares: r.shares, updatedAt: now };
-  delete expense.schedule;
-  // Parcelas combinadas: as novas (alguém entrou), ou as de antes se a divisão não mudou.
-  const schedule = input.schedule ?? (sameSplit(old, input) ? old.schedule : undefined);
-  if (schedule) {
-    // Também quem saiu e ficou com as parcelas que já tinham passado (está nas parcelas, não em quem participa).
-    const ids = [...new Set([...Object.keys(r.shares), ...Object.keys(schedule).filter((pid) => trip.people.some((p) => p.id === pid))])];
-    const shares = Object.fromEntries(ids.map((pid) => [pid, Array.isArray(schedule[pid]) ? sum(schedule[pid]) : -1]));
-    if (sum(Object.values(shares)) === input.cents && scheduleOf({ schedule, shares, installments: input.installments })) {
-      expense.schedule = schedule;
-      expense.shares = shares;
-    }
-  }
+  // Parcelas combinadas: as novas (alguém entrou ou a despesa começa mais tarde; `{}` limpa), ou as
+  // de antes se a divisão não mudou.
+  applySchedule(expense, input.schedule ?? (sameSplit(old, input) ? old.schedule : undefined), trip.people, r.shares);
   if (input.split !== 'exact') delete expense.exact;
   // Voltou para à vista: deixa de ser parcelada (sem isso, a parcela antiga continuava no acerto).
   if (installmentsOf(input) === 1) delete expense.installments;

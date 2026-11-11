@@ -10,6 +10,8 @@ import {
   joinSchedule,
   MAX_DESCRIPTION,
   partsOf,
+  startOf,
+  startSchedule,
   MAX_INSTALLMENTS,
   photoFields,
   splitExpense,
@@ -102,6 +104,10 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   );
   const [date, setDate] = useState(editing?.date ?? todayISO());
   const [parts, setParts] = useState(editing ? installmentsOf(editing) : 1);
+  // Parcela em que a despesa começa a ser dividida (ex.: os cachorros, que a Deise assumiu na 2ª).
+  const [startAt, setStartAt] = useState(editing ? startOf(editing) : 1);
+  const from = parts > 1 ? Math.min(startAt, parts) : 1;
+  const count = parts - from + 1;
   const [dupOk, setDupOk] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -174,7 +180,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     const ids = Object.keys(preview.shares).filter((id) => id !== payerId && preview.shares[id] > 0);
     const id = ids.includes(meId ?? '') ? meId! : ids[0];
     if (!id) return null;
-    return { id, share: preview.shares[id], first: installmentInfo(preview.shares[id], 0, parts).parts[0] };
+    return { id, share: preview.shares[id], first: installmentInfo(preview.shares[id], 0, count).parts[0] };
   }
   // Centavos das outras despesas: o que sobra nesta vai para quem está atrás (igual ao que é salvo).
   const drift = tripDrift(trip, editing?.id);
@@ -269,16 +275,19 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
       return;
     }
     const schedule = editing && mode && elapsed ? joinSchedule(editing, input, people, elapsed, mode, drift) : null;
+    // Começa mais tarde: as parcelas antes dela ficam de fora para todos. Voltou para a 1ª: `{}` limpa.
+    const late = !schedule && parts > 1 && from > 1 ? startSchedule(r.shares, parts, from) : null;
+    const plan = schedule ?? late ?? (editing && startOf(editing) > 1 && from === 1 ? {} : null);
     // Na viagem toda: a pessoa entra na conta de quem pagou (como em Pessoas), antes da despesa.
     for (const id of dropped) dispatch({ type: 'editTraveler', id, coveredBy: null });
     if (cover.scope === 'trip') {
       for (const id of cover.ids) dispatch({ type: 'editTraveler', id, coveredBy: payerId });
     }
     if (editing) {
-      dispatch({ type: 'editExpense', id: editing.id, input: schedule ? { ...input, schedule } : input });
+      dispatch({ type: 'editExpense', id: editing.id, input: plan ? { ...input, schedule: plan } : input });
       toast(trip.settlements.length ? 'Despesa salva. Os saldos mudaram: confira o acerto.' : 'Despesa salva');
     } else {
-      dispatch({ type: 'addExpense', id: newId(), input });
+      dispatch({ type: 'addExpense', id: newId(), input: plan ? { ...input, schedule: plan } : input });
       toast(`${input.description} · ${formatBRL(cents!)} lançado`);
     }
     onClose();
@@ -587,10 +596,29 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
                       </button>
                     </div>
                   </div>
+                  <div className="join-elapsed">
+                    <span id="h-exp-start">Começa a ser dividida na</span>
+                    <div className="stepper" role="group" aria-labelledby="h-exp-start">
+                      <button type="button" onClick={() => setStartAt(Math.max(1, from - 1))} disabled={from <= 1} aria-label="Parcela anterior">
+                        <IconMinus size={18} />
+                      </button>
+                      <output aria-live="polite">{from}ª parcela</output>
+                      <button type="button" onClick={() => setStartAt(Math.min(parts, from + 1))} disabled={from >= parts} aria-label="Próxima parcela">
+                        <IconPlus size={18} />
+                      </button>
+                    </div>
+                  </div>
                   <p className="hint" aria-live="polite">
-                    Cada um devolve a sua parte em {parts}x para {nameOf(payerId)}.
+                    {from > 1 ? (
+                      <>
+                        {from === 2 ? 'A 1ª parcela fica' : `As parcelas 1 a ${from - 1} ficam`} de fora: cada um devolve a sua parte em {count}x, da {from}ª à {parts}ª, para{' '}
+                        {nameOf(payerId)}.
+                      </>
+                    ) : (
+                      <>Cada um devolve a sua parte em {parts}x para {nameOf(payerId)}.</>
+                    )}
                     {installment && (
-                      <> Ex.: {nameOf(installment.id)}, {formatBRL(installment.share)} = {parts}x de {formatBRL(installment.first)}.</>
+                      <> Ex.: {nameOf(installment.id)}, {formatBRL(installment.share)} = {count}x de {formatBRL(installment.first)}.</>
                     )}
                   </p>
                 </>

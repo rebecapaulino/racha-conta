@@ -550,3 +550,9 @@ Testado com a foto de um cupom real (960×1280, com bandeja e guardanapo em volt
 - **Caso da Rebeca:** "Cachorros" é uma **despesa** parcelada (não uma pessoa). A Deise entrou na viagem depois e assumiu essa despesa a partir da 2ª parcela; a 1ª já tinha sido dividida entre quem estava.
 - **Como fazer:** editar a despesa, em "Quem participa?" marcar a Deise e desmarcar quem não paga mais, Salvar. O app pergunta **"Deise entra e Mauricio e Rebeca saem a partir de qual parcela?"** → "A partir da 2ª parcela": quem saiu fica só com as parcelas que já passaram; da 2ª em diante, quem participa agora divide o que falta (aqui, só a Deise).
 - **Conta:** `joinSchedule` 'rest' guarda também as parcelas de quem saiu (as que já passaram, zero depois). Essas pessoas continuam na parte da despesa (`shares`), mas não em "quem participa". "Desde a 1ª parcela" não aparece quando alguém sai. Registro: "Deise entrou e Mauricio e Rebeca saíram: Cachorros · parcelas reajustadas". Testado.
+
+## Despesa nova que começa numa parcela — 11/11/2026
+
+- **Por quê:** a Rebeca não achava como lançar a despesa dos cachorros "a partir da 2ª parcela". A pergunta "a partir de qual parcela?" só aparecia ao editar uma despesa e mudar quem participa; ao lançar uma despesa nova, não havia campo.
+- **Como fica:** em "Como foi pago?" → Parcelado, abaixo do número de parcelas, **"Começa a ser dividida na [1ª] parcela"** (− +). Na 2ª: a 1ª fica de fora para todos e cada um devolve a sua parte nas que faltam ("A 1ª parcela fica de fora: cada um devolve a sua parte em 4x, da 2ª à 5ª"). Vale também ao editar (voltar para a 1ª tira). Na lista de despesas: "5x, da 2ª".
+- **Conta:** `startSchedule` monta as parcelas (zero nas anteriores) e `startOf` lê em qual começa; ficam no mesmo `schedule` das outras parcelas combinadas. Testado.
