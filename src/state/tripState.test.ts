@@ -675,25 +675,31 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     expect(trip(s).expenses[0].schedule).toEqual(before.schedule);
   });
 
-  it('entrou na 2ª e todos já pagaram até ela (sem marcar "pagas por todos"): a 1ª e a 2ª ficam como foram pagas e a diferença vai só nas próximas', () => {
+  it('entrou na 2ª e alguns já pagaram até ela (sem marcar "pagas por todos"): a 1ª e a 2ª ficam como estão para todos e a diferença vai só nas próximas', () => {
     let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 });
-    // Quem tinha pago a menos na 2ª completa o restinho: todos que já estavam quitaram até a 2ª.
-    for (const id of ['joao', 'angela', 'leticia']) s = run(s, { type: 'settle', id: `${id}-resto`, from: id, to: 'mauricio', cents: 1580, expenseId: 'air' });
-    s = run(s, { type: 'settle', id: 'marcelo-resto', from: 'marcelo', to: 'mauricio', cents: 3161, expenseId: 'air' });
     const before = trip(s).expenses[0];
     expect(before.paidThrough).toBeUndefined();
+    // Rebeca e Robin já pagaram a 2ª; Angela e Letícia ainda devem R$ 15,80 dela.
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2 });
+    expect(next(s, 'angela')).toMatchObject({ paidCount: 1, next: 1580 });
     s = run(s, { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2, mode: 'spread' });
     const e = trip(s).expenses[0];
     expect(startModeOf(trip(s), e, 'deise')).toBe('spread');
-    // O que já foi pago não muda para ninguém (a 2ª da Deise, que ela ainda deve, também não).
+    // A 1ª e a 2ª não mudam para ninguém: quem pagou fica como pagou, quem não pagou ainda deve o
+    // valor que está (a 2ª da Deise, que ela ainda deve, também não).
     for (const id of all) expect(e.schedule![id].slice(0, 2)).toEqual(before.schedule![id].slice(0, 2));
     // A diferença (a Deise paga a parte inteira) é descontada de quem já estava, só da 3ª em diante.
     for (const id of ids) expect(e.schedule![id].slice(2).reduce((a, c) => a + c, 0)).toBeLessThan(before.schedule![id].slice(2).reduce((a, c) => a + c, 0));
     expect(e.schedule!.deise.slice(2).reduce((a, c) => a + c, 0)).toBeGreaterThan(before.schedule!.deise.slice(2).reduce((a, c) => a + c, 0));
     expect(all.reduce((a, id) => a + e.schedule![id].reduce((x, c) => x + c, 0), 0)).toBe(869200);
+    // Quem já pagou a 2ª passa para a 3ª, menor. Quem não pagou ainda deve o restinho da 2ª, como estava,
+    // e a 3ª em diante também fica menor. A Deise paga a 2ª dela como antes e depois as maiores.
+    expect(e.schedule!.rebeca).toEqual([17384, 15804, 15277, 15277, 15276]);
+    expect(e.schedule!.angela).toEqual([17384, 15804, 15277, 15277, 15276]);
+    expect(e.schedule!.deise).toEqual([0, 15804, 21072, 21071, 21071]);
     expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15277 });
-    expect(next(s, 'angela')).toMatchObject({ paidCount: 2, next: 15277 });
-    expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: before.schedule!.deise[1] });
+    expect(next(s, 'angela')).toMatchObject({ paidCount: 1, next: 1580 });
+    expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: 15804 });
     expect(tripSummary(trip(s)).ok).toBe(true);
   });
 
