@@ -822,3 +822,9 @@ h3.field-label { margin: 0; }
 .join-elapsed .stepper output, .weight-row .stepper output { padding-inline: 14px; white-space: nowrap; text-align: center; }
 .person-starts .person-start { padding: 10px 0; border-top: 1px solid var(--line); }
 .person-starts .person-start .hint { margin-top: 6px; }
+/* "Todos pagam o mesmo" / "Só dali em diante": cabe em duas colunas no celular. */
+.person-start .seg { margin-top: 8px; }
+.person-start .seg button { padding: 6px 8px; font-size: .85rem; line-height: 1.2; }
+/* "Não dá para todos pagarem o mesmo…": a primeira frase em destaque, o resto em texto normal. */
+.join-warn { font-weight: 400; }
+.join-warn b { font-weight: 700; }

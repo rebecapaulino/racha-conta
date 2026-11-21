@@ -17,6 +17,7 @@ import {
   photoFields,
   splitExpense,
   splitLike,
+  spreadKeeping,
   TRIP_CATEGORIES,
   tripDrift,
   tripSummary,
@@ -74,6 +75,9 @@ const ALL_STEPS: { key: StepKey; name: string; title: string }[] = [
   { key: 'divisao', name: 'Divisão', title: 'Como dividir?' },
 ];
 
+/** "R$ 158,04" sem quebrar a linha entre o "R$" e o número. */
+const brl = (cents: number) => formatBRL(cents).replace(' ', '\u00a0');
+
 /** "1.072,48": centavos no formato de digitar (sem o "R$"). */
 const typed = (cents: number) => formatBRL(cents).replace(/^R\$\s?/, '');
 
@@ -101,9 +105,14 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
   const [payerId, setPayerId] = useState(editing?.payerId ?? defaultPayer);
   const [who, setWho] = useState<string[]>(editing?.people ?? people.map((p) => p.id));
   const [split, setSplit] = useState<SplitMode>(editing?.split ?? 'equal');
-  const [exact, setExact] = useState<Record<string, string>>(() =>
-    editing?.split === 'exact' ? Object.fromEntries(Object.entries(editing.shares).map(([id, c]) => [id, typed(c)])) : {},
-  );
+  const [exact, setExact] = useState<Record<string, string>>(() => {
+    if (editing?.split !== 'exact') return {};
+    // Os valores digitados (a parte de cada um na despesa inteira). As partes podem ser outras quando
+    // alguém entrou depois numa parcelada; usá-las aqui desfazia as parcelas combinadas ao salvar.
+    const given = editing.exact ?? {};
+    const valid = editing.people.every((id) => Number.isSafeInteger(given[id])) && editing.people.reduce((a, id) => a + given[id], 0) === editing.cents;
+    return Object.fromEntries(Object.entries(valid ? given : editing.shares).map(([id, c]) => [id, typed(c)]));
+  });
   const [date, setDate] = useState(editing?.date ?? todayISO());
   const [parts, setParts] = useState(editing ? installmentsOf(editing) : 1);
   // Parcela em que a despesa começa a ser dividida (ex.: os cachorros, que a Deise assumiu na 2ª).
@@ -295,6 +304,17 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     requestAnimationFrame(() => joinRef.current?.focus());
   }
 
+  // "Já pagas por todos" como vai ser salvo: essas parcelas não mudam no "todos pagam o mesmo no fim".
+  const closed = parts > 1 ? Math.min(closedAt, parts) : 0;
+
+  /** As parcelas de cada um quando alguém entrou depois, do jeito escolhido. */
+  function joinPlan(mode: JoinMode): Record<string, number[]> | null {
+    if (!editing || !elapsed) return null;
+    const old = lateBase() ?? editing;
+    if (mode === 'spread') return spreadKeeping(old, editing, input, people, elapsed, closed, drift)?.schedule ?? null;
+    return joinSchedule(old, input, people, elapsed, mode, drift);
+  }
+
   /** `even`: "desde a 1ª" para quem já estava na despesa: volta às parcelas iguais para todos. */
   function save(mode?: JoinMode | 'even') {
     if (needAmount()) return;
@@ -316,7 +336,7 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
       requestAnimationFrame(() => joinRef.current?.focus());
       return;
     }
-    const schedule = editing && mode && mode !== 'even' && elapsed ? joinSchedule(lateBase() ?? editing, input, people, elapsed, mode, drift) : null;
+    const schedule = mode && mode !== 'even' ? joinPlan(mode) : null;
     // Começa mais tarde: as parcelas antes dela ficam de fora para todos. Voltou para a 1ª: `{}` limpa.
     const delayed = !schedule && parts > 1 && from > 1 ? startSchedule(r.shares, parts, from) : null;
     const plan = schedule ?? delayed ?? (mode === 'even' || (editing && startOf(editing) > 1 && from === 1) ? {} : null);
@@ -327,7 +347,6 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     }
     if (editing) {
       dispatch({ type: 'editExpense', id: editing.id, input: plan ? { ...input, schedule: plan } : input });
-      const closed = parts > 1 ? Math.min(closedAt, parts) : 0;
       if (closed !== paidThroughOf(editing)) dispatch({ type: 'paidThrough', expenseId: editing.id, installment: closed });
       toast(trip.settlements.length ? 'Despesa salva. Os saldos mudaram: confira o acerto.' : 'Despesa salva');
     } else {
@@ -367,12 +386,44 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
     const one = comers[0] ?? who[0];
     const stays = (id: string) => editing.people.includes(id) && !comers.includes(id);
     const stayer = who.find((id) => stays(id) && id !== payerId) ?? who.find(stays);
-    const before = stayer ? partsOf(base, stayer)[k] : 0;
+    // Quanto quem já estava paga hoje na parcela em que muda (para comparar).
+    const was = (m: number) => (stayer ? partsOf(editing, stayer)[m] : 0);
     const ready = !lateMode || comers.length > 0;
-    const rest = k && ready ? joinSchedule(base, input, people, k, 'rest', drift) : null;
-    const all = k && ready && !leaving.length ? joinSchedule(base, input, people, k, 'all', drift) : null;
+    const rest = k && ready ? joinPlan('rest') : null;
+    const spreadPlan = k && ready ? spreadKeeping(base, editing, input, people, k, closed, drift) : null;
+    const spread = spreadPlan?.schedule ?? null;
+    // As já pagas por todos não mudam: no "todos pagam o mesmo", a diferença começa depois delas.
+    const shut = Math.max(0, Math.min(n - 1, closed));
+    const keep = Math.max(k, shut);
+    const all0 = k && ready && !leaving.length ? joinPlan('all') : null;
+    // Opções que dão no mesmo (ex.: só falta a última parcela) aparecem uma vez só.
+    const same = (a: Record<string, number[]> | null, b: Record<string, number[]> | null) =>
+      !!a && !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((id) => a[id].join() === b[id]?.join());
+    const showSpread = !!spread && !same(spread, rest);
+    const all = all0 && !same(all0, rest) && !same(all0, spread) ? all0 : null;
     const gone = k === 1 ? 'a 1ª parcela' : `as parcelas 1 a ${k}`;
-    const each = who.length > 1 ? `cada um paga ${rest ? formatBRL(rest[one][k]) : ''}` : `${nameOf(who[0])} paga ${rest ? formatBRL(rest[one][k]) : ''}`;
+    const each = who.length > 1 ? `cada um paga ${rest ? brl(rest[one][k]) : ''}` : `${nameOf(who[0])} paga ${rest ? brl(rest[one][k]) : ''}`;
+    const total = (plan: Record<string, number[]>, id: string) => plan[id].reduce((a, c) => a + c, 0);
+    // No "todos pagam o mesmo": a parte de cada um na despesa inteira (igual, ou os valores exatos).
+    const totals = spread ? who.map((id) => total(spread, id)) : [];
+    const level = totals.length > 0 && Math.max(...totals) - Math.min(...totals) <= 1;
+    const low = Math.min(...totals);
+    const high = Math.max(...totals);
+    const left = n - keep;
+    const when = left === 1 ? `na ${n}ª` : `por parcela, da ${keep + 1}ª à ${n}ª`;
+    // As já pagas por todos ficam como estão, também a parte de quem entrou nelas (se houver).
+    const owedShut = spread ? spread[one].slice(0, shut).reduce((a, c) => a + c, 0) : 0;
+    const kept = shut
+      ? `${shut === 1 ? 'A 1ª já foi marcada como paga por todos e fica como está' : `As parcelas 1 a ${shut} já foram marcadas como pagas por todos e ficam como estão`}${
+          owedShut > 0 ? ` (${list(comers)}: ${brl(owedShut)}${comers.length > 1 ? ' cada' : ''})` : ''
+        }. `
+      : '';
+    // Quem já pagou mais do que a parte inteira (entrou gente demais perto do fim): recebe de volta.
+    const backIds = people.filter((p) => (spreadPlan?.back[p.id] ?? 0) > 0 && p.id !== payerId).map((p) => p.id);
+    const backs = backIds.map((id) => spreadPlan!.back[id]);
+    const backText = backs.every((c) => c === backs[0])
+      ? `${brl(backs[0] ?? 0)}${backIds.length > 1 ? ' cada' : ''}`
+      : list(backIds.map((id, i) => `${brl(backs[i])} (${nameOf(id)})`));
     return (
       <div className="confirm join-ask" role="group" aria-labelledby="h-join" ref={joinRef} tabIndex={-1}>
         <p id="h-join">
@@ -421,27 +472,73 @@ function ExpenseForm({ trip, meId, mode, dispatch, toast, onClose, onSaved, grou
           </>
         ) : (
           <>
+            {showSpread && backIds.length > 0 && (
+              <p className="warn join-warn" role="status">
+                <IconAlert size={16} />
+                <span>
+                  <b>Na {keep + 1}ª já não dá para todos pagarem o mesmo só com as parcelas que faltam.</b> {cap(list(backIds))}{' '}
+                  {verb(backIds, 'já pagou', 'já pagaram')} mais do que a parte {verb(backIds, 'dela', 'delas')} na despesa inteira
+                  ({brl(total(spread!, backIds[0]))}). Como seguir?
+                </span>
+              </p>
+            )}
+            {showSpread && (
+              <button type="button" className="join-option" onClick={() => save('spread')}>
+                <b>{backIds.length ? 'Todos pagam o mesmo, e a diferença volta' : level ? 'Todos pagam o mesmo no fim' : 'Cada um paga a parte inteira no fim'}</b>
+                <small>
+                  {kept}
+                  {cap(list(comers))} {verb(comers, 'paga', 'pagam')} {brl(spread![one][keep])}
+                  {comers.length > 1 ? ' cada' : ''} {when}
+                  {backIds.length > 0 ? (
+                    <>
+                      . {cap(list(backIds))} não {verb(backIds, 'paga', 'pagam')} mais nada desta despesa e {verb(backIds, 'recebe', 'recebem')} de volta{' '}
+                      {backText}: {nameOf(payerId)} devolve com o que {list(comers)} {verb(comers, 'pagar', 'pagarem')}.
+                    </>
+                  ) : (
+                    <>
+                      {stayer && !comers.includes(stayer) && (
+                        <>
+                          , e quem já estava passa a pagar {brl(spread![stayer][keep])}
+                          {was(keep) !== spread![stayer][keep] && <> ({nameOf(stayer)} pagava {brl(was(keep))})</>}
+                        </>
+                      )}
+                      .{' '}
+                      {level
+                        ? `No fim, todos pagam ${brl(low)}${high > low ? ` ou ${brl(high)}` : ''}.`
+                        : 'No fim, cada um paga a sua parte da despesa inteira.'}
+                    </>
+                  )}
+                </small>
+              </button>
+            )}
             <button type="button" className="join-option" onClick={() => save('rest')}>
-              <b>A partir da {from}ª parcela</b>
+              <b>{showSpread ? `Só a partir da ${from}ª parcela` : `A partir da ${from}ª parcela`}</b>
               <small>
                 {cap(gone)} {k === 1 ? 'continua' : 'continuam'} com quem já estava
                 {leaving.length > 0 && <> ({list(leaving)} {verb(leaving, 'fica', 'ficam')} só com {k === 1 ? 'ela' : 'elas'})</>}. Da {from}ª em diante, o
                 valor é reajustado e {each} por mês
-                {stayer && before !== rest[stayer][k] && <> ({nameOf(stayer)} pagava {formatBRL(before)})</>}.
+                {stayer && was(k) !== rest[stayer][k] && <> ({nameOf(stayer)} pagava {brl(was(k))})</>}.
+                {showSpread && stayer && !comers.includes(stayer) && total(rest, one) !== total(rest, stayer) && (
+                  <>
+                    {' '}
+                    No fim, {list(comers)} {verb(comers, 'paga', 'pagam')} {brl(total(rest, one))}
+                    {comers.length > 1 ? ' cada' : ''} e quem já estava, {brl(total(rest, stayer))}.
+                  </>
+                )}
               </small>
             </button>
             {all && (
               <button type="button" className="join-option" onClick={() => save('all')}>
-                <b>Desde a 1ª parcela</b>
+                <b>{showSpread ? `Desde a 1ª, de uma vez na ${from}ª` : 'Desde a 1ª parcela'}</b>
                 <small>
-                  {cap(list(comers))} {verb(comers, 'paga', 'pagam')} também a parte {k === 1 ? 'da 1ª' : `das parcelas 1 a ${k}`}: {formatBRL(all[one][k])}
+                  {cap(list(comers))} {verb(comers, 'paga', 'pagam')} também a parte {k === 1 ? 'da 1ª' : `das parcelas 1 a ${k}`}: {brl(all[one][k])}
                   {comers.length > 1 ? ' cada' : ''} na {from}ª
                   {stayer && (
                     <>
-                      , e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${formatBRL(all[stayer][k])}` : 'não paga nada'} nela, porque já pagou a mais
+                      , e {nameOf(stayer)} {all[stayer][k] > 0 ? `paga só ${brl(all[stayer][k])}` : 'não paga nada'} nela, porque já pagou a mais
                     </>
                   )}
-                  .{k + 1 < n && <> Depois, todos {formatBRL(all[one][k + 1])} por mês.</>}
+                  .{k + 1 < n && <> Depois, todos {brl(all[one][k + 1])} por mês.</>}
                 </small>
               </button>
             )}

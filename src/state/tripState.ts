@@ -100,8 +100,11 @@ export type TripAction =
   | { type: 'addExpensePhoto'; id: string; photo: string }
   /** Tira uma foto da despesa (as outras ficam). */
   | { type: 'removeExpensePhoto'; id: string; photo: string }
-  /** A pessoa `id` só começa a pagar a parcelada `expenseId` na parcela `from` (as de antes ficam com quem já estava). */
-  | { type: 'startPaying'; id: string; expenseId: string; from: number }
+  /**
+   * A pessoa `id` só começa a pagar a parcelada `expenseId` na parcela `from` (as de antes ficam
+   * com quem já estava). `mode` 'spread': todos pagam o mesmo no fim (sem: só dali em diante).
+   */
+  | { type: 'startPaying'; id: string; expenseId: string; from: number; mode?: 'spread' }
   /** "Parcelas já pagas por todos": da 1ª até `installment` está tudo quitado (0 desmarca). */
   | { type: 'paidThrough'; expenseId: string; installment: number }
   | { type: 'settle'; id: string; from: string; to: string; cents: number; expenseId?: string }
@@ -272,9 +275,8 @@ function describe(before: Trip, after: Trip, a: TripAction): string | null {
     case 'startPaying': {
       const e = exp(after, a.expenseId);
       if (!e) return null;
-      return a.from > 1
-        ? `${who(after, a.id)} começa a pagar ${e.description} na ${a.from}ª parcela · parcelas reajustadas`
-        : `${who(after, a.id)} paga ${e.description} desde a 1ª parcela · parcelas reajustadas`;
+      if (a.from <= 1) return `${who(after, a.id)} paga ${e.description} desde a 1ª parcela · parcelas reajustadas`;
+      return `${who(after, a.id)} começa a pagar ${e.description} na ${a.from}ª parcela · ${a.mode === 'spread' ? 'todos pagam o mesmo no fim' : 'parcelas reajustadas'}`;
     }
     case 'settle':
       return `${who(after, a.from)} pagou ${formatBRL(a.cents)} para ${who(after, a.to)}`;
@@ -536,7 +538,7 @@ function applyTrip(s: TripsState, a: TripAction): TripsState {
     case 'startPaying':
       if (!isInt(a.from, 1)) return s;
       return onOpen(s, (t) => {
-        const r = setPersonStart(t, a.expenseId, a.id, a.from, now());
+        const r = setPersonStart(t, a.expenseId, a.id, a.from, now(), a.mode === 'spread' ? 'spread' : 'rest');
         return r.ok ? r.trip : null;
       });
     case 'settle':

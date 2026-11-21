@@ -286,8 +286,11 @@ export function partsOf(e: Pick<Expense, 'schedule' | 'shares' | 'installments'>
  * - 'all' (dividir tudo desde o início): todo mundo fica com a parte da despesa inteira. Na
  *   próxima parcela, quem entrou paga também a parte dele das que passaram, e quem estava paga
  *   menos (o que pagou a mais volta ali); depois, todos iguais. Não vale quando alguém sai.
+ * - 'spread' (todos pagam o mesmo no fim): também a parte da despesa inteira, mas a diferença é
+ *   diluída em todas as parcelas que faltam: quem entrou paga mais em cada uma, quem estava paga
+ *   menos. Ex.: a Deise na 2ª do Airbnb. Ver `spreadSchedule`.
  */
-export type JoinMode = 'rest' | 'all';
+export type JoinMode = 'rest' | 'all' | 'spread';
 
 /**
  * Divide outro valor (`cents`) do jeito da despesa: igual ou por peso como ela; em valores
@@ -315,6 +318,7 @@ export function joinSchedule(
   mode: JoinMode,
   drift: CentDrift = new Map(),
 ): Record<string, number[]> | null {
+  if (mode === 'spread') return spreadSchedule(old, input, people, elapsed, drift)?.schedule ?? null;
   const n = installmentsOf(input);
   const k = Math.max(0, Math.min(n - 1, Math.floor(elapsed)));
   if (n < 2 || installmentsOf(old) !== n || k === 0) return null;
@@ -360,6 +364,101 @@ export function joinSchedule(
   return out;
 }
 
+/** O "todos pagam o mesmo no fim": as parcelas de cada um e quanto volta para quem já pagou a mais. */
+export interface SpreadPlan {
+  schedule: Record<string, number[]>;
+  /**
+   * Quem, só nas parcelas que passaram, já pagou mais do que a parte da despesa inteira (entrou
+   * gente demais perto do fim): não paga mais nada, e esse tanto volta para ela no acerto, com o
+   * que quem entrou pagar. Vazio quando deu para acertar tudo nas parcelas que faltam.
+   */
+  back: Record<string, number>;
+}
+
+/**
+ * Todos pagam o mesmo no fim (`JoinMode` 'spread'): cada um fica com a parte da despesa inteira
+ * (igual, por peso ou na proporção dos valores exatos), as `elapsed` parcelas que passaram ficam
+ * como estavam e o que falta de cada um é dividido nas que faltam. Ex.: R$ 1.000 em 2x entre 4
+ * (R$ 125 por parcela); na 2ª entra mais uma: ela paga R$ 200 na 2ª e os outros, R$ 75. No fim,
+ * R$ 200 cada.
+ *
+ * Centavos: a parte de cada um é a da despesa inteira (com o centavo que sobra para quem está
+ * atrás, ver `tripDrift`), e o que falta vai em parcelas iguais, com o centavo que sobra nas
+ * primeiras, como nas outras parcelas: quem deve o mesmo paga o mesmo em cada parcela. Quem saiu
+ * fica só com as que passaram. null quando não precisa (nenhuma passou, mudou o número de
+ * parcelas) ou não dá.
+ */
+export function spreadSchedule(old: Expense, input: ExpenseInput, people: Traveler[], elapsed: number, drift: CentDrift = new Map()): SpreadPlan | null {
+  const n = installmentsOf(input);
+  const k = Math.max(0, Math.min(n - 1, Math.floor(elapsed)));
+  if (n < 2 || installmentsOf(old) !== n || k === 0) return null;
+  const ids = people.filter((p) => input.people.includes(p.id)).map((p) => p.id);
+  const past = (id: string) => partsOf(old, id).slice(0, k);
+  const leavers = Object.keys(old.shares).filter((id) => !ids.includes(id) && people.some((p) => p.id === id) && sum(past(id)) > 0);
+  const total = input.cents - leavers.reduce((a, id) => a + sum(past(id)), 0);
+  const full = ids.length && total > 0 ? splitLike(input, people, old.seq, total, drift) : null;
+  if (!full) return null;
+  const schedule: Record<string, number[]> = {};
+  const back: Record<string, number> = {};
+  const rest = ids.map((id) => {
+    const before = past(id);
+    const owed = full[id] - sum(before);
+    if (owed >= 0) {
+      schedule[id] = before;
+      return owed;
+    }
+    // Não dá para pagar menos que zero nas que faltam: as que passaram ficam até a parte dela, e o resto volta.
+    back[id] = -owed;
+    schedule[id] = trimTo(before, full[id]);
+    return 0;
+  });
+  ids.forEach((id, i) => (schedule[id] = [...schedule[id], ...splitEven(rest[i], n - k)]));
+  for (const id of leavers) schedule[id] = [...past(id), ...Array.from({ length: n - k }, () => 0)];
+  return { schedule, back };
+}
+
+/**
+ * O mesmo, sem mexer nas parcelas já pagas por todos (até `closed`, ver `paidThrough`): elas ficam
+ * exatamente como estão na despesa de agora (`current`), mesmo a parte de quem entrou, e a
+ * diferença vai só nas que estão em aberto. Mudar uma delas faria a marcação acertar outro valor
+ * (quem pagou R$ 158,04 ficaria quitado com R$ 173,84). Entre elas e a parcela em que a pessoa
+ * entra (`elapsed` + 1), vale a despesa como era sem quem entrou (`old`).
+ */
+export function spreadKeeping(
+  old: Expense,
+  current: Expense,
+  input: ExpenseInput,
+  people: Traveler[],
+  elapsed: number,
+  closed: number,
+  drift: CentDrift = new Map(),
+): SpreadPlan | null {
+  const k = Math.floor(elapsed);
+  const c = Math.max(0, Math.min(installmentsOf(input) - 1, Math.floor(closed)));
+  if (!c || installmentsOf(current) !== installmentsOf(old)) return spreadSchedule(old, input, people, k, drift);
+  const ids = [...new Set([...Object.keys(old.shares), ...Object.keys(current.shares)])];
+  const plan = Object.fromEntries(
+    ids.map((id) => {
+      const [now, before] = [partsOf(current, id), partsOf(old, id)];
+      return [id, now.map((x, m) => (m >= c && m < k ? before[m] : x))];
+    }),
+  );
+  const shares = Object.fromEntries(ids.map((id) => [id, sum(plan[id])]));
+  return spreadSchedule({ ...old, shares, schedule: plan }, input, people, Math.max(k, c), drift);
+}
+
+/** As parcelas cortadas do fim para trás até somarem `keep`. */
+function trimTo(parts: number[], keep: number): number[] {
+  let extra = sum(parts) - keep;
+  const out = [...parts];
+  for (let m = out.length - 1; m >= 0 && extra > 0; m--) {
+    const cut = Math.min(out[m], extra);
+    out[m] -= cut;
+    extra -= cut;
+  }
+  return out;
+}
+
 /**
  * Despesa que só começa a ser dividida numa parcela (`from`, de 1 a n): as anteriores ficam com
  * zero para todos e a parte de cada um é dividida só nas que faltam. Ex.: os cachorros, assumidos
@@ -390,12 +489,22 @@ export function personStart(e: Pick<Expense, 'schedule' | 'shares' | 'installmen
 }
 
 /**
+ * Como fica quem entrou depois numa parcelada: 'spread', todos pagam o mesmo no fim (ela paga
+ * mais nas parcelas que faltam); 'rest', ela só paga dali em diante (paga menos no total).
+ */
+export type StartMode = 'spread' | 'rest';
+
+/**
  * Parcelas da despesa quando `id` só começa a pagar na parcela `from` (entrou depois, como a
- * Deise na 2ª do Airbnb): as anteriores ficam com quem já estava, como se ela não estivesse, e o
- * que falta é dividido entre todos, ela junto (cada um paga um pouco menos dali em diante).
+ * Deise na 2ª do Airbnb): as anteriores ficam com quem já estava, como se ela não estivesse.
+ * - 'rest': o que falta é dividido entre todos, ela junto (cada um paga um pouco menos dali em
+ *   diante, e ela fica sem a parte das que passaram).
+ * - 'spread': ela fica com a parte da despesa inteira, igual à dos outros, paga em parcelas
+ *   maiores; quem já estava paga menos nas que faltam. As parcelas já pagas por todos
+ *   (`paidThrough`) não mudam: a diferença vai nas que vêm depois delas.
  * `from` na 1ª (ou antes de a despesa começar) volta às parcelas iguais. null se não dá.
  */
-export function personFromSchedule(trip: Trip, e: Expense, id: string, from: number): Record<string, number[]> | null {
+export function personFromSchedule(trip: Trip, e: Expense, id: string, from: number, mode: StartMode = 'rest'): Record<string, number[]> | null {
   const n = installmentsOf(e);
   if (n < 2 || !e.people.includes(id)) return null;
   const drift = tripDrift(trip, e.id);
@@ -414,14 +523,27 @@ export function personFromSchedule(trip: Trip, e: Expense, id: string, from: num
   const delayed = begin > 1 ? startSchedule(shares, n, begin) : null;
   if (delayed) base.schedule = delayed;
   else delete base.schedule;
+  if (mode === 'spread') return spreadKeeping(base, e, e, trip.people, k, paidThroughOf(e), drift)?.schedule ?? null;
   return joinSchedule(base, e, trip.people, k, 'rest', drift);
 }
 
+/**
+ * Como está a pessoa que entrou depois nesta parcelada: 'spread' se a parte dela é a da despesa
+ * inteira, igual à de quem já estava (com 1 centavo de folga, o que sobra da divisão).
+ */
+export function startModeOf(trip: Trip, e: Expense, id: string): StartMode {
+  const from = personStart(e, id);
+  if (from <= startOf(e)) return 'spread';
+  const plan = personFromSchedule(trip, e, id, from, 'spread');
+  const whole = plan?.[id] ? sum(plan[id]) : null;
+  return whole !== null && Object.hasOwn(e.shares, id) && Math.abs(e.shares[id] - whole) <= 1 ? 'spread' : 'rest';
+}
+
 /** A pessoa passa a pagar a despesa parcelada só a partir da parcela `from` (ver personFromSchedule). */
-export function setPersonStart(trip: Trip, expenseId: string, id: string, from: number, now: string): TripResult {
+export function setPersonStart(trip: Trip, expenseId: string, id: string, from: number, now: string, mode: StartMode = 'rest'): TripResult {
   const e = trip.expenses.find((x) => x.id === expenseId && !x.deleted);
   if (!e) return { ok: false, error: 'Essa despesa não existe mais.' };
-  const schedule = personFromSchedule(trip, e, id, from);
+  const schedule = personFromSchedule(trip, e, id, from, mode);
   if (!schedule) return { ok: false, error: 'Não deu para reajustar as parcelas.' };
   return updateExpense(trip, expenseId, { ...e, schedule }, now);
 }
@@ -442,9 +564,11 @@ function applySchedule(expense: Expense, schedule: Record<string, number[]> | un
 /** O que muda na divisão (valor, quem participa, como divide, parcelas): sem mudança, as parcelas combinadas continuam. */
 function sameSplit(a: ExpenseInput, b: ExpenseInput): boolean {
   const ids = (x: ExpenseInput) => [...x.people].sort().join();
+  // Valores exatos: os mesmos de cada um, em qualquer ordem.
+  const [ea, eb] = [a.exact ?? {}, b.exact ?? {}];
   return (
     a.cents === b.cents && a.split === b.split && installmentsOf(a) === installmentsOf(b) && ids(a) === ids(b) &&
-    JSON.stringify(a.exact ?? {}) === JSON.stringify(b.exact ?? {})
+    Object.keys(ea).length === Object.keys(eb).length && Object.keys(ea).every((id) => ea[id] === eb[id])
   );
 }
 
@@ -771,7 +895,9 @@ export function countedSettlements(trip: Trip): Settlement[] {
         used.push(x);
         got += x.cents;
       }
-      if (due <= 0 || Math.abs(due - got) > half) continue;
+      // Pagou mais do que a parte inteira desta despesa (todos pagam o mesmo, e entrou gente no
+      // fim): não é diferença de reajuste, é dinheiro que volta para ela no acerto.
+      if (due <= 0 || Math.abs(due - got) > half || got > r.cents) continue;
       for (const x of used) drop.add(x);
       extra.push({ id: `quitadas:${e.id}:${r.from}`, from: r.from, to: r.to, cents: due, expenseId: e.id, at });
     }

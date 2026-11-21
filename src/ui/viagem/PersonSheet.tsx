@@ -1,7 +1,20 @@
 import { useState, type Dispatch } from 'react';
 import { MAX_NAME } from '../../core/bill';
 import { formatBRL } from '../../core/money';
-import { accountMembers, canCover, installmentsOf, personFromSchedule, personStart, travelerUsage, type Expense, type Traveler, type Trip } from '../../core/trip';
+import {
+  accountMembers,
+  canCover,
+  installmentsOf,
+  paidThroughOf,
+  personFromSchedule,
+  personStart,
+  startModeOf,
+  travelerUsage,
+  type Expense,
+  type StartMode,
+  type Traveler,
+  type Trip,
+} from '../../core/trip';
 import type { TripAction } from '../../state/tripState';
 import { Avatar, personStyle } from '../Avatar';
 import { IconMinus, IconPlus, IconTrash } from '../icons';
@@ -15,7 +28,7 @@ interface Props {
   /** Viagem compartilhada (todo mundo do grupo vê o Pix). */
   shared?: boolean;
   dispatch: Dispatch<TripAction>;
-  toast: (msg: string) => void;
+  toast: (msg: string, undo?: () => void) => void;
   onClose: () => void;
 }
 
@@ -53,8 +66,9 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
   });
   // Parceladas de que a pessoa participa: em qual parcela ela começa a pagar (entrou depois).
   const parceladas = trip.expenses.filter((e) => !e.deleted && !e.settled && installmentsOf(e) > 1 && e.people.includes(person.id));
-  const [starts, setStarts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(parceladas.map((e) => [e.id, personStart(e, person.id)])),
+  // E, para quem entrou depois, se no fim todos pagam o mesmo ou se ela só paga dali em diante.
+  const [starts, setStarts] = useState<Record<string, Start>>(() =>
+    Object.fromEntries(parceladas.map((e) => [e.id, { from: personStart(e, person.id), mode: startModeOf(trip, e, person.id) }])),
   );
   const [from, setFrom] = useState('');
   const [dropFrom, setDropFrom] = useState(true);
@@ -81,11 +95,21 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
       return;
     }
     dispatch({ type: 'editTraveler', id: person.id, name, coveredBy: coveredBy || null, pix: key });
-    for (const e of parceladas) {
-      if (starts[e.id] !== personStart(e, person.id)) dispatch({ type: 'startPaying', id: person.id, expenseId: e.id, from: starts[e.id] });
+    const changed = parceladas.filter((e) => {
+      const s = starts[e.id];
+      return s.from !== personStart(e, person.id) || (s.from > 1 && s.mode !== startModeOf(trip, e, person.id));
+    });
+    for (const e of changed) {
+      const s = starts[e.id];
+      dispatch({ type: 'startPaying', id: person.id, expenseId: e.id, from: s.from, ...(s.mode === 'spread' ? { mode: 'spread' as const } : {}) });
     }
     if (isMe !== (person.id === meId)) dispatch({ type: 'setMe', id: isMe ? person.id : null });
-    toast('Pessoa salva');
+    if (changed.length) {
+      // Desfazer volta cada despesa exatamente às parcelas de antes (`{}`: eram iguais para todos).
+      toast(`Parcelas de ${name.trim() || person.name} reajustadas. Confira o acerto.`, () =>
+        changed.forEach((e) => dispatch({ type: 'editExpense', id: e.id, input: { ...e, schedule: e.schedule ?? {} } })),
+      );
+    } else toast('Pessoa salva');
     onClose();
   }
 
@@ -154,9 +178,12 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
       {parceladas.length > 0 && (
         <div className="note-field person-starts">
           <h3 className="field-label">Começa a pagar em qual parcela?</h3>
-          <p className="hint">Para quem entrou depois: as parcelas de antes ficam só com quem já estava, e o resto é redividido com {name.trim() || person.name}.</p>
+          <p className="hint">
+            Para quem entrou depois: as parcelas de antes ficam com quem já estava. Escolha se no fim todos pagam o mesmo ({name.trim() || person.name} paga
+            mais nas que faltam) ou se só paga dali em diante.
+          </p>
           {parceladas.map((e) => (
-            <StartRow key={e.id} trip={trip} e={e} person={person} from={starts[e.id]} onChange={(v) => setStarts((s) => ({ ...s, [e.id]: v }))} />
+            <StartRow key={e.id} trip={trip} e={e} person={person} start={starts[e.id]} onChange={(v) => setStarts((s) => ({ ...s, [e.id]: v }))} />
           ))}
         </div>
       )}
@@ -251,35 +278,76 @@ function PersonForm({ trip, meId, person, shared, dispatch, toast, onClose }: Pr
   );
 }
 
+/** "R$ 158,04" sem quebrar a linha entre o "R$" e o número. */
+const brl = (cents: number) => formatBRL(cents).replace(' ', '\u00a0');
+
+/** Em qual parcela a pessoa começa a pagar uma parcelada e, se entrou depois, como fica o total. */
+interface Start {
+  from: number;
+  mode: StartMode;
+}
+
 /** Uma parcelada no modal da pessoa: "Airbnb · Começa na 2ª de 5", com quanto cada um paga. */
-function StartRow({ trip, e, person, from, onChange }: { trip: Trip; e: Expense; person: Traveler; from: number; onChange: (from: number) => void }) {
+function StartRow({ trip, e, person, start, onChange }: { trip: Trip; e: Expense; person: Traveler; start: Start; onChange: (start: Start) => void }) {
+  const { from, mode } = start;
   const n = installmentsOf(e);
-  const plan = personFromSchedule(trip, e, person.id, from);
+  const plan = personFromSchedule(trip, e, person.id, from, mode);
   const parts = plan && Object.keys(plan).length ? plan : null;
-  const mine = parts?.[person.id]?.[from - 1];
+  // As já pagas por todos não mudam no "todos pagam o mesmo"; o valor muda depois delas.
+  const shut = mode === 'spread' ? Math.max(0, Math.min(n - 1, paidThroughOf(e))) : 0;
+  const k = from - 1;
+  const at = Math.max(k, shut);
+  const mine = parts?.[person.id]?.[at];
+  const owedShut = (parts?.[person.id] ?? []).slice(0, shut).reduce((a, c) => a + c, 0);
   const other = e.people.find((id) => id !== person.id && id !== e.payerId && parts?.[id]);
   const otherName = trip.people.find((p) => p.id === other)?.name;
+  const whole = (id: string) => (parts?.[id] ?? []).reduce((a, c) => a + c, 0);
+  const totals = e.people.filter((id) => parts?.[id]).map(whole);
+  const [low, high] = [Math.min(...totals), Math.max(...totals)];
   const label = `h-start-${e.id}`;
   return (
     <div className="person-start">
       <div className="join-elapsed">
         <span id={label}>{e.description}</span>
         <div className="stepper" role="group" aria-labelledby={label}>
-          <button type="button" onClick={() => onChange(Math.max(1, from - 1))} disabled={from <= 1} aria-label="Parcela anterior">
+          <button type="button" onClick={() => onChange({ from: Math.max(1, from - 1), mode })} disabled={from <= 1} aria-label="Parcela anterior">
             <IconMinus size={18} />
           </button>
           <output aria-live="polite">{from}ª de {n}</output>
-          <button type="button" onClick={() => onChange(Math.min(n, from + 1))} disabled={from >= n} aria-label="Próxima parcela">
+          <button type="button" onClick={() => onChange({ from: Math.min(n, from + 1), mode })} disabled={from >= n} aria-label="Próxima parcela">
             <IconPlus size={18} />
           </button>
         </div>
       </div>
+      {from > 1 && (
+        <div className="seg two" role="group" aria-label={`Como ${person.name} paga ${e.description}`}>
+          <button type="button" aria-pressed={mode === 'spread'} onClick={() => onChange({ from, mode: 'spread' })}>
+            Todos pagam o mesmo
+          </button>
+          <button type="button" aria-pressed={mode === 'rest'} onClick={() => onChange({ from, mode: 'rest' })}>
+            Só dali em diante
+          </button>
+        </div>
+      )}
       <p className="hint" aria-live="polite">
         {from > 1 && parts && mine !== undefined ? (
           <>
-            {from === 2 ? 'Na 1ª' : `Da 1ª à ${from - 1}ª`}, só quem já estava{other && otherName ? ` (${otherName}: ${formatBRL(parts[other][0])})` : ''}. Da {from}ª em diante,{' '}
-            {person.name} paga {formatBRL(mine)}
-            {other && otherName ? ` e ${otherName}, ${formatBRL(parts[other][from - 1])}` : ''} por parcela.
+            {shut > 0 &&
+              `${shut === 1 ? 'A 1ª já foi marcada como paga por todos e fica como está' : `As parcelas 1 a ${shut} já foram marcadas como pagas por todos e ficam como estão`}${
+                owedShut > 0 ? ` (${person.name}: ${brl(owedShut)})` : ''
+              }. `}
+            {k > shut && (
+              <>
+                {k - shut === 1 ? `Na ${k}ª` : `Da ${shut + 1}ª à ${k}ª`}, só quem já estava{other && otherName ? ` (${otherName}: ${brl(parts[other][shut])})` : ''}.{' '}
+              </>
+            )}
+            Da {at + 1}ª em diante, {person.name} paga {brl(mine)}
+            {other && otherName ? ` e ${otherName}, ${brl(parts[other][at])}` : ''} por parcela.{' '}
+            {mode === 'spread'
+              ? high - low <= 1
+                ? `No fim, todos pagam ${brl(low)}${high > low ? ` ou ${brl(high)}` : ''}.`
+                : `No fim, cada um paga a sua parte da despesa inteira (${person.name}: ${brl(whole(person.id))}).`
+              : `No fim, ${person.name} paga ${brl(whole(person.id))}${other && otherName ? ` e ${otherName}, ${brl(whole(other))}` : ''}.`}
           </>
         ) : (
           `${person.name} paga desde a 1ª parcela.`

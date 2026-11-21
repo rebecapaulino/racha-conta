@@ -607,3 +607,34 @@ só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Ma
   ex.: R$ 173,84 numa de R$ 158,04, o valor de antes do reajuste) fica com a parcela paga e a
   próxima igual à dos outros; a sobra fica com quem recebeu. Pedido da usuária: "não deveria vir
   nenhum valor, só o que falta pagar". Quem pagou a menos continua vendo o restinho (e o botão).
+
+## "Todos pagam o mesmo no fim" — 21/11/2026
+
+- **Pedido:** ao entrar alguém numa parcelada já em andamento, faltava a opção de a pessoa pagar a
+  mesma parte que os outros, só que nas parcelas que faltam: quem já estava paga menos em cada uma,
+  quem entrou paga mais, e no fim todos pagaram o mesmo. Ex.: R$ 1.000 em 2x entre 4 (R$ 125 por
+  parcela); na 2ª entra mais uma: ela paga R$ 200 na 2ª e os outros R$ 75. Era o que devia ter
+  acontecido com a Deise no Airbnb do Mauricio.
+- **Onde aparece:** é a primeira opção de "a partir de qual parcela?" (ao marcar alguém numa
+  parcelada e em "Alguém entrou depois da 1ª parcela?"), com quanto quem entrou paga por parcela,
+  quanto quem já estava passa a pagar e o total no fim. Em Pessoas → "Começa a pagar em qual
+  parcela?", cada parcelada ganhou "Todos pagam o mesmo" / "Só dali em diante" (a tela mostra
+  como está agora). A antiga "A partir da Xª" virou "Só a partir da Xª" e diz quanto cada um paga
+  no fim; "Desde a 1ª" virou "Desde a 1ª, de uma vez na Xª" (some quando dá no mesmo). Salvar em
+  Pessoas mostra "Desfazer", que volta exatamente às parcelas de antes.
+- **Conta (`spreadSchedule`, trip.ts):** cada um fica com a parte da despesa inteira (igual, por
+  peso ou os valores exatos), com o centavo que sobra para quem está atrás (`tripDrift`); as
+  parcelas que passaram ficam como estavam e o que falta de cada um vai em parcelas iguais, o
+  centavo que sobra nas primeiras (quem deve o mesmo paga o mesmo em cada parcela). Quem saiu fica
+  só com as que passaram. **Parcelas marcadas "Já pagas por todos" nunca mudam** (`spreadKeeping`):
+  a diferença vai só nas que estão em aberto; mudar uma delas faria a marcação acertar outro valor.
+- **Quando não dá** (entrou gente demais perto do fim e alguém já pagou mais do que a parte
+  inteira): a tela avisa ("Na 2ª já não dá para todos pagarem o mesmo só com as parcelas que
+  faltam") e pergunta como seguir: "Todos pagam o mesmo, e a diferença volta" (quem entrou paga a
+  parte inteira; quem pagou a mais não paga mais nada e recebe de volta de quem pagou a despesa,
+  com o que quem entrou pagar) ou "Só a partir da Xª". O que volta aparece no acerto como um Pix
+  de quem pagou a despesa para quem pagou a mais; "Já pagas por todos" não come esse valor (quem
+  pagou mais do que a parte inteira da despesa não é "diferença de reajuste").
+- **Correções junto:** em "Valores exatos", a edição da despesa mostra os valores digitados (antes
+  mostrava as partes já reajustadas, e salvar qualquer coisa desfazia as parcelas combinadas); a
+  comparação dos valores exatos não depende mais da ordem.

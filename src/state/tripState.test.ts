@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expensePhotos, installmentInfo, joinSchedule, personStart, photoFields, splitLike, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
+import { expensePhotos, installmentInfo, joinSchedule, personStart, photoFields, splitLike, spreadKeeping, startModeOf, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -637,6 +637,60 @@ describe('viagem "Ano novo - Família": a Deise já estava no Airbnb, mas entrou
     s = run(s, { type: 'startPaying', id: 'deise', expenseId: 'air', from: 1 });
     expect(trip(s).expenses[0].schedule).toBeUndefined();
     expect(personStart(trip(s).expenses[0], 'deise')).toBe(1);
+  });
+
+  it('"Todos pagam o mesmo no fim": a 1ª e a 2ª (já pagas por todos) ficam como estão; da 3ª à 5ª, a Deise paga mais e os outros menos', () => {
+    // Como está hoje: a Deise começa na 2ª (só dali em diante) e as parcelas 1 e 2 estão pagas por todos.
+    let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 }, { type: 'paidThrough', expenseId: 'air', installment: 2 });
+    const before = trip(s).expenses[0];
+    expect(startModeOf(trip(s), before, 'deise')).toBe('rest');
+    s = run(s, { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2, mode: 'spread' });
+    const e = trip(s).expenses[0];
+    expect(startModeOf(trip(s), e, 'deise')).toBe('spread');
+    expect(trip(s).log!.at(-1)!.text).toBe('Deise começa a pagar Airbnb na 2ª parcela · todos pagam o mesmo no fim');
+    // No fim, todos com R$ 790,18 (dois com R$ 790,19: os 2 centavos que sobram de R$ 8.692 ÷ 11).
+    const totals = all.map((id) => e.schedule![id].reduce((a, c) => a + c, 0));
+    expect(totals.reduce((a, c) => a + c, 0)).toBe(869200);
+    expect(Math.min(...totals)).toBe(79018);
+    expect(Math.max(...totals)).toBe(79019);
+    // As parcelas que já foram pagas por todos não mudam (nem a 2ª da Deise, que ela ainda deve).
+    for (const id of all) expect(e.schedule![id].slice(0, 2)).toEqual(before.schedule![id].slice(0, 2));
+    // Da 3ª à 5ª: R$ 152,77 (o centavo que sobra nas primeiras) para quem já estava e R$ 210,72 /
+    // R$ 210,71 para a Deise. Quem deve o mesmo paga o mesmo em cada parcela.
+    for (const id of ids) {
+      const total = e.schedule![id].reduce((a, c) => a + c, 0);
+      expect(e.schedule![id].slice(2)).toEqual(total === 79018 ? [15277, 15277, 15276] : [15277, 15277, 15277]);
+    }
+    expect(e.schedule!.deise.slice(2)).toEqual([21072, 21071, 21071]);
+    const month = (m: number) => all.reduce((a, id) => a + e.schedule![id][m], 0);
+    expect(month(2) + month(3) + month(4)).toBe(869200 - month(0) - month(1));
+    for (const m of [2, 3, 4]) expect(Math.abs(month(m) - 173840)).toBeLessThanOrEqual(11);
+    // Quem já pagou até a 2ª paga a 3ª menor; a Deise, a 2ª dela (como antes) e depois as maiores.
+    expect(next(s, 'rebeca')).toMatchObject({ paidCount: 2, next: 15277 });
+    expect(next(s, 'robin')).toMatchObject({ paidCount: 2, next: 15277 });
+    expect(next(s, 'deise')).toMatchObject({ paidCount: 1, next: before.schedule!.deise[1] });
+    expect(tripSummary(trip(s)).ok).toBe(true);
+    // Voltar para "só dali em diante" devolve as parcelas de antes.
+    s = run(s, { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 });
+    expect(trip(s).expenses[0].schedule).toEqual(before.schedule);
+  });
+
+  it('pela despesa ("Alguém entrou depois?" → Deise, a partir da 2ª ou da 3ª): o mesmo resultado, sem mexer nas já pagas por todos', () => {
+    let s = run(today(), { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2 }, { type: 'paidThrough', expenseId: 'air', installment: 2 });
+    const e = trip(s).expenses[0];
+    // A despesa como era sem a Deise (o que a tela monta em "Alguém entrou depois?").
+    const late = { ...e, people: ids, shares: Object.fromEntries(ids.map((id) => [id, 86920])) };
+    delete late.schedule;
+    const viaPerson = run(s, { type: 'startPaying', id: 'deise', expenseId: 'air', from: 2, mode: 'spread' });
+    const want = trip(viaPerson).expenses[0].schedule;
+    for (const k of [1, 2]) expect(spreadKeeping(late, e, air(all), trip(s).people, k, 2)!.schedule).toEqual(want);
+    // Sem a marcação, "a partir da 3ª" refaz a 2ª como se a Deise não estivesse nela.
+    const open = spreadKeeping(late, e, air(all), trip(s).people, 2, 0)!.schedule;
+    expect(open.deise.slice(0, 2)).toEqual([0, 0]);
+    expect(open.rebeca.slice(0, 2)).toEqual([17384, 17384]);
+    s = run(s, { type: 'editExpense', id: 'air', input: { ...air(all), schedule: spreadKeeping(late, e, air(all), trip(s).people, 2, 2)!.schedule } });
+    expect(trip(s).expenses[0].paidThrough?.installment).toBe(2);
+    expect(trip(s).expenses[0].schedule).toEqual(want);
   });
 });
 
