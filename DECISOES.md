@@ -638,3 +638,4 @@ só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Ma
 - **Correções junto:** em "Valores exatos", a edição da despesa mostra os valores digitados (antes
   mostrava as partes já reajustadas, e salvar qualquer coisa desfazia as parcelas combinadas); a
   comparação dos valores exatos não depende mais da ordem.
+- **Parcela já paga não muda, mesmo sem marcar (21/11/2026):** além das marcadas "Já pagas por todos", o "todos pagam o mesmo" também não refaz as parcelas que todo mundo que já estava na despesa pagou (`paidByAll`, `closedOf`; quem entrou não conta). Ex.: a Deise entra na 2ª do Airbnb e todos já quitaram a 1ª e a 2ª: elas ficam como foram pagas e a diferença é descontada só da 3ª em diante. Antes, sem a marcação, a 2ª era refeita (R$ 158,04 virava R$ 154,09) e a sobra de quem pagou o valor de antes ficava com quem recebeu, sem ninguém ver.

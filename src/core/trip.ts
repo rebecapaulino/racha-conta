@@ -418,11 +418,11 @@ export function spreadSchedule(old: Expense, input: ExpenseInput, people: Travel
 }
 
 /**
- * O mesmo, sem mexer nas parcelas já pagas por todos (até `closed`, ver `paidThrough`): elas ficam
- * exatamente como estão na despesa de agora (`current`), mesmo a parte de quem entrou, e a
- * diferença vai só nas que estão em aberto. Mudar uma delas faria a marcação acertar outro valor
- * (quem pagou R$ 158,04 ficaria quitado com R$ 173,84). Entre elas e a parcela em que a pessoa
- * entra (`elapsed` + 1), vale a despesa como era sem quem entrou (`old`).
+ * O mesmo, sem mexer nas parcelas já pagas (até `closed`, ver `closedOf`): elas ficam exatamente
+ * como estão na despesa de agora (`current`), mesmo a parte de quem entrou, e a diferença vai só
+ * nas que estão em aberto. Refazer uma delas mudaria o que cada um já pagou (quem pagou R$ 158,04
+ * ficaria quitado com R$ 173,84, ou a sobra iria para quem recebeu). Entre elas e a parcela em que
+ * a pessoa entra (`elapsed` + 1), vale a despesa como era sem quem entrou (`old`).
  */
 export function spreadKeeping(
   old: Expense,
@@ -445,6 +445,20 @@ export function spreadKeeping(
   );
   const shares = Object.fromEntries(ids.map((id) => [id, sum(plan[id])]));
   return spreadSchedule({ ...old, shares, schedule: plan }, input, people, Math.max(k, c), drift);
+}
+
+/**
+ * Quantas parcelas, desde a 1ª, todo mundo que já estava na despesa pagou (pelo acumulado, com as
+ * regras de `countedSettlements`). Quem está em `skip` (quem entrou) não conta. Para o "todos pagam
+ * o mesmo" não refazer uma parcela já paga: a sobra de quem pagou o valor de antes ficaria com quem
+ * recebeu, sem ninguém ver.
+ */
+export function paidByAll(trip: Trip, e: Expense, skip: string[]): number {
+  const n = installmentsOf(e);
+  if (n < 2) return 0;
+  const out = new Set(skip.map((id) => accountOf(trip, id)));
+  const rows = tripSummary(trip).plan.direct.filter((r) => r.expenseId === e.id && !out.has(r.from));
+  return rows.length ? Math.min(...rows.map((r) => installmentInfo(r.cents, r.paid, n, r.parts).paidCount)) : 0;
 }
 
 /** As parcelas cortadas do fim para trás até somarem `keep`. */
@@ -500,8 +514,8 @@ export type StartMode = 'spread' | 'rest';
  * - 'rest': o que falta é dividido entre todos, ela junto (cada um paga um pouco menos dali em
  *   diante, e ela fica sem a parte das que passaram).
  * - 'spread': ela fica com a parte da despesa inteira, igual à dos outros, paga em parcelas
- *   maiores; quem já estava paga menos nas que faltam. As parcelas já pagas por todos
- *   (`paidThrough`) não mudam: a diferença vai nas que vêm depois delas.
+ *   maiores; quem já estava paga menos nas que faltam. As parcelas já pagas (ver `closedOf`) não
+ *   mudam: a diferença vai nas que vêm depois delas.
  * `from` na 1ª (ou antes de a despesa começar) volta às parcelas iguais. null se não dá.
  */
 export function personFromSchedule(trip: Trip, e: Expense, id: string, from: number, mode: StartMode = 'rest'): Record<string, number[]> | null {
@@ -523,8 +537,16 @@ export function personFromSchedule(trip: Trip, e: Expense, id: string, from: num
   const delayed = begin > 1 ? startSchedule(shares, n, begin) : null;
   if (delayed) base.schedule = delayed;
   else delete base.schedule;
-  if (mode === 'spread') return spreadKeeping(base, e, e, trip.people, k, paidThroughOf(e), drift)?.schedule ?? null;
+  if (mode === 'spread') return spreadKeeping(base, e, e, trip.people, k, closedOf(trip, e, [id]), drift)?.schedule ?? null;
   return joinSchedule(base, e, trip.people, k, 'rest', drift);
+}
+
+/**
+ * Até qual parcela a despesa não muda no "todos pagam o mesmo": as marcadas "Já pagas por todos" e
+ * as que todo mundo que já estava pagou (`skip`: quem entrou).
+ */
+export function closedOf(trip: Trip, e: Expense, skip: string[]): number {
+  return Math.max(paidThroughOf(e), paidByAll(trip, e, skip));
 }
 
 /**
