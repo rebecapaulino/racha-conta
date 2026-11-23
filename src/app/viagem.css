@@ -545,10 +545,39 @@ h3.field-label { margin: 0; }
 .parts-tag { font-weight: 700; color: var(--info); }
 .settle-label { margin: -4px 0 0; text-align: center; color: var(--muted); font-weight: 600; }
 
-/* Aviso do grupo (valores atualizados): texto e uma tabelinha de parcelas. */
+/* Aviso do grupo (valores atualizados): destaque, cartões por grupo de pessoas e tabela recolhida. */
 .notice-sheet .sheet-body { gap: 12px; --notice-pad: 20px; }
 @media (min-width: 700px) { .notice-sheet .sheet-body { --notice-pad: 24px; } }
-/* "Entendi" fica preso no pé da janela: o texto e a tabela rolam por cima, o botão nunca some. */
+.notice-badge { align-self: flex-start; font-size: .74rem; font-weight: 700; letter-spacing: .02em; color: var(--ok); background: var(--ok-soft); padding: 3px 10px; border-radius: 999px; }
+.notice-sheet h2 { margin: 0; }
+.notice-sheet .notice-lead { margin: 0; color: var(--ink); line-height: 1.4; }
+.notice-text { margin: 0; line-height: 1.45; }
+.notice-hero { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 16px; color: var(--on-primary); background: linear-gradient(135deg, var(--hero-1), var(--hero-2)); }
+.notice-hero b { font-size: 2rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.notice-hero span { font-size: .85rem; opacity: .9; }
+.notice-cards { display: flex; flex-direction: column; gap: 10px; }
+.notice-card { --tone: var(--muted); --tone-bg: var(--fill); display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--tone-bg); border-left: 4px solid var(--tone); }
+.notice-card.tone-down { --tone: var(--ok); --tone-bg: var(--ok-soft); }
+.notice-card.tone-up { --tone: var(--primary); --tone-bg: var(--primary-soft); }
+.notice-card.tone-info { --tone: var(--info, var(--muted)); --tone-bg: var(--fill); }
+.notice-card h3 { margin: 0; font-size: .98rem; font-weight: 800; color: var(--ink); }
+.notice-sheet .notice-names { margin: 0; font-size: .88rem; font-weight: 600; color: var(--ink); }
+.notice-chips { list-style: none; margin: 2px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.notice-chips li { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 10px; background: var(--surface); }
+.notice-chips small { color: var(--muted); font-size: .72rem; font-weight: 600; }
+.notice-chips b { font-size: .92rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.notice-sheet .notice-note { margin: 0; font-size: .8rem; line-height: 1.35; color: var(--muted); }
+.notice-more { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.notice-more summary { cursor: pointer; padding: 10px 12px; font-weight: 700; font-size: .9rem; color: var(--ink); }
+.notice-table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+.notice-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.notice-table th, .notice-table td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+.notice-table td { white-space: nowrap; }
+.notice-table thead th { color: var(--muted); font-weight: 600; font-size: .75rem; line-height: 1.25; vertical-align: bottom; }
+.notice-table tbody th { text-align: left; font-weight: 600; }
+.notice-table tbody tr:last-child th, .notice-table tbody tr:last-child td { border-bottom: 0; font-weight: 800; background: var(--fill); }
+.notice-sheet .notice-foot { margin: 0; font-size: .82rem; color: var(--muted); }
+/* "Entendi" fica preso no pé da janela: o conteúdo rola por cima, o botão nunca some. */
 .notice-sheet .sheet-actions {
   grid-template-columns: 1fr; position: sticky; bottom: 0; z-index: 1;
   margin: 4px calc(-1 * var(--notice-pad)) calc(-1 * var(--notice-pad));

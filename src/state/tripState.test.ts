@@ -834,3 +834,20 @@ describe('aviso do grupo (valores atualizados)', () => {
     expect(noticeSeen('t1', 'outro-aviso')).toBe(false);
   });
 });
+
+describe('aviso do grupo com destaque e cartões', () => {
+  const rich = {
+    id: 'a-v2', title: 'Atualizado', lead: 'Agora todos pagam o mesmo.', text: [], at: '2026-11-23',
+    highlight: { value: 'R$ 790,18', label: 'por pessoa' },
+    cards: [{ title: 'Quem pagou 173,84', tone: 'down' as const, names: ['Rebeca'], chips: [{ label: '3ª', value: 'R$ 147,50' }], note: 'Descontado daqui.' }],
+    table: { head: ['Parcela', 'Deise'], rows: [['1ª', '0,00']] },
+    footnote: 'O que foi pago continua pago.',
+  };
+  it('aceita o aviso completo e recusa campos tortos', () => {
+    const t = trip(base());
+    expect(isValidTrip({ ...t, notice: rich })).toBe(true);
+    expect(isValidTrip({ ...t, notice: { ...rich, cards: [{ ...rich.cards[0], tone: 'roxo' }] } })).toBe(false);
+    expect(isValidTrip({ ...t, notice: { ...rich, cards: [{ ...rich.cards[0], chips: [{ label: '3ª' }] }] } })).toBe(false);
+    expect(isValidTrip({ ...t, notice: { ...rich, highlight: { value: 1, label: 'x' } } })).toBe(false);
+  });
+});

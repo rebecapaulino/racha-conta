@@ -198,15 +198,32 @@ export interface Trip {
   notice?: TripNotice;
 }
 
+/** Um bloco do aviso, sobre um grupo de pessoas (quem pagou o valor antigo, a Deise, os cachorros...). */
+export interface NoticeCard {
+  title: string;
+  names?: string[];
+  /** Pequenas caixas "rótulo + valor" (ex.: "3ª" e "R$ 152,77"). */
+  chips?: { label: string; value: string }[];
+  note?: string;
+  /** Cor do bloco: 'down' paga menos, 'up' paga mais, 'info' só informa. */
+  tone?: 'down' | 'up' | 'info';
+}
+
 /** Um aviso do grupo, com texto pronto (os valores vão já formatados, como valiam na data). */
 export interface TripNotice {
   /** Muda a cada aviso novo; o aparelho guarda qual já viu. */
   id: string;
   title: string;
-  /** Um parágrafo por item. */
+  /** Frase de abertura, logo abaixo do título. */
+  lead?: string;
+  /** Número em destaque (ex.: "R$ 790,18" e "por pessoa"). */
+  highlight?: { value: string; label: string };
+  /** Parágrafos soltos, para avisos simples. */
   text: string[];
-  /** Tabela opcional: cabeçalho e linhas. */
+  cards?: NoticeCard[];
+  /** Tabela completa, mostrada recolhida. */
   table?: { head: string[]; rows: string[][] };
+  footnote?: string;
   /** Quando foi publicado, "AAAA-MM-DD". */
   at: string;
 }

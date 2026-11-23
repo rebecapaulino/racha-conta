@@ -606,11 +606,17 @@ function isValidExpense(e: unknown): e is Expense {
 
 function isValidNotice(n: unknown): boolean {
   if (!isObj(n)) return false;
-  const rows = (n.table as { head?: unknown; rows?: unknown } | undefined);
+  const opt = (v: unknown, ok: (x: unknown) => boolean) => v === undefined || ok(v);
+  const strs = (v: unknown) => Array.isArray(v) && v.every(isStr);
+  const table = (v: unknown) => isObj(v) && strs(v.head) && Array.isArray(v.rows) && v.rows.every(strs);
+  const card = (c: unknown) =>
+    isObj(c) && isStr(c.title) && opt(c.names, strs) && opt(c.note, isStr) && opt(c.tone, (t) => t === 'down' || t === 'up' || t === 'info') &&
+    opt(c.chips, (v) => Array.isArray(v) && v.every((x) => isObj(x) && isStr(x.label) && isStr(x.value)));
   return (
-    isStr(n.id) && isStr(n.title) && isStr(n.at) &&
-    Array.isArray(n.text) && n.text.every(isStr) &&
-    (rows === undefined || (isObj(rows) && Array.isArray(rows.head) && rows.head.every(isStr) && Array.isArray(rows.rows) && rows.rows.every((r) => Array.isArray(r) && r.every(isStr))))
+    isStr(n.id) && isStr(n.title) && isStr(n.at) && strs(n.text) &&
+    opt(n.lead, isStr) && opt(n.footnote, isStr) && opt(n.table, table) &&
+    opt(n.highlight, (h) => isObj(h) && isStr(h.value) && isStr(h.label)) &&
+    opt(n.cards, (v) => Array.isArray(v) && v.every(card))
   );
 }
 
