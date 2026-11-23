@@ -194,6 +194,21 @@ export interface Trip {
   joined?: string[];
   /** Contas que já responderam "Você paga a parte de alguém?" (ver payFor). Pergunta uma vez só. */
   payAsked?: string[];
+  /** Aviso para o grupo ("as parcelas foram atualizadas"): cada aparelho mostra uma vez. */
+  notice?: TripNotice;
+}
+
+/** Um aviso do grupo, com texto pronto (os valores vão já formatados, como valiam na data). */
+export interface TripNotice {
+  /** Muda a cada aviso novo; o aparelho guarda qual já viu. */
+  id: string;
+  title: string;
+  /** Um parágrafo por item. */
+  text: string[];
+  /** Tabela opcional: cabeçalho e linhas. */
+  table?: { head: string[]; rows: string[][] };
+  /** Quando foi publicado, "AAAA-MM-DD". */
+  at: string;
 }
 
 /** Uma linha do registro de alterações da viagem. */

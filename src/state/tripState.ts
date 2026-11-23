@@ -604,6 +604,16 @@ function isValidExpense(e: unknown): e is Expense {
   );
 }
 
+function isValidNotice(n: unknown): boolean {
+  if (!isObj(n)) return false;
+  const rows = (n.table as { head?: unknown; rows?: unknown } | undefined);
+  return (
+    isStr(n.id) && isStr(n.title) && isStr(n.at) &&
+    Array.isArray(n.text) && n.text.every(isStr) &&
+    (rows === undefined || (isObj(rows) && Array.isArray(rows.head) && rows.head.every(isStr) && Array.isArray(rows.rows) && rows.rows.every((r) => Array.isArray(r) && r.every(isStr))))
+  );
+}
+
 export function isValidTrip(t: unknown): t is Trip {
   if (!isObj(t)) return false;
   return (
@@ -621,6 +631,7 @@ export function isValidTrip(t: unknown): t is Trip {
     (t.photoId === undefined || (isStr(t.photoId) && PHOTO_ID.test(t.photoId))) &&
     (t.joined === undefined || (Array.isArray(t.joined) && t.joined.every(isStr))) &&
     (t.payAsked === undefined || (Array.isArray(t.payAsked) && t.payAsked.every(isStr))) &&
+    (t.notice === undefined || isValidNotice(t.notice)) &&
     (t.log === undefined || (Array.isArray(t.log) && t.log.every((e) => isObj(e) && typeof e.at === 'number' && isStr(e.text))))
   );
 }

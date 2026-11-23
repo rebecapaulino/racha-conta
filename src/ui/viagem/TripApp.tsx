@@ -20,6 +20,7 @@ import { PwaBars } from '../PwaBars';
 import { useMediaQuery } from '../useMediaQuery';
 import { activeVisual } from '../visual';
 import { ExpenseSheet, type ExpenseMode } from './ExpenseSheet';
+import { NoticeSheet } from './NoticeSheet';
 import { PayForSheet } from './PayForSheet';
 import { ReceiptTargetSheet } from './ReceiptTargetSheet';
 import { PersonSheet } from './PersonSheet';
@@ -36,6 +37,7 @@ import { supabaseTripApi, useTripSync } from './useTripSync';
 import { newId } from '../../state/billState';
 import { formatBRL } from '../../core/money';
 import { deletePhoto, putPhoto } from '../../state/photos';
+import { markNoticeSeen, noticeSeen } from '../../state/noticeSeen';
 import { rememberPhotoUrl } from '../usePhotoUrl';
 
 type Tab = 'pessoas' | 'despesas' | 'saldos';
@@ -85,6 +87,19 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
     if (names.length) toast(`Pronto: a parte de ${names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0]} entra na sua conta`);
   }
   const [sharing, setSharing] = useState(false);
+
+  // Aviso do grupo (valores atualizados): depois de saber quem é você e de responder as perguntas
+  // de entrada, e uma vez por aparelho. "Entendi" (ou tocar fora) guarda que já viu.
+  const [closedNotice, setClosedNotice] = useState<string | null>(null);
+  const notice =
+    trip?.notice && meId && !payPeople && self?.kind !== 'ask' && closedNotice !== `${trip.id}:${trip.notice.id}` && !noticeSeen(trip.id, trip.notice.id)
+      ? trip.notice
+      : null;
+  function closeNotice() {
+    if (!trip?.notice) return;
+    markNoticeSeen(trip.id, trip.notice.id);
+    setClosedNotice(`${trip.id}:${trip.notice.id}`);
+  }
 
   /**
    * Foto do "Ler nota fiscal": guarda no aparelho e pergunta onde ela vai (despesa nova, ou uma
@@ -404,6 +419,7 @@ export default function TripApp({ areaSwitch }: { areaSwitch: ReactNode }) {
       <PayForSheet key={`${trip.id}-${meId}`} open={!!payPeople} people={payPeople ?? []} meId={meId ?? ''} onAnswer={answerPay} />
       <PersonSheet trip={trip} meId={meId} person={editing} shared={!!entry} dispatch={dispatch} toast={toast} onClose={() => setEditing(null)} />
       <SettleSheet people={trip.people} transfer={settling} onPay={settle} onClose={() => setSettling(null)} />
+      <NoticeSheet notice={notice} onClose={closeNotice} />
       <ShareSheet
         open={sharing}
         noun="viagem"

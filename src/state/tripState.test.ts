@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { expensePhotos, installmentInfo, joinSchedule, personStart, photoFields, splitLike, spreadKeeping, startModeOf, startOf, startSchedule, tripSettleText, tripSummary, type ExpenseInput } from '../core/trip';
+import { markNoticeSeen, noticeSeen } from './noticeSeen';
 import { blankTrips, isValidTrip, loadTrips, openTrip, reduceAs, saveTrips, todayISO, TRIPS_KEY, tripsReducer, type TripAction, type TripsState } from './tripState';
 
 // localStorage de mentira (os testes rodam fora do navegador).
@@ -795,5 +796,41 @@ describe('Airbnb em "Valores exatos" (depois de "Assumir despesas"): a Deise a p
     const row = (from: string) => tripSummary(trip(s)).plan.direct.find((r) => r.from === from && r.expenseId === 'air')!;
     expect(installmentInfo(row('deise').cents, row('deise').paid, 5, row('deise').parts)).toMatchObject({ paidCount: 1, next: 5000 });
     expect(installmentInfo(row('bia').cents, row('bia').paid, 5, row('bia').parts)).toMatchObject({ paidCount: 1, next: 5000 });
+  });
+});
+
+describe('aviso do grupo (valores atualizados)', () => {
+  const notice = {
+    id: 'parcelas-2026-11-23',
+    title: 'Parcelas do Airbnb atualizadas',
+    text: ['Agora todos pagam o mesmo no fim.'],
+    table: { head: ['', '1ª', '2ª'], rows: [['Quem estava', 'R$ 173,84', 'R$ 158,04']] },
+    at: '2026-11-23',
+  };
+
+  it('a viagem aceita o aviso, e um aviso torto estraga só ele (viagem inválida)', () => {
+    const t = trip(base());
+    expect(isValidTrip({ ...t, notice })).toBe(true);
+    expect(isValidTrip({ ...t, notice: { ...notice, table: undefined } })).toBe(true);
+    expect(isValidTrip({ ...t, notice: { ...notice, text: 'solto' } })).toBe(false);
+    expect(isValidTrip({ ...t, notice: { ...notice, table: { head: ['a'], rows: [[1]] } } })).toBe(false);
+    expect(isValidTrip({ ...t, notice: { title: 'sem id', text: [], at: '2026-11-23' } })).toBe(false);
+  });
+
+  it('continua na viagem depois de lançar, editar e guardar de novo', () => {
+    let s = base();
+    s = { ...s, trips: s.trips.map((t) => ({ ...t, notice })) };
+    s = run(s, { type: 'addExpense', id: 'e1', input: expense() }, { type: 'editExpense', id: 'e1', input: expense({ cents: 31000 }) });
+    expect(trip(s).notice).toEqual(notice);
+    saveTrips(s);
+    expect(openTrip(loadTrips())!.notice).toEqual(notice);
+  });
+
+  it('cada aparelho guarda qual aviso já viu; um aviso novo aparece de novo', () => {
+    expect(noticeSeen('t1', notice.id)).toBe(false);
+    markNoticeSeen('t1', notice.id);
+    expect(noticeSeen('t1', notice.id)).toBe(true);
+    expect(noticeSeen('t2', notice.id)).toBe(false);
+    expect(noticeSeen('t1', 'outro-aviso')).toBe(false);
   });
 });

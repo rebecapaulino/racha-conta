@@ -639,3 +639,11 @@ só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Ma
   mostrava as partes já reajustadas, e salvar qualquer coisa desfazia as parcelas combinadas); a
   comparação dos valores exatos não depende mais da ordem.
 - **Parcela com pagamento não muda, mesmo sem marcar (21/11/2026):** além das marcadas "Já pagas por todos", o "todos pagam o mesmo" também não refaz as parcelas que **alguém** que já estava na despesa pagou (`paidByAny`, `closedOf`; quem entrou não conta). Não precisa ser todo mundo: quem pagou fica como pagou, quem ainda não pagou segue devendo o valor que está, e a diferença é descontada só das parcelas seguintes. Ex.: a Deise entra na 2ª do Airbnb e a Rebeca já pagou a 2ª, mas a Angela ainda deve R$ 15,80 dela: a 1ª e a 2ª ficam como estão para todos, e a 3ª em diante cai para R$ 152,77 (a Deise paga R$ 210,72). Antes, sem a marcação, a 2ª era refeita (R$ 158,04 virava R$ 154,09) e a sobra de quem pagou o valor de antes ficava com quem recebeu, sem ninguém ver.
+
+## Aviso do grupo na viagem — 23/11/2026
+
+- **Para quê:** avisar todo mundo do grupo quando a conta é ajustada (ex.: parcelas do Airbnb refeitas), sem depender de alguém contar no WhatsApp.
+- **Como:** a viagem pode ter um `notice` (`id`, título, parágrafos, tabela opcional e data). Quando o aparelho abre a viagem e ainda não viu aquele `id`, sobe uma janela com o texto e a tabela e o botão **"Entendi"** (tocar fora também fecha). Cada aparelho guarda só qual aviso já viu (`racha-aviso-visto:<viagem>` no armazenamento local, sem erro se o navegador não deixar). Aviso novo = `id` novo = aparece de novo.
+- **Quando aparece:** só depois de saber quem você é na viagem e de responder as perguntas de entrada ("Quem é você?", "Você paga a parte de alguém?"), para não empilhar janelas.
+- **Vai para o grupo junto com a viagem** (sem SQL novo): versões antigas do app ignoram o campo. A viagem com aviso malformado é recusada pela validação.
+- Testes em `tripState.test.ts` (validação, continua depois de lançar/editar/guardar, "já vi" por aparelho). Código: `NoticeSheet.tsx`, `state/noticeSeen.ts`.
