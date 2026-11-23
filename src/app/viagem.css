@@ -546,15 +546,24 @@ h3.field-label { margin: 0; }
 .settle-label { margin: -4px 0 0; text-align: center; color: var(--muted); font-weight: 600; }
 
 /* Aviso do grupo (valores atualizados): texto e uma tabelinha de parcelas. */
-.notice-sheet .sheet-body { gap: 12px; }
+.notice-sheet .sheet-body { gap: 12px; --notice-pad: 20px; }
+@media (min-width: 700px) { .notice-sheet .sheet-body { --notice-pad: 24px; } }
+/* "Entendi" fica preso no pé da janela: o texto e a tabela rolam por cima, o botão nunca some. */
+.notice-sheet .sheet-actions {
+  grid-template-columns: 1fr; position: sticky; bottom: 0; z-index: 1;
+  margin: 4px calc(-1 * var(--notice-pad)) calc(-1 * var(--notice-pad));
+  padding: 12px var(--notice-pad) calc(var(--notice-pad) - 4px);
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.notice-sheet .sheet-actions .btn { width: 100%; justify-content: center; }
 .notice-text { margin: 0; line-height: 1.45; }
 .notice-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.notice-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-.notice-table th, .notice-table td { padding: 8px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
-.notice-table thead th { color: var(--muted); font-weight: 600; font-size: .78rem; }
-.notice-table tbody th { text-align: left; font-weight: 700; }
-.notice-table tbody tr:last-child th, .notice-table tbody tr:last-child td { border-bottom: 0; }
-.notice-table td:last-child, .notice-table thead th:last-child { font-weight: 700; }
+.notice-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.notice-table th, .notice-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+.notice-table td { white-space: nowrap; }
+.notice-table thead th { color: var(--muted); font-weight: 600; font-size: .78rem; line-height: 1.25; vertical-align: bottom; }
+.notice-table tbody th { text-align: left; font-weight: 600; }
+.notice-table tbody tr:last-child th, .notice-table tbody tr:last-child td { border-bottom: 0; border-top: 1px solid var(--line); font-weight: 800; background: var(--fill); }
 
 /* Valor sempre embaixo do nome, no mesmo lugar em todas as linhas; seta com respiro do ícone */
 .pay-line { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; min-height: 0; }

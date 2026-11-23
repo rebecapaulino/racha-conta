@@ -647,3 +647,4 @@ só as contas usam `countedSettlements`. A diferença fica com quem recebe (o Ma
 - **Quando aparece:** só depois de saber quem você é na viagem e de responder as perguntas de entrada ("Quem é você?", "Você paga a parte de alguém?"), para não empilhar janelas.
 - **Vai para o grupo junto com a viagem** (sem SQL novo): versões antigas do app ignoram o campo. A viagem com aviso malformado é recusada pela validação.
 - Testes em `tripState.test.ts` (validação, continua depois de lançar/editar/guardar, "já vi" por aparelho). Código: `NoticeSheet.tsx`, `state/noticeSeen.ts`.
+- **Ajuste visual (23/11/2026, conferido no Chrome em 390 px, 1100 px, claro e escuro):** a tabela do aviso tem as parcelas nas linhas e os grupos nas colunas (cabe em celular), com a linha de Total em destaque; o botão "Entendi" fica preso no pé da janela, e o texto e a tabela rolam por cima.
